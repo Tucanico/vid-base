@@ -9,39 +9,39 @@ import { updateVideoTags } from './metadata/updateTags'
 import { closeExiftool } from './metadata/utils'
 import { loadLibrary, saveLibrary } from './metadata/library'
 
-function createWindow(): void {
-  const mainWindow = new BrowserWindow({
-    width: 900,
-    height: 670,
-    show: false,
-    autoHideMenuBar: true,
-    ...(process.platform === 'linux' ? { icon } : {}),
-    webPreferences: {
-      preload: join(__dirname, '../preload/index.js'),
-      sandbox: false,
-      webSecurity: false // Utile per evitare problemi CORS con file locali
-    }
-  })
-
-  // ... resto di createWindow ...
-  mainWindow.on('ready-to-show', () => {
-    mainWindow.show()
-  })
-
-  mainWindow.webContents.setWindowOpenHandler((details) => {
-    shell.openExternal(details.url)
-    return { action: 'deny' }
-  })
-
-  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-    mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
-  } else {
-    mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
-  }
-}
-
 app.whenReady().then(() => {
   electronApp.setAppUserModelId('com.electron')
+
+  function createWindow(): void {
+    const mainWindow = new BrowserWindow({
+      width: 900,
+      height: 670,
+      show: false,
+      autoHideMenuBar: true,
+      ...(process.platform === 'linux' ? { icon } : {}),
+      webPreferences: {
+        preload: join(__dirname, '../preload/index.js'),
+        sandbox: false,
+        webSecurity: false // Utile per evitare problemi CORS con file locali
+      }
+    })
+
+    // ... resto di createWindow ...
+    mainWindow.on('ready-to-show', () => {
+      mainWindow.show()
+    })
+
+    mainWindow.webContents.setWindowOpenHandler((details) => {
+      shell.openExternal(details.url)
+      return { action: 'deny' }
+    })
+
+    if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+      mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
+    } else {
+      mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
+    }
+  }
 
   // Questo permette di usare <img src="media://Percorso/File.jpg">
   protocol.handle('media', (request) => {
