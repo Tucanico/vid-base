@@ -2,7 +2,10 @@ import { app, shell, BrowserWindow, ipcMain, dialog } from 'electron' // Aggiunt
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
-import { scanDirectory, closeExiftool } from './scanner' // Importiamo lo scanner
+import { scanDirectory } from './metadata/scanner'
+import { updateVideoTags } from './metadata/updateTags'
+import { closeExiftool } from './metadata/utils'
+import { loadLibrary, saveLibrary } from './metadata/library'
 
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
@@ -40,9 +43,7 @@ app.whenReady().then(() => {
     optimizer.watchWindowShortcuts(window)
   })
 
-  // --- NUOVI HANDLER IPC ---
-
-  // 1. Apre il dialogo per scegliere la cartella
+  // Apre il dialogo per scegliere la cartella
   ipcMain.handle('dialog:openDirectory', async () => {
     const { canceled, filePaths } = await dialog.showOpenDialog({
       properties: ['openDirectory']
@@ -51,17 +52,30 @@ app.whenReady().then(() => {
     return filePaths[0]
   })
 
-  // 2. Esegue la scansione (chiama la funzione in scanner.ts)
+  // Carica la libreria
+  ipcMain.handle('db:load', async (_, folderPath) => {
+    return await loadLibrary(folderPath)
+  })
+
+  // Salva la libreria
+  ipcMain.handle('db:save', async (_, folderPath, videos) => {
+    return await saveLibrary(folderPath, videos)
+  })
+
+  // Esegue la scansione
   ipcMain.handle('videos:scan', async (_, folderPath) => {
     return await scanDirectory(folderPath)
   })
 
-  // 3. Apre il video con il player di sistema
+  // Apre il video con il player di sistema
   ipcMain.on('video:open', (_, filePath) => {
     shell.openPath(filePath)
   })
 
-  // -------------------------
+  // Ascolta richiesta aggiornamento tags
+  ipcMain.handle('videos:updateTags', async (_, filePath, tags) => {
+    return await updateVideoTags(filePath, tags)
+  })
 
   createWindow()
 

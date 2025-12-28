@@ -1,11 +1,17 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
+import { ParsedTag } from '../shared/types/metadata'
+import { VideoFile } from '../shared/types/video'
 
-// Definiamo le API personalizzate che App.tsx si aspetta
 const api = {
   selectFolder: () => ipcRenderer.invoke('dialog:openDirectory'),
   scanVideos: (path: string) => ipcRenderer.invoke('videos:scan', path),
-  openVideo: (path: string) => ipcRenderer.send('video:open', path)
+  openVideo: (path: string) => ipcRenderer.send('video:open', path),
+  updateTags: (filePath: string, tags: ParsedTag[]) =>
+    ipcRenderer.invoke('videos:updateTags', filePath, tags),
+  loadLibrary: (folderPath: string) => ipcRenderer.invoke('db:load', folderPath),
+  saveLibrary: (folderPath: string, videos: VideoFile[]) =>
+    ipcRenderer.invoke('db:save', folderPath, videos)
 }
 
 if (process.contextIsolated) {

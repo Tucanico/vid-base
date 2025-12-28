@@ -1,11 +1,12 @@
 import * as fs from 'fs/promises'
 import * as path from 'path'
-import { exiftool } from 'exiftool-vendored'
 import { v4 as uuidv4 } from 'uuid'
-import { VideoFile, ParsedTag } from '../shared/types'
+import { ExiftoolTags, ParsedTag } from '../../shared/types/metadata'
+import { VideoFile } from '../../shared/types/video'
+import { exiftool } from 'exiftool-vendored'
 
 // La funzione di parsing rimane uguale, funziona perfettamente con i tuoi dati
-function parseTags(rawString: string): ParsedTag[] {
+export function parseTags(rawString: string): ParsedTag[] {
   if (!rawString) return []
 
   return rawString
@@ -14,6 +15,7 @@ function parseTags(rawString: string): ParsedTag[] {
       const clean = segment.trim()
       if (!clean) return null
 
+      // if it's a key-value
       if (clean.includes(':')) {
         const [key, ...rest] = clean.split(':')
         return {
@@ -33,40 +35,57 @@ function parseTags(rawString: string): ParsedTag[] {
     .filter(Boolean) as ParsedTag[]
 }
 
-interface ExiftoolTags {
-  Category?: string | string[]
-  XPKeywords?: string | string[]
-  Keywords?: string | string[]
-  Subject?: string | string[]
-  Description?: string | string[]
-  // Add other properties if they are accessed
+export async function getFilesRecursively(dir: string): Promise<string[]> {
+  let results: string[] = []
+
+  // 'withFileTypes: true' è fondamentale per capire se è file o cartella
+  const list = await fs.readdir(dir, { withFileTypes: true })
+
+  const videoExtensions = ['.mp4', '.mkv', '.mov', '.avi', '.wmv', '.m4v']
+
+  for (const entry of list) {
+    const fullPath = path.join(dir, entry.name)
+
+    if (entry.isDirectory()) {
+      // RICORSIONE: Se trova una cartella, chiama se stessa!
+      const subFolderFiles = await getFilesRecursively(fullPath)
+      results = results.concat(subFolderFiles)
+    } else if (entry.isFile()) {
+      const ext = path.extname(entry.name).toLowerCase()
+      if (videoExtensions.includes(ext)) {
+        results.push(fullPath)
+      }
+    }
+  }
+  return results
 }
 
 export async function scanDirectory(dirPath: string): Promise<VideoFile[]> {
-  const files = await fs.readdir(dirPath)
-  const videoExtensions = ['.mp4', '.mkv', '.mov', '.avi', '.wmv', '.m4v']
+  // --- MODIFICA 1: Usiamo la funzione ricorsiva invece di readdir semplice ---
+  const allFilePaths = await getFilesRecursively(dirPath)
 
+  const videoExtensions = ['.mp4', '.mkv', '.mov', '.avi', '.wmv', '.m4v']
   const results: VideoFile[] = []
 
-  for (const file of files) {
-    const fullPath = path.join(dirPath, file)
+  // --- MODIFICA 2: Cicliamo sui path completi ---
+  for (const fullPath of allFilePaths) {
+    // Siccome fullPath è tutto il percorso, estraiamo il nome del file per la UI
+    const file = path.basename(fullPath)
     const ext = path.extname(file).toLowerCase()
 
     if (videoExtensions.includes(ext)) {
       try {
         const meta: ExiftoolTags = await exiftool.read(fullPath)
 
-        // --- MODIFICA QUI ---
-        // Aggiungiamo 'meta.Category' in cima alla lista delle priorità
+        // --- QUESTA PARTE È RIMASTA IDENTICA ---
         const potentialTags = [
-          meta.Category, // <--- ECCOLO! I tuoi tag sono qui
+          meta.Category,
           meta.XPKeywords,
           meta.Keywords,
           meta.Subject,
           meta.Description
         ]
 
-        // Trova il primo campo che non sia vuoto
         const foundTags = potentialTags.find(
           (val) =>
             (Array.isArray(val) && val.length > 0) || (typeof val === 'string' && val.trim() !== '')
@@ -74,7 +93,6 @@ export async function scanDirectory(dirPath: string): Promise<VideoFile[]> {
 
         let rawString = ''
 
-        // Se è un array (come nel tuo caso: ['categoria:Glory Hole', 'facial']), lo uniamo
         if (Array.isArray(foundTags)) {
           rawString = foundTags.map(String).join('; ')
         } else if (typeof foundTags === 'string') {
@@ -94,8 +112,4 @@ export async function scanDirectory(dirPath: string): Promise<VideoFile[]> {
     }
   }
   return results
-}
-
-export function closeExiftool(): void {
-  exiftool.end()
 }
