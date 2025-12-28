@@ -19,6 +19,26 @@ declare global {
 }
 
 // --- COMPONENTE: MODALE DI EDITING ---
+// --- COMPONENTE: MODALE DI EDITING ---
+
+function InfoRow({ label, value }: { label: string; value?: string }) {
+  if (!value) return null
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        padding: '6px 0',
+        borderBottom: '1px solid #f3f4f6'
+      }}
+    >
+      <span style={{ fontWeight: 500, color: '#374151' }}>{label}</span>
+      <span style={{ color: '#1f2937' }}>{value}</span>
+    </div>
+  )
+}
+
 function EditModal({
   video,
   onClose,
@@ -65,6 +85,11 @@ function EditModal({
     onClose()
   }
 
+  const categoryTag = tags.find((t) => t.type === 'kv' && t.key === 'category')
+  const modelTag = tags.find((t) => t.type === 'kv' && t.key === 'model')
+  const channelTag = tags.find((t) => t.type === 'kv' && t.key === 'channel')
+  const productionTag = tags.find((t) => t.type === 'kv' && t.key === 'production')
+
   return (
     <div
       style={{
@@ -85,145 +110,214 @@ function EditModal({
           backgroundColor: 'white',
           padding: '25px',
           borderRadius: '12px',
-          width: '500px',
-          maxWidth: '90%',
+          width: '600px',
+          maxWidth: '95%',
           boxShadow: '0 4px 20px rgba(0,0,0,0.2)'
         }}
       >
-        <h3 style={{ marginTop: 0, color: '#1f2937' }}>Modifica Tags</h3>
-        <p style={{ fontSize: '0.9rem', color: '#6b7280', marginBottom: '15px' }}>
-          File: {video.fileName}
-        </p>
-
-        {/* Lista Tags Attuali */}
+        {/* Thumbnail */}
         <div
           style={{
-            display: 'flex',
-            flexWrap: 'wrap',
-            gap: '8px',
-            marginBottom: '20px',
-            minHeight: '40px',
-            padding: '10px',
-            background: '#f9fafb',
-            borderRadius: '6px',
-            border: '1px solid #e5e7eb'
+            width: '100%',
+            height: '250px',
+            backgroundColor: '#f3f4f6',
+            borderRadius: '8px',
+            overflow: 'hidden',
+            marginBottom: '15px'
           }}
         >
-          {tags.map((t, i) => (
-            <span
-              key={i}
+          {video.thumbnailPath ? (
+            <img
+              src={`media:///${video.thumbnailPath.replace(/\\/g, '/')}`}
+              alt="thumbnail"
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            />
+          ) : (
+            <div
               style={{
-                background: t.type === 'kv' ? '#e0f2fe' : '#e5e7eb',
-                color: t.type === 'kv' ? '#0369a1' : '#374151',
-                padding: '4px 10px',
-                borderRadius: '20px',
-                fontSize: '0.85rem',
+                width: '100%',
+                height: '100%',
                 display: 'flex',
-                alignItems: 'center',
-                border: '1px solid rgba(0,0,0,0.05)'
+                justifyContent: 'center',
+                alignItems: 'center'
               }}
             >
-              {t.type === 'kv' ? (
-                <span>
-                  <strong>{t.key}:</strong> {t.value}
-                </span>
-              ) : (
-                t.value
-              )}
-              <button
-                onClick={() => removeTag(i)}
-                style={{
-                  marginLeft: '8px',
-                  border: 'none',
-                  background: 'transparent',
-                  cursor: 'pointer',
-                  fontWeight: 'bold',
-                  color: '#ef4444',
-                  padding: '0 4px'
-                }}
-              >
-                ×
-              </button>
-            </span>
-          ))}
-          {tags.length === 0 && (
-            <span style={{ color: '#9ca3af', fontStyle: 'italic' }}>Nessun tag</span>
+              <span style={{ fontSize: '3rem' }}>🎬</span>
+            </div>
           )}
         </div>
 
-        {/* Input Nuovo Tag */}
-        <form
-          onSubmit={handleAddTag}
-          style={{ display: 'flex', gap: '10px', marginBottom: '25px' }}
+        {/* Title */}
+        <h2
+          style={{
+            marginTop: 0,
+            color: '#1f2937',
+            fontSize: '1.4rem',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            marginBottom: '20px',
+            textAlign: 'center'
+          }}
+          title={video.fileName}
         >
-          <input
-            type="text"
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            placeholder="Es: vacanze o categoria:natura"
+          {video.fileName}
+        </h2>
+
+        {/* Info Section */}
+        <div style={{ marginBottom: '25px' }}>
+          <InfoRow label="Category" value={categoryTag?.value} />
+          <InfoRow label="Model" value={modelTag?.value} />
+          <InfoRow label="Channel" value={channelTag?.value} />
+          <InfoRow label="Production" value={productionTag?.value} />
+        </div>
+
+        {/* Tag Editor */}
+        <div>
+          <h4 style={{ marginTop: 0, marginBottom: '10px', color: '#4b5563' }}>Tags</h4>
+          <div
             style={{
-              flex: 1,
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: '8px',
+              marginBottom: '20px',
+              minHeight: '40px',
               padding: '10px',
+              background: '#f9fafb',
               borderRadius: '6px',
-              border: '1px solid #d1d5db',
-              fontSize: '0.95rem'
-            }}
-          />
-          <button
-            type="submit"
-            style={{
-              padding: '10px 20px',
-              background: '#3b82f6',
-              color: 'white',
-              border: 'none',
-              borderRadius: '6px',
-              cursor: 'pointer',
-              fontWeight: 600
+              border: '1px solid #e5e7eb'
             }}
           >
-            Aggiungi
-          </button>
-        </form>
+            {tags.map((t, i) => (
+              <span
+                key={i}
+                style={{
+                  background: t.type === 'kv' ? '#e0f2fe' : '#e5e7eb',
+                  color: t.type === 'kv' ? '#0369a1' : '#374151',
+                  padding: '4px 10px',
+                  borderRadius: '20px',
+                  fontSize: '0.85rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  border: '1px solid rgba(0,0,0,0.05)',
+                  height: 'fit-content'
+                }}
+              >
+                {t.type === 'kv' ? (
+                  <span>
+                    <strong>{t.key}:</strong> {t.value}
+                  </span>
+                ) : (
+                  t.value
+                )}
+                <button
+                  onClick={() => removeTag(i)}
+                  style={{
+                    marginLeft: '8px',
+                    border: 'none',
+                    background: 'transparent',
+                    cursor: 'pointer',
+                    fontWeight: 'bold',
+                    color: '#ef4444',
+                    padding: '0 4px'
+                  }}
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+            {tags.length === 0 && (
+              <span style={{ color: '#9ca3af', fontStyle: 'italic' }}>Nessun tag</span>
+            )}
+          </div>
+          <form onSubmit={handleAddTag} style={{ display: 'flex', gap: '10px' }}>
+            <input
+              type="text"
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              placeholder="Es: vacanze o categoria:natura"
+              style={{
+                flex: 1,
+                padding: '10px',
+                borderRadius: '6px',
+                border: '1px solid #d1d5db',
+                fontSize: '0.95rem'
+              }}
+            />
+            <button
+              type="submit"
+              style={{
+                padding: '10px 20px',
+                background: '#3b82f6',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontWeight: 600
+              }}
+            >
+              Aggiungi
+            </button>
+          </form>
+        </div>
 
         {/* Bottoni Azione */}
         <div
           style={{
             display: 'flex',
-            justifyContent: 'flex-end',
+            justifyContent: 'space-between',
+            alignItems: 'center',
             gap: '10px',
             borderTop: '1px solid #f3f4f6',
-            paddingTop: '15px'
+            paddingTop: '15px',
+            marginTop: '25px'
           }}
         >
           <button
-            onClick={onClose}
-            disabled={isSaving}
+            onClick={() => window.api.openVideo(video.filePath)}
             style={{
               padding: '10px 20px',
-              background: 'transparent',
-              border: '1px solid #d1d5db',
-              borderRadius: '6px',
-              cursor: 'pointer',
-              color: '#4b5563'
-            }}
-          >
-            Annulla
-          </button>
-          <button
-            onClick={handleSaveClick}
-            disabled={isSaving}
-            style={{
-              padding: '10px 20px',
-              background: '#059669',
-              color: 'white',
-              border: 'none',
+              background: '#ecfdf5',
+              color: '#059669',
+              border: '1px solid #a7f3d0',
               borderRadius: '6px',
               cursor: 'pointer',
               fontWeight: 600
             }}
           >
-            {isSaving ? 'Salvataggio...' : 'Salva Modifiche'}
+            ▶ Play
           </button>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button
+              onClick={onClose}
+              disabled={isSaving}
+              style={{
+                padding: '10px 20px',
+                background: 'transparent',
+                border: '1px solid #d1d5db',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                color: '#4b5563'
+              }}
+            >
+              Annulla
+            </button>
+            <button
+              onClick={handleSaveClick}
+              disabled={isSaving}
+              style={{
+                padding: '10px 20px',
+                background: '#059669',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontWeight: 600
+              }}
+            >
+              {isSaving ? 'Salvataggio...' : 'Salva Modifiche'}
+            </button>
+          </div>
         </div>
       </div>
     </div>
