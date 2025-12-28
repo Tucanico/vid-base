@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 // Assicurati che questo percorso punti correttamente al tuo file types.ts
 import { VideoFile, ParsedTag } from '../../shared/types'
 
@@ -14,7 +14,7 @@ declare global {
 }
 
 // Componente per visualizzare i singoli tag colorati
-function TagBadge({ tag }: { tag: ParsedTag }) {
+function TagBadge({ tag }: { tag: ParsedTag }): React.ReactElement {
   // Stile speciale per i tag Chiave-Valore (es: categoria:vintage)
   if (tag.type === 'kv') {
     return (
@@ -56,11 +56,11 @@ function TagBadge({ tag }: { tag: ParsedTag }) {
   )
 }
 
-function App(): JSX.Element {
+function App(): React.ReactElement {
   const [videos, setVideos] = useState<VideoFile[]>([])
   const [loading, setLoading] = useState(false)
 
-  const handleScan = async () => {
+  const handleScan = async (): Promise<void> => {
     // 1. Chiede al backend di aprire il selettore cartella
     const folder = await window.api.selectFolder()
 

@@ -1,4 +1,4 @@
-import * as fs from 'fs'
+import * as fs from 'fs/promises'
 import * as path from 'path'
 import { exiftool } from 'exiftool-vendored'
 import { v4 as uuidv4 } from 'uuid'
@@ -33,8 +33,17 @@ function parseTags(rawString: string): ParsedTag[] {
     .filter(Boolean) as ParsedTag[]
 }
 
+interface ExiftoolTags {
+  Category?: string | string[]
+  XPKeywords?: string | string[]
+  Keywords?: string | string[]
+  Subject?: string | string[]
+  Description?: string | string[]
+  // Add other properties if they are accessed
+}
+
 export async function scanDirectory(dirPath: string): Promise<VideoFile[]> {
-  const files = fs.readdirSync(dirPath)
+  const files = await fs.readdir(dirPath)
   const videoExtensions = ['.mp4', '.mkv', '.mov', '.avi', '.wmv', '.m4v']
 
   const results: VideoFile[] = []
@@ -45,9 +54,7 @@ export async function scanDirectory(dirPath: string): Promise<VideoFile[]> {
 
     if (videoExtensions.includes(ext)) {
       try {
-        // Exiftool restituisce un tipo "Tags" che contiene chiavi dinamiche
-        // Usiamo 'any' qui per accedere a campi non standard come Category senza errori di TS
-        const meta: any = await exiftool.read(fullPath)
+        const meta: ExiftoolTags = await exiftool.read(fullPath)
 
         // --- MODIFICA QUI ---
         // Aggiungiamo 'meta.Category' in cima alla lista delle priorità
