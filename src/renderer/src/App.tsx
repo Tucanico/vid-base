@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useMemo } from 'react'
 // Assicurati che questi percorsi corrispondano alla tua struttura
 import { ParsedTag } from 'src/shared/types/metadata'
 import { VideoFile } from 'src/shared/types/video'
@@ -19,8 +19,6 @@ declare global {
 }
 
 // --- COMPONENTE: MODALE DI EDITING ---
-// --- COMPONENTE: MODALE DI EDITING ---
-
 function InfoRow({ label, value }: { label: string; value?: string }) {
   if (!value) return null
 
@@ -29,7 +27,7 @@ function InfoRow({ label, value }: { label: string; value?: string }) {
       style={{
         display: 'flex',
         justifyContent: 'space-between',
-        padding: '6px 0',
+        padding: '8px 0',
         borderBottom: '1px solid #f3f4f6'
       }}
     >
@@ -192,20 +190,20 @@ function EditModal({
               <span
                 key={i}
                 style={{
-                  background: t.type === 'kv' ? '#e0f2fe' : '#e5e7eb',
-                  color: t.type === 'kv' ? '#0369a1' : '#374151',
-                  padding: '4px 10px',
-                  borderRadius: '20px',
-                  fontSize: '0.85rem',
+                  background: t.type === 'kv' ? '#dbeafe' : '#e5e7eb',
+                  color: t.type === 'kv' ? '#1e40af' : '#374151',
+                  padding: '5px 12px',
+                  borderRadius: '16px',
+                  fontSize: '0.8rem',
+                  fontWeight: 500,
                   display: 'flex',
                   alignItems: 'center',
-                  border: '1px solid rgba(0,0,0,0.05)',
                   height: 'fit-content'
                 }}
               >
                 {t.type === 'kv' ? (
                   <span>
-                    <strong>{t.key}:</strong> {t.value}
+                    <strong style={{ opacity: 0.75 }}>{t.key}:</strong> {t.value}
                   </span>
                 ) : (
                   t.value
@@ -218,7 +216,7 @@ function EditModal({
                     background: 'transparent',
                     cursor: 'pointer',
                     fontWeight: 'bold',
-                    color: '#ef4444',
+                    color: '#9ca3af',
                     padding: '0 4px'
                   }}
                 >
@@ -248,7 +246,7 @@ function EditModal({
               type="submit"
               style={{
                 padding: '10px 20px',
-                background: '#3b82f6',
+                background: '#2563eb',
                 color: 'white',
                 border: 'none',
                 borderRadius: '6px',
@@ -277,9 +275,9 @@ function EditModal({
             onClick={() => window.api.openVideo(video.filePath)}
             style={{
               padding: '10px 20px',
-              background: '#ecfdf5',
-              color: '#059669',
-              border: '1px solid #a7f3d0',
+              background: 'transparent',
+              color: '#1f2937',
+              border: '1px solid #d1d5db',
               borderRadius: '6px',
               cursor: 'pointer',
               fontWeight: 600
@@ -307,7 +305,7 @@ function EditModal({
               disabled={isSaving}
               style={{
                 padding: '10px 20px',
-                background: '#059669',
+                background: isSaving ? '#9ca3af' : '#16a34a',
                 color: 'white',
                 border: 'none',
                 borderRadius: '6px',
@@ -343,22 +341,23 @@ function VideoCard({
       style={{
         width: '200px',
         height: '180px',
-        border: '1px solid #e5e7eb',
+        border: '1px solid #f0f0f0',
         backgroundColor: '#fff',
         borderRadius: '8px',
-        boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+        boxShadow: '0 4px 6px rgba(0, 0, 0, 0.04)',
         cursor: 'pointer',
-        transition: 'transform 0.1s, box-shadow 0.1s',
+        transition: 'all 0.2s ease-in-out',
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden'
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)'
-        e.currentTarget.style.transform = 'translateY(-1px)'
+        e.currentTarget.style.boxShadow =
+          '0 7px 14px rgba(0, 0, 0, 0.07), 0 3px 6px rgba(0, 0, 0, 0.07)'
+        e.currentTarget.style.transform = 'translateY(-2px)'
       }}
       onMouseLeave={(e) => {
-        e.currentTarget.style.boxShadow = '0 1px 2px rgba(0,0,0,0.05)'
+        e.currentTarget.style.boxShadow = '0 4px 6px rgba(0, 0, 0, 0.04)'
         e.currentTarget.style.transform = 'translateY(0)'
       }}
     >
@@ -404,7 +403,7 @@ function VideoCard({
       <div
         style={{
           flex: 1,
-          padding: '10px',
+          padding: '12px',
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'space-between',
@@ -414,12 +413,12 @@ function VideoCard({
         {/* Category */}
         <div>
           {categoryTag && (
-            <span style={{ color: '#6b7280', fontSize: '0.7rem', display: 'block' }}>
+            <span style={{ color: '#6b7280', fontSize: '0.75rem', display: 'block', fontWeight: 500 }}>
               {categoryTag.key}: {categoryTag.value}
             </span>
           )}
           {secondaryTag && (
-            <span style={{ color: '#6b7280', fontSize: '0.7rem', display: 'block' }}>
+            <span style={{ color: '#6b7280', fontSize: '0.75rem', display: 'block', fontWeight: 500 }}>
               {secondaryTag.key}: {secondaryTag.value}
             </span>
           )}
@@ -429,11 +428,12 @@ function VideoCard({
         <h3
           style={{
             margin: 0,
-            fontSize: '1rem',
+            fontSize: '0.9rem',
             color: '#1f2937',
             whiteSpace: 'nowrap',
             overflow: 'hidden',
-            textOverflow: 'ellipsis'
+            textOverflow: 'ellipsis',
+            lineHeight: 1.3
           }}
           title={video.fileName}
         >
@@ -444,14 +444,151 @@ function VideoCard({
   )
 }
 
+type FilterCategory = 'category' | 'model' | 'channel' | 'production' | 'simpleTag'
+
+// --- COMPONENTE: Sezione Filtri ---
+function FilterSection({
+  title,
+  options,
+  active,
+  onSelect
+}: {
+  title: string
+  options: string[]
+  active?: string
+  onSelect: (option: string | undefined) => void
+}) {
+  const [isOpen, setIsOpen] = useState(true)
+
+  return (
+    <div style={{ marginBottom: '10px' }}>
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        style={{
+          width: '100%',
+          textAlign: 'left',
+          background: 'none',
+          border: 'none',
+          fontSize: '1rem',
+          fontWeight: 600,
+          padding: '10px 0',
+          cursor: 'pointer',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center'
+        }}
+      >
+        <span>{title}</span>
+        <span>{isOpen ? '−' : '+'}</span>
+      </button>
+      {isOpen && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', paddingTop: '5px' }}>
+          {options.map((opt) => (
+            <button
+              key={opt}
+              onClick={() => onSelect(active === opt ? undefined : opt)}
+              style={{
+                textAlign: 'left',
+                background: active === opt ? '#e0f2fe' : 'transparent',
+                border: 'none',
+                padding: '6px 10px',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                color: active === opt ? '#0369a1' : '#374151',
+                fontWeight: active === opt ? 600 : 400
+              }}
+            >
+              {opt}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// --- COMPONENTE: Sidebar ---
+function Sidebar({
+  filterOptions,
+  activeFilters,
+  onFilterChange,
+  onClearFilters
+}: {
+  filterOptions: any
+  activeFilters: Partial<Record<FilterCategory, string>>
+  onFilterChange: (category: FilterCategory, value: string | undefined) => void
+  onClearFilters: () => void
+}) {
+  return (
+    <div
+      style={{
+        width: '240px',
+        flexShrink: 0,
+        borderRight: '1px solid #e5e7eb',
+        padding: '20px',
+        overflowY: 'auto',
+        background: '#fff'
+      }}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+        <h2 style={{ margin: 0, fontSize: '1.2rem' }}>Filters</h2>
+        <button
+          onClick={onClearFilters}
+          style={{
+            background: 'none',
+            border: 'none',
+            color: '#6b7280',
+            cursor: 'pointer',
+            fontSize: '0.8rem'
+          }}
+        >
+          Clear
+        </button>
+      </div>
+
+      <FilterSection
+        title="Category"
+        options={filterOptions.categories}
+        active={activeFilters.category}
+        onSelect={(val) => onFilterChange('category', val)}
+      />
+      <FilterSection
+        title="Model"
+        options={filterOptions.models}
+        active={activeFilters.model}
+        onSelect={(val) => onFilterChange('model', val)}
+      />
+      <FilterSection
+        title="Channel"
+        options={filterOptions.channels}
+        active={activeFilters.channel}
+        onSelect={(val) => onFilterChange('channel', val)}
+      />
+      <FilterSection
+        title="Production"
+        options={filterOptions.productions}
+        active={activeFilters.production}
+        onSelect={(val) => onFilterChange('production', val)}
+      />
+      <FilterSection
+        title="Tags"
+        options={filterOptions.simpleTags}
+        active={activeFilters.simpleTag}
+        onSelect={(val) => onFilterChange('simpleTag', val)}
+      />
+    </div>
+  )
+}
+
 // --- COMPONENTE PRINCIPALE APP ---
 function App(): React.ReactElement {
   const [videos, setVideos] = useState<VideoFile[]>([])
   const [loading, setLoading] = useState(false)
   const [editingVideo, setEditingVideo] = useState<VideoFile | null>(null)
-
-  // Stato fondamentale per sapere dove salvare il JSON
   const [currentFolder, setCurrentFolder] = useState<string | null>(null)
+  const [activeFilters, setActiveFilters] = useState<
+    Partial<Record<FilterCategory, string>>
+  >({})
 
   // LOGICA DI CARICAMENTO/SCANSIONE
   const handleScan = async (): Promise<void> => {
@@ -462,19 +599,14 @@ function App(): React.ReactElement {
       setVideos([])
       try {
         console.log(`Controllo library.json in: ${folder}`)
-
-        // 1. Prima controlliamo se esiste già il JSON (Cache)
         const cachedVideos = await window.api.loadLibrary(folder)
-
         if (cachedVideos) {
           console.log('Trovato library.json! Caricamento immediato.')
           setVideos(cachedVideos)
         } else {
           console.log('Nessun library.json trovato. Avvio scansione completa...')
-          // 2. Se non esiste, scansione fisica dei file + generazione miniature
           const results = await window.api.scanVideos(folder)
           setVideos(results)
-          // 3. Salvataggio del risultato nel JSON per il futuro
           await window.api.saveLibrary(folder, results)
         }
       } catch (error) {
@@ -491,22 +623,75 @@ function App(): React.ReactElement {
     if (!editingVideo || !currentFolder) return
 
     try {
-      // 1. Scrivi Metadata nel file video fisico (ExifTool)
       await window.api.updateTags(editingVideo.filePath, newTags)
-
-      // 2. Aggiorna lo stato React
       const updatedList = videos.map((v) =>
         v.id === editingVideo.id ? { ...v, tags: newTags } : v
       )
       setVideos(updatedList)
-
-      // 3. Aggiorna il JSON library.json nella cartella (Sincronizzazione)
       await window.api.saveLibrary(currentFolder, updatedList)
     } catch (error) {
       console.error(error)
       alert('Errore impossibile salvare i tag.')
     }
   }
+
+  const filterOptions = useMemo(() => {
+    const categories = new Set<string>()
+    const models = new Set<string>()
+    const channels = new Set<string>()
+    const productions = new Set<string>()
+    const simpleTags = new Set<string>()
+
+    videos.forEach((video) => {
+      video.tags.forEach((tag) => {
+        if (tag.type === 'kv') {
+          if (tag.key === 'category') categories.add(tag.value)
+          if (tag.key === 'model') models.add(tag.value)
+          if (tag.key === 'channel') channels.add(tag.value)
+          if (tag.key === 'production') productions.add(tag.value)
+        } else {
+          simpleTags.add(tag.value)
+        }
+      })
+    })
+
+    return {
+      categories: [...categories].sort(),
+      models: [...models].sort(),
+      channels: [...channels].sort(),
+      productions: [...productions].sort(),
+      simpleTags: [...simpleTags].sort()
+    }
+  }, [videos])
+
+  const handleFilterChange = (category: FilterCategory, value: string | undefined) => {
+    setActiveFilters((prev) => {
+      const newFilters = { ...prev }
+      if (value === undefined) {
+        delete newFilters[category]
+      } else {
+        newFilters[category] = value
+      }
+      return newFilters
+    })
+  }
+
+  const filteredVideos = useMemo(() => {
+    return videos.filter((video) => {
+      return (Object.keys(activeFilters) as FilterCategory[]).every((filterKey) => {
+        const filterValue = activeFilters[filterKey]
+        if (!filterValue) return true
+
+        if (filterKey === 'simpleTag') {
+          return video.tags.some((t) => t.type === 'simple' && t.value === filterValue)
+        } else {
+          return video.tags.some(
+            (t) => t.type === 'kv' && t.key === filterKey && t.value === filterValue
+          )
+        }
+      })
+    })
+  }, [videos, activeFilters])
 
   return (
     <div
@@ -515,32 +700,29 @@ function App(): React.ReactElement {
         display: 'flex',
         flexDirection: 'column',
         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-        overflow: 'hidden', // Blocca scroll esterno
+        overflow: 'hidden',
         backgroundColor: '#f9fafb'
       }}
     >
-      {/* HEADER FISSO */}
       <header
         style={{
-          padding: '20px',
-          textAlign: 'center',
+          padding: '15px 25px',
           backgroundColor: '#fff',
           borderBottom: '1px solid #e5e7eb',
           zIndex: 10,
           boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-          flexShrink: 0
+          flexShrink: 0,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center'
         }}
       >
-        <h1 style={{ color: '#111827', margin: '0 0 10px 0' }}>Video Catalog</h1>
-        <p style={{ color: '#6b7280', fontSize: '0.9rem', margin: 0 }}>
-          Organizza i tuoi file video con i metadati di Windows
-        </p>
+        <h1 style={{ color: '#111827', margin: 0, fontSize: '1.2rem' }}>Video Catalog</h1>
 
         <button
           onClick={handleScan}
           disabled={loading}
           style={{
-            marginTop: '15px',
             padding: '10px 20px',
             fontSize: '1rem',
             backgroundColor: loading ? '#9ca3af' : '#2563eb',
@@ -555,37 +737,48 @@ function App(): React.ReactElement {
         </button>
       </header>
 
-      {/* AREA CONTENUTO SCROLLABILE */}
-      <div
-        style={{
-          flex: 1,
-          overflowY: 'auto',
-          backgroundColor: '#f9fafb'
-        }}
-      >
-        <div
+      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+        <Sidebar
+          filterOptions={filterOptions}
+          activeFilters={activeFilters}
+          onFilterChange={handleFilterChange}
+          onClearFilters={() => setActiveFilters({})}
+        />
+
+        <main
           style={{
-            padding: '20px',
-            display: 'flex',
-            flexDirection: 'row',
-            flexWrap: 'wrap',
-            justifyContent: 'center',
-            gap: '20px'
+            flex: 1,
+            overflowY: 'auto',
+            padding: '20px'
           }}
         >
-          {videos.map((vid) => (
-            <VideoCard key={vid.id} video={vid} onEdit={() => setEditingVideo(vid)} />
-          ))}
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'row',
+              flexWrap: 'wrap',
+              justifyContent: 'center',
+              gap: '20px'
+            }}
+          >
+            {filteredVideos.map((vid) => (
+              <VideoCard key={vid.id} video={vid} onEdit={() => setEditingVideo(vid)} />
+            ))}
 
-          {!loading && videos.length === 0 && (
-            <div style={{ textAlign: 'center', color: '#9ca3af', marginTop: '40px' }}>
-              Nessun video caricato. Clicca il pulsante blu per iniziare.
-            </div>
-          )}
-        </div>
+            {!loading && videos.length === 0 && (
+              <div style={{ textAlign: 'center', color: '#9ca3af', marginTop: '40px' }}>
+                Nessun video caricato. Clicca il pulsante blu per iniziare.
+              </div>
+            )}
+            {!loading && videos.length > 0 && filteredVideos.length === 0 && (
+              <div style={{ textAlign: 'center', color: '#9ca3af', marginTop: '40px' }}>
+                Nessun video corrisponde ai filtri selezionati.
+              </div>
+            )}
+          </div>
+        </main>
       </div>
 
-      {/* MODALE DI EDITING (Appare solo se editingVideo è settato) */}
       {editingVideo && (
         <EditModal video={editingVideo} onClose={() => setEditingVideo(null)} onSave={saveTags} />
       )}
@@ -594,4 +787,5 @@ function App(): React.ReactElement {
 }
 
 export default App
+
 
