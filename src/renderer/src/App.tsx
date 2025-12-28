@@ -230,43 +230,123 @@ function EditModal({
   )
 }
 
-// Componente per visualizzare i singoli tag colorati
-function TagBadge({ tag }: { tag: ParsedTag }): React.ReactElement {
-  if (tag.type === 'kv') {
-    return (
-      <span
-        style={{
-          backgroundColor: '#e0f2fe',
-          color: '#0369a1',
-          padding: '2px 8px',
-          borderRadius: '12px',
-          fontSize: '0.75rem',
-          fontWeight: 600,
-          marginRight: '6px',
-          border: '1px solid #bae6fd',
-          display: 'inline-flex',
-          alignItems: 'center'
-        }}
-      >
-        <span style={{ opacity: 0.7, marginRight: '3px', fontWeight: 400 }}>{tag.key}:</span>
-        {tag.value}
-      </span>
-    )
-  }
+// --- COMPONENTE: Video Card ---
+function VideoCard({
+  video,
+  onEdit
+}: {
+  video: VideoFile
+  onEdit: () => void
+}): React.ReactElement {
+  const categoryTag = video.tags.find((t) => t.type === 'kv' && t.key === 'category')
+  const channelTag = video.tags.find((t) => t.type === 'kv' && t.key === 'channel')
+  const modelTag = video.tags.find((t) => t.type === 'kv' && t.key === 'model')
+  const secondaryTag = channelTag || modelTag
+
   return (
-    <span
+    <div
+      onClick={onEdit}
       style={{
-        backgroundColor: '#f3f4f6',
-        color: '#374151',
-        padding: '2px 8px',
-        borderRadius: '4px',
-        fontSize: '0.75rem',
-        marginRight: '6px',
-        border: '1px solid #e5e7eb'
+        width: '200px',
+        height: '180px',
+        border: '1px solid #e5e7eb',
+        backgroundColor: '#fff',
+        borderRadius: '8px',
+        boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+        cursor: 'pointer',
+        transition: 'transform 0.1s, box-shadow 0.1s',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden'
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)'
+        e.currentTarget.style.transform = 'translateY(-1px)'
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.boxShadow = '0 1px 2px rgba(0,0,0,0.05)'
+        e.currentTarget.style.transform = 'translateY(0)'
       }}
     >
-      {tag.value}
-    </span>
+      {/* Thumbnail */}
+      <div
+        style={{
+          width: '100%',
+          height: '100px',
+          backgroundColor: '#f3f4f6',
+          overflow: 'hidden'
+        }}
+      >
+        {video.thumbnailPath ? (
+          <img
+            src={`media:///${video.thumbnailPath.replace(/\\/g, '/')}`}
+            alt="thumbnail"
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover'
+            }}
+            onError={(e) => {
+              console.error('Errore caricamento:', video.thumbnailPath)
+              e.currentTarget.style.display = 'none'
+            }}
+          />
+        ) : (
+          <div
+            style={{
+              width: '100%',
+              height: '100%',
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center'
+            }}
+          >
+            <span style={{ fontSize: '2.5rem' }}>🎬</span>
+          </div>
+        )}
+      </div>
+
+      {/* Content */}
+      <div
+        style={{
+          flex: 1,
+          padding: '10px',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between',
+          minHeight: 0
+        }}
+      >
+        {/* Category */}
+        <div>
+          {categoryTag && (
+            <span style={{ color: '#6b7280', fontSize: '0.7rem', display: 'block' }}>
+              {categoryTag.key}: {categoryTag.value}
+            </span>
+          )}
+          {secondaryTag && (
+            <span style={{ color: '#6b7280', fontSize: '0.7rem', display: 'block' }}>
+              {secondaryTag.key}: {secondaryTag.value}
+            </span>
+          )}
+        </div>
+
+        {/* Title */}
+        <h3
+          style={{
+            margin: 0,
+            fontSize: '1rem',
+            color: '#1f2937',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis'
+          }}
+          title={video.fileName}
+        >
+          {video.fileName}
+        </h3>
+      </div>
+    </div>
   )
 }
 
@@ -386,127 +466,21 @@ function App(): React.ReactElement {
         style={{
           flex: 1,
           overflowY: 'auto',
-          padding: '20px'
+          backgroundColor: '#f9fafb'
         }}
       >
         <div
           style={{
-            maxWidth: '800px',
-            margin: '0 auto',
+            padding: '20px',
             display: 'flex',
-            flexDirection: 'column',
-            gap: '12px'
+            flexDirection: 'row',
+            flexWrap: 'wrap',
+            justifyContent: 'center',
+            gap: '20px'
           }}
         >
           {videos.map((vid) => (
-            <div
-              key={vid.id}
-              // --- CLICCA SU TUTTA LA CARD PER EDITARE ---
-              onClick={() => setEditingVideo(vid)}
-              style={{
-                border: '1px solid #e5e7eb',
-                backgroundColor: '#fff',
-                padding: '10px',
-                borderRadius: '8px',
-                display: 'flex',
-                alignItems: 'center',
-                boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
-                gap: '15px',
-                cursor: 'pointer', // Cursore manina
-                transition: 'transform 0.1s, box-shadow 0.1s'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)'
-                e.currentTarget.style.transform = 'translateY(-1px)'
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.boxShadow = '0 1px 2px rgba(0,0,0,0.05)'
-                e.currentTarget.style.transform = 'translateY(0)'
-              }}
-            >
-              {/* --- MINIATURA (Usa protocollo media://) --- */}
-              <div
-                style={{
-                  width: '120px',
-                  height: '68px',
-                  backgroundColor: '#f3f4f6',
-                  borderRadius: '6px',
-                  display: 'flex',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  overflow: 'hidden',
-                  flexShrink: 0,
-                  border: '1px solid #d1d5db'
-                }}
-              >
-                {vid.thumbnailPath ? (
-                  <img
-                    // Sostituiamo i backslash (\) con slash (/) per l'HTML,
-                    // il backend poi li rimetterà a posto con path.normalize
-                    src={`media:///${vid.thumbnailPath.replace(/\\/g, '/')}`}
-                    alt="thumbnail"
-                    style={{
-                      width: '100%',
-                      height: '100%',
-                      objectFit: 'cover',
-                      display: 'block'
-                    }}
-                    onError={(e) => {
-                      console.error('Errore caricamento:', vid.thumbnailPath)
-                      e.currentTarget.style.display = 'none'
-                    }}
-                  />
-                ) : (
-                  <span style={{ fontSize: '1.5rem' }}>🎬</span>
-                )}
-              </div>
-
-              {/* INFO VIDEO */}
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <h3
-                  style={{
-                    margin: '0 0 6px 0',
-                    fontSize: '1.05rem',
-                    color: '#1f2937',
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis'
-                  }}
-                  title={vid.fileName}
-                >
-                  {vid.fileName}
-                </h3>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                  {vid.tags && vid.tags.length > 0 ? (
-                    vid.tags.map((t, i) => <TagBadge key={i} tag={t} />)
-                  ) : (
-                    <span style={{ color: '#9ca3af', fontSize: '0.8rem', fontStyle: 'italic' }}>
-                      Nessun tag
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {/* BOTTONE PLAY */}
-              <button
-                onClick={(e) => {
-                  e.stopPropagation() // Blocca l'apertura del modale
-                  window.api.openVideo(vid.filePath)
-                }}
-                style={{
-                  cursor: 'pointer',
-                  padding: '8px 16px',
-                  backgroundColor: '#ecfdf5',
-                  color: '#059669',
-                  border: '1px solid #a7f3d0',
-                  borderRadius: '6px',
-                  fontWeight: 600,
-                  whiteSpace: 'nowrap'
-                }}
-              >
-                ▶ Play
-              </button>
-            </div>
+            <VideoCard key={vid.id} video={vid} onEdit={() => setEditingVideo(vid)} />
           ))}
 
           {!loading && videos.length === 0 && (
@@ -526,3 +500,4 @@ function App(): React.ReactElement {
 }
 
 export default App
+
