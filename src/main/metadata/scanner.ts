@@ -1,9 +1,11 @@
 import * as fs from 'fs/promises'
+import * as fsSync from 'fs'
 import * as path from 'path'
 import { v4 as uuidv4 } from 'uuid'
 import { ExiftoolTags, ParsedTag } from '../../shared/types/metadata'
 import { VideoFile } from '../../shared/types/video'
 import { exiftool } from 'exiftool-vendored'
+import { generateThumbnail } from './thumbnails'
 
 // La funzione di parsing rimane uguale, funziona perfettamente con i tuoi dati
 export function parseTags(rawString: string): ParsedTag[] {
@@ -61,13 +63,17 @@ export async function getFilesRecursively(dir: string): Promise<string[]> {
 }
 
 export async function scanDirectory(dirPath: string): Promise<VideoFile[]> {
-  // --- MODIFICA 1: Usiamo la funzione ricorsiva invece di readdir semplice ---
+  // Crea cartella .thumbnails se non esiste
+  const thumbsDir = path.join(dirPath, '.thumbnails')
+  if (!fsSync.existsSync(thumbsDir)) {
+    await fs.mkdir(thumbsDir)
+  }
+
   const allFilePaths = await getFilesRecursively(dirPath)
 
   const videoExtensions = ['.mp4', '.mkv', '.mov', '.avi', '.wmv', '.m4v']
   const results: VideoFile[] = []
 
-  // --- MODIFICA 2: Cicliamo sui path completi ---
   for (const fullPath of allFilePaths) {
     // Siccome fullPath è tutto il percorso, estraiamo il nome del file per la UI
     const file = path.basename(fullPath)
@@ -75,9 +81,9 @@ export async function scanDirectory(dirPath: string): Promise<VideoFile[]> {
 
     if (videoExtensions.includes(ext)) {
       try {
+        // Leggi Metadata
         const meta: ExiftoolTags = await exiftool.read(fullPath)
 
-        // --- QUESTA PARTE È RIMASTA IDENTICA ---
         const potentialTags = [
           meta.Category,
           meta.XPKeywords,
@@ -99,10 +105,14 @@ export async function scanDirectory(dirPath: string): Promise<VideoFile[]> {
           rawString = foundTags
         }
 
+        // Genera Thumbnail
+        const thumbPath = await generateThumbnail(fullPath, thumbsDir, file)
+
         results.push({
           id: uuidv4(),
           fileName: file,
           filePath: fullPath,
+          thumbnailPath: thumbPath,
           rawTags: rawString,
           tags: parseTags(rawString)
         })

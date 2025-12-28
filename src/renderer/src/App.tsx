@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+// Assicurati che questi percorsi corrispondano alla tua struttura
 import { ParsedTag } from 'src/shared/types/metadata'
 import { VideoFile } from 'src/shared/types/video'
 
@@ -10,7 +11,7 @@ declare global {
       scanVideos: (path: string) => Promise<VideoFile[]>
       openVideo: (path: string) => void
       updateTags: (filePath: string, tags: ParsedTag[]) => Promise<void>
-      // --- NUOVE API PER LA LIBRERIA ---
+      // API per la gestione del database JSON locale
       loadLibrary: (folderPath: string) => Promise<VideoFile[] | null>
       saveLibrary: (folderPath: string, videos: VideoFile[]) => Promise<void>
     }
@@ -35,7 +36,7 @@ function EditModal({
     e.preventDefault()
     if (!inputValue.trim()) return
 
-    // Logica di parsing identica al backend per feedback immediato
+    // Parsing tag: riconosce automaticamente "chiave:valore"
     let newTag: ParsedTag
     if (inputValue.includes(':')) {
       const [key, ...val] = inputValue.split(':')
@@ -229,7 +230,7 @@ function EditModal({
   )
 }
 
-// Componente per visualizzare i singoli tag colorati (Visualizzazione)
+// Componente per visualizzare i singoli tag colorati
 function TagBadge({ tag }: { tag: ParsedTag }): React.ReactElement {
   if (tag.type === 'kv') {
     return (
@@ -269,39 +270,41 @@ function TagBadge({ tag }: { tag: ParsedTag }): React.ReactElement {
   )
 }
 
+// --- COMPONENTE PRINCIPALE APP ---
 function App(): React.ReactElement {
   const [videos, setVideos] = useState<VideoFile[]>([])
   const [loading, setLoading] = useState(false)
   const [editingVideo, setEditingVideo] = useState<VideoFile | null>(null)
-  // NUOVO: Stato per memorizzare la cartella corrente
+
+  // Stato fondamentale per sapere dove salvare il JSON
   const [currentFolder, setCurrentFolder] = useState<string | null>(null)
 
-  // LOGICA DI SCANSIONE AGGIORNATA
+  // LOGICA DI CARICAMENTO/SCANSIONE
   const handleScan = async (): Promise<void> => {
     const folder = await window.api.selectFolder()
     if (folder) {
-      setCurrentFolder(folder) // Memorizza la cartella
+      setCurrentFolder(folder)
       setLoading(true)
       setVideos([])
       try {
         console.log(`Controllo library.json in: ${folder}`)
 
-        // 1. Prova a caricare dal JSON
+        // 1. Prima controlliamo se esiste già il JSON (Cache)
         const cachedVideos = await window.api.loadLibrary(folder)
 
         if (cachedVideos) {
-          console.log('Trovato library.json! Caricamento veloce.')
+          console.log('Trovato library.json! Caricamento immediato.')
           setVideos(cachedVideos)
         } else {
-          console.log('Nessun library.json trovato. Scansione ExifTool...')
-          // 2. Se non c'è, scansiona fisicamente
+          console.log('Nessun library.json trovato. Avvio scansione completa...')
+          // 2. Se non esiste, scansione fisica dei file + generazione miniature
           const results = await window.api.scanVideos(folder)
           setVideos(results)
-          // 3. Salva il JSON per la prossima volta
+          // 3. Salvataggio del risultato nel JSON per il futuro
           await window.api.saveLibrary(folder, results)
         }
       } catch (error) {
-        console.error('Errore durante il caricamento:', error)
+        console.error('Errore caricamento:', error)
         alert("C'è stato un errore durante il caricamento.")
       } finally {
         setLoading(false)
@@ -309,21 +312,21 @@ function App(): React.ReactElement {
     }
   }
 
-  // LOGICA SALVATAGGIO TAG AGGIORNATA
+  // LOGICA SALVATAGGIO TAG
   const saveTags = async (newTags: ParsedTag[]): Promise<void> => {
     if (!editingVideo || !currentFolder) return
 
     try {
-      // 1. Aggiorna file fisico (chiama backend ExifTool)
+      // 1. Scrivi Metadata nel file video fisico (ExifTool)
       await window.api.updateTags(editingVideo.filePath, newTags)
 
-      // 2. Aggiorna stato locale React
+      // 2. Aggiorna lo stato React
       const updatedList = videos.map((v) =>
         v.id === editingVideo.id ? { ...v, tags: newTags } : v
       )
       setVideos(updatedList)
 
-      // 3. Aggiorna library.json nella cartella (così è sempre sync)
+      // 3. Aggiorna il JSON library.json nella cartella (Sincronizzazione)
       await window.api.saveLibrary(currentFolder, updatedList)
     } catch (error) {
       console.error(error)
@@ -334,16 +337,15 @@ function App(): React.ReactElement {
   return (
     <div
       style={{
-        // 1. IMPOSTAZIONI FINESTRA
         height: '100vh',
         display: 'flex',
         flexDirection: 'column',
         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-        overflow: 'hidden',
+        overflow: 'hidden', // Blocca scroll esterno
         backgroundColor: '#f9fafb'
       }}
     >
-      {/* 2. HEADER FISSO */}
+      {/* HEADER FISSO */}
       <header
         style={{
           padding: '20px',
@@ -379,7 +381,7 @@ function App(): React.ReactElement {
         </button>
       </header>
 
-      {/* 3. AREA SCROLLABILE */}
+      {/* AREA CONTENUTO SCROLLABILE */}
       <div
         style={{
           flex: 1,
@@ -387,7 +389,6 @@ function App(): React.ReactElement {
           padding: '20px'
         }}
       >
-        {/* 4. CONTENITORE CENTRATO */}
         <div
           style={{
             maxWidth: '800px',
@@ -400,6 +401,8 @@ function App(): React.ReactElement {
           {videos.map((vid) => (
             <div
               key={vid.id}
+              // --- CLICCA SU TUTTA LA CARD PER EDITARE ---
+              onClick={() => setEditingVideo(vid)}
               style={{
                 border: '1px solid #e5e7eb',
                 backgroundColor: '#fff',
@@ -408,31 +411,54 @@ function App(): React.ReactElement {
                 display: 'flex',
                 alignItems: 'center',
                 boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
-                gap: '15px'
+                gap: '15px',
+                cursor: 'pointer', // Cursore manina
+                transition: 'transform 0.1s, box-shadow 0.1s'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)'
+                e.currentTarget.style.transform = 'translateY(-1px)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.boxShadow = '0 1px 2px rgba(0,0,0,0.05)'
+                e.currentTarget.style.transform = 'translateY(0)'
               }}
             >
-              {/* --- ICONA QUADRATA DI MODIFICA --- */}
+              {/* --- MINIATURA (Usa protocollo media://) --- */}
               <div
-                onClick={() => setEditingVideo(vid)}
-                title="Modifica Tags"
                 style={{
-                  width: '50px',
-                  height: '50px',
+                  width: '120px',
+                  height: '68px',
                   backgroundColor: '#f3f4f6',
-                  borderRadius: '8px',
+                  borderRadius: '6px',
                   display: 'flex',
                   justifyContent: 'center',
                   alignItems: 'center',
-                  cursor: 'pointer',
-                  fontSize: '1.2rem',
+                  overflow: 'hidden',
                   flexShrink: 0,
-                  border: '1px solid #d1d5db',
-                  transition: 'background 0.2s'
+                  border: '1px solid #d1d5db'
                 }}
-                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#e5e7eb')}
-                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#f3f4f6')}
               >
-                ✏️
+                {vid.thumbnailPath ? (
+                  <img
+                    // Sostituiamo i backslash (\) con slash (/) per l'HTML,
+                    // il backend poi li rimetterà a posto con path.normalize
+                    src={`media://${vid.thumbnailPath.replace(/\\/g, '/')}`}
+                    alt="thumbnail"
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover',
+                      display: 'block'
+                    }}
+                    onError={(e) => {
+                      console.error('Errore caricamento:', vid.thumbnailPath)
+                      e.currentTarget.style.display = 'none'
+                    }}
+                  />
+                ) : (
+                  <span style={{ fontSize: '1.5rem' }}>🎬</span>
+                )}
               </div>
 
               {/* INFO VIDEO */}
@@ -463,7 +489,10 @@ function App(): React.ReactElement {
 
               {/* BOTTONE PLAY */}
               <button
-                onClick={() => window.api.openVideo(vid.filePath)}
+                onClick={(e) => {
+                  e.stopPropagation() // Blocca l'apertura del modale
+                  window.api.openVideo(vid.filePath)
+                }}
                 style={{
                   cursor: 'pointer',
                   padding: '8px 16px',
@@ -488,6 +517,7 @@ function App(): React.ReactElement {
         </div>
       </div>
 
+      {/* MODALE DI EDITING (Appare solo se editingVideo è settato) */}
       {editingVideo && (
         <EditModal video={editingVideo} onClose={() => setEditingVideo(null)} onSave={saveTags} />
       )}

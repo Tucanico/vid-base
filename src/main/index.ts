@@ -1,7 +1,9 @@
-import { app, shell, BrowserWindow, ipcMain, dialog } from 'electron' // Aggiunto dialog
+import * as path from 'path'
+import { app, shell, BrowserWindow, ipcMain, dialog, protocol, net } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
+import { pathToFileURL } from 'url'
 import { scanDirectory } from './metadata/scanner'
 import { updateVideoTags } from './metadata/updateTags'
 import { closeExiftool } from './metadata/utils'
@@ -16,10 +18,12 @@ function createWindow(): void {
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
-      sandbox: false
+      sandbox: false,
+      webSecurity: false // Utile per evitare problemi CORS con file locali
     }
   })
 
+  // ... resto di createWindow ...
   mainWindow.on('ready-to-show', () => {
     mainWindow.show()
   })
@@ -39,43 +43,59 @@ function createWindow(): void {
 app.whenReady().then(() => {
   electronApp.setAppUserModelId('com.electron')
 
+  // Questo permette di usare <img src="media://Percorso/File.jpg">
+  protocol.handle('media', (request) => {
+    // 1. Togli il protocollo. Gestisce sia "media://" che "media:///"
+    let url = request.url.replace(/^media:\/\//, '')
+
+    // 2. Decodifica (%20 -> spazio)
+    url = decodeURIComponent(url)
+
+    // 3. FIX PER WINDOWS
+    // Se l'URL inizia con uno slash e poi una lettera di drive (es: /C:/...), togli lo slash iniziale.
+    if (process.platform === 'win32' && url.startsWith('/') && /^[a-zA-Z]:/.test(url.slice(1))) {
+      url = url.slice(1)
+    }
+
+    // 4. Normalizza i separatori (converte / in \ su Windows)
+    const absolutePath = path.normalize(url)
+
+    // 5. Crea l'URL file:// ufficiale
+    const fileUrl = pathToFileURL(absolutePath).toString()
+
+    // --- LOG DI DEBUG (Guardali nel terminale!) ---
+    // console.log('Richiesta:', request.url)
+    // console.log('Path Pulito:', absolutePath)
+    // console.log('File URL:', fileUrl)
+    // ----------------------------------------------
+
+    // 6. Prova a caricare e cattura l'errore se fallisce
+    return net.fetch(fileUrl).catch((e) => {
+      console.error(`❌ ERRORE CARICAMENTO: ${absolutePath}`)
+      console.error(`   Dettaglio: ${e.message}`)
+      // Ritorna un 404 per non far esplodere la console
+      return new Response('File non trovato', { status: 404 })
+    })
+  })
+
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
   })
 
-  // Apre il dialogo per scegliere la cartella
   ipcMain.handle('dialog:openDirectory', async () => {
-    const { canceled, filePaths } = await dialog.showOpenDialog({
-      properties: ['openDirectory']
-    })
+    const { canceled, filePaths } = await dialog.showOpenDialog({ properties: ['openDirectory'] })
     if (canceled) return null
     return filePaths[0]
   })
 
-  // Carica la libreria
-  ipcMain.handle('db:load', async (_, folderPath) => {
-    return await loadLibrary(folderPath)
-  })
-
-  // Salva la libreria
-  ipcMain.handle('db:save', async (_, folderPath, videos) => {
-    return await saveLibrary(folderPath, videos)
-  })
-
-  // Esegue la scansione
-  ipcMain.handle('videos:scan', async (_, folderPath) => {
-    return await scanDirectory(folderPath)
-  })
-
-  // Apre il video con il player di sistema
-  ipcMain.on('video:open', (_, filePath) => {
-    shell.openPath(filePath)
-  })
-
-  // Ascolta richiesta aggiornamento tags
-  ipcMain.handle('videos:updateTags', async (_, filePath, tags) => {
-    return await updateVideoTags(filePath, tags)
-  })
+  ipcMain.handle('db:load', async (_, folderPath) => await loadLibrary(folderPath))
+  ipcMain.handle('db:save', async (_, folderPath, videos) => await saveLibrary(folderPath, videos))
+  ipcMain.handle('videos:scan', async (_, folderPath) => await scanDirectory(folderPath))
+  ipcMain.on('video:open', (_, filePath) => shell.openPath(filePath))
+  ipcMain.handle(
+    'videos:updateTags',
+    async (_, filePath, tags) => await updateVideoTags(filePath, tags)
+  )
 
   createWindow()
 
@@ -84,7 +104,7 @@ app.whenReady().then(() => {
   })
 })
 
-// Pulizia ExifTool quando l'app si chiude
+// ... resto del file (will-quit, etc) ...
 app.on('will-quit', () => {
   closeExiftool()
 })
