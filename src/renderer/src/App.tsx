@@ -443,7 +443,7 @@ function App(): React.ReactElement {
                   <img
                     // Sostituiamo i backslash (\) con slash (/) per l'HTML,
                     // il backend poi li rimetterà a posto con path.normalize
-                    src={`media://${vid.thumbnailPath.replace(/\\/g, '/')}`}
+                    src={`media:///${vid.thumbnailPath.replace(/\\/g, '/')}`}
                     alt="thumbnail"
                     style={{
                       width: '100%',
