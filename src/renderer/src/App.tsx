@@ -28,11 +28,11 @@ function InfoRow({ label, value }: { label: string; value?: string }) {
         display: 'flex',
         justifyContent: 'space-between',
         padding: '8px 0',
-        borderBottom: '1px solid #f3f4f6'
+        borderBottom: '1px solid var(--ev-c-gray-200)'
       }}
     >
-      <span style={{ fontWeight: 500, color: '#374151' }}>{label}</span>
-      <span style={{ color: '#1f2937' }}>{value}</span>
+      <span style={{ fontWeight: 500, color: 'var(--color-text)' }}>{label}</span>
+      <span style={{ color: 'var(--color-text-soft)' }}>{value}</span>
     </div>
   )
 }
@@ -105,7 +105,7 @@ function EditModal({
     >
       <div
         style={{
-          backgroundColor: 'white',
+          backgroundColor: 'var(--color-background-soft)',
           padding: '25px',
           borderRadius: '12px',
           width: '600px',
@@ -118,7 +118,7 @@ function EditModal({
           style={{
             width: '100%',
             height: '250px',
-            backgroundColor: '#f3f4f6',
+            backgroundColor: 'var(--ev-c-gray-200)',
             borderRadius: '8px',
             overflow: 'hidden',
             marginBottom: '15px'
@@ -149,7 +149,7 @@ function EditModal({
         <h2
           style={{
             marginTop: 0,
-            color: '#1f2937',
+            color: 'var(--color-text)',
             fontSize: '1.4rem',
             whiteSpace: 'nowrap',
             overflow: 'hidden',
@@ -172,7 +172,7 @@ function EditModal({
 
         {/* Tag Editor */}
         <div>
-          <h4 style={{ marginTop: 0, marginBottom: '10px', color: '#4b5563' }}>Tags</h4>
+          <h4 style={{ marginTop: 0, marginBottom: '10px', color: 'var(--color-text)' }}>Tags</h4>
           <div
             style={{
               display: 'flex',
@@ -181,17 +181,17 @@ function EditModal({
               marginBottom: '20px',
               minHeight: '40px',
               padding: '10px',
-              background: '#f9fafb',
+              background: 'var(--color-background-soft)',
               borderRadius: '6px',
-              border: '1px solid #e5e7eb'
+              border: '1px solid var(--ev-c-gray-300)'
             }}
           >
             {tags.map((t, i) => (
               <span
                 key={i}
                 style={{
-                  background: t.type === 'kv' ? '#dbeafe' : '#e5e7eb',
-                  color: t.type === 'kv' ? '#1e40af' : '#374151',
+                  background: t.type === 'kv' ? 'var(--ev-c-blue-100)' : 'var(--ev-c-gray-200)',
+                  color: t.type === 'kv' ? 'var(--ev-c-blue-800)' : 'var(--color-text)',
                   padding: '5px 12px',
                   borderRadius: '16px',
                   fontSize: '0.8rem',
@@ -216,7 +216,7 @@ function EditModal({
                     background: 'transparent',
                     cursor: 'pointer',
                     fontWeight: 'bold',
-                    color: '#9ca3af',
+                    color: 'var(--color-text-mute)',
                     padding: '0 4px'
                   }}
                 >
@@ -225,7 +225,7 @@ function EditModal({
               </span>
             ))}
             {tags.length === 0 && (
-              <span style={{ color: '#9ca3af', fontStyle: 'italic' }}>Nessun tag</span>
+              <span style={{ color: 'var(--color-text-mute)', fontStyle: 'italic' }}>Nessun tag</span>
             )}
           </div>
           <form onSubmit={handleAddTag} style={{ display: 'flex', gap: '10px' }}>
@@ -238,7 +238,7 @@ function EditModal({
                 flex: 1,
                 padding: '10px',
                 borderRadius: '6px',
-                border: '1px solid #d1d5db',
+                border: '1px solid var(--ev-c-gray-300)',
                 fontSize: '0.95rem'
               }}
             />
@@ -246,7 +246,7 @@ function EditModal({
               type="submit"
               style={{
                 padding: '10px 20px',
-                background: '#2563eb',
+                background: 'var(--color-primary)',
                 color: 'white',
                 border: 'none',
                 borderRadius: '6px',
@@ -266,7 +266,7 @@ function EditModal({
             justifyContent: 'space-between',
             alignItems: 'center',
             gap: '10px',
-            borderTop: '1px solid #f3f4f6',
+            borderTop: '1px solid var(--ev-c-gray-200)',
             paddingTop: '15px',
             marginTop: '25px'
           }}
@@ -276,8 +276,8 @@ function EditModal({
             style={{
               padding: '10px 20px',
               background: 'transparent',
-              color: '#1f2937',
-              border: '1px solid #d1d5db',
+              color: 'var(--color-text)',
+              border: '1px solid var(--ev-c-gray-300)',
               borderRadius: '6px',
               cursor: 'pointer',
               fontWeight: 600
@@ -292,10 +292,10 @@ function EditModal({
               style={{
                 padding: '10px 20px',
                 background: 'transparent',
-                border: '1px solid #d1d5db',
+                border: '1px solid var(--ev-c-gray-300)',
                 borderRadius: '6px',
                 cursor: 'pointer',
-                color: '#4b5563'
+                color: 'var(--color-text-soft)'
               }}
             >
               Annulla
@@ -305,7 +305,7 @@ function EditModal({
               disabled={isSaving}
               style={{
                 padding: '10px 20px',
-                background: isSaving ? '#9ca3af' : '#16a34a',
+                background: isSaving ? 'var(--ev-c-gray-400)' : 'var(--ev-c-blue-700)',
                 color: 'white',
                 border: 'none',
                 borderRadius: '6px',
@@ -341,8 +341,8 @@ function VideoCard({
       style={{
         width: '200px',
         height: '180px',
-        border: '1px solid #f0f0f0',
-        backgroundColor: '#fff',
+        border: '1px solid var(--ev-c-gray-300)',
+        backgroundColor: 'var(--color-background-soft)',
         borderRadius: '8px',
         boxShadow: '0 4px 6px rgba(0, 0, 0, 0.04)',
         cursor: 'pointer',
@@ -366,7 +366,7 @@ function VideoCard({
         style={{
           width: '100%',
           height: '100px',
-          backgroundColor: '#f3f4f6',
+          backgroundColor: 'var(--ev-c-gray-200)',
           overflow: 'hidden'
         }}
       >
@@ -413,12 +413,12 @@ function VideoCard({
         {/* Category */}
         <div>
           {categoryTag && (
-            <span style={{ color: '#6b7280', fontSize: '0.75rem', display: 'block', fontWeight: 500 }}>
+            <span style={{ color: 'var(--color-text-mute)', fontSize: '0.75rem', display: 'block', fontWeight: 500 }}>
               {categoryTag.key}: {categoryTag.value}
             </span>
           )}
           {secondaryTag && (
-            <span style={{ color: '#6b7280', fontSize: '0.75rem', display: 'block', fontWeight: 500 }}>
+            <span style={{ color: 'var(--color-text-mute)', fontSize: '0.75rem', display: 'block', fontWeight: 500 }}>
               {secondaryTag.key}: {secondaryTag.value}
             </span>
           )}
@@ -429,7 +429,7 @@ function VideoCard({
           style={{
             margin: 0,
             fontSize: '0.9rem',
-            color: '#1f2937',
+            color: 'var(--color-text)',
             whiteSpace: 'nowrap',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
@@ -445,6 +445,11 @@ function VideoCard({
 }
 
 type FilterCategory = 'category' | 'model' | 'channel' | 'production' | 'simpleTag'
+
+type ActiveFilter = {
+  category: FilterCategory
+  value: string
+}
 
 // --- COMPONENTE: Sezione Filtri ---
 function FilterSection({
@@ -489,12 +494,12 @@ function FilterSection({
               onClick={() => onSelect(active === opt ? undefined : opt)}
               style={{
                 textAlign: 'left',
-                background: active === opt ? '#e0f2fe' : 'transparent',
+                background: active === opt ? 'var(--ev-c-blue-100)' : 'transparent',
                 border: 'none',
                 padding: '6px 10px',
                 borderRadius: '4px',
                 cursor: 'pointer',
-                color: active === opt ? '#0369a1' : '#374151',
+                color: active === opt ? 'var(--ev-c-blue-700)' : 'var(--color-text)',
                 fontWeight: active === opt ? 600 : 400
               }}
             >
@@ -515,7 +520,7 @@ function Sidebar({
   onClearFilters
 }: {
   filterOptions: any
-  activeFilters: Partial<Record<FilterCategory, string>>
+  activeFilters: ActiveFilter | null
   onFilterChange: (category: FilterCategory, value: string | undefined) => void
   onClearFilters: () => void
 }) {
@@ -524,10 +529,10 @@ function Sidebar({
       style={{
         width: '240px',
         flexShrink: 0,
-        borderRight: '1px solid #e5e7eb',
+        borderRight: '1px solid var(--ev-c-gray-300)',
         padding: '20px',
         overflowY: 'auto',
-        background: '#fff'
+        background: 'var(--color-background-soft)'
       }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
@@ -537,7 +542,7 @@ function Sidebar({
           style={{
             background: 'none',
             border: 'none',
-            color: '#6b7280',
+            color: 'var(--color-text-mute)',
             cursor: 'pointer',
             fontSize: '0.8rem'
           }}
@@ -549,31 +554,31 @@ function Sidebar({
       <FilterSection
         title="Category"
         options={filterOptions.categories}
-        active={activeFilters.category}
+        active={activeFilters?.category === 'category' ? activeFilters.value : undefined}
         onSelect={(val) => onFilterChange('category', val)}
       />
       <FilterSection
         title="Model"
         options={filterOptions.models}
-        active={activeFilters.model}
+        active={activeFilters?.category === 'model' ? activeFilters.value : undefined}
         onSelect={(val) => onFilterChange('model', val)}
       />
       <FilterSection
         title="Channel"
         options={filterOptions.channels}
-        active={activeFilters.channel}
+        active={activeFilters?.category === 'channel' ? activeFilters.value : undefined}
         onSelect={(val) => onFilterChange('channel', val)}
       />
       <FilterSection
         title="Production"
         options={filterOptions.productions}
-        active={activeFilters.production}
+        active={activeFilters?.category === 'production' ? activeFilters.value : undefined}
         onSelect={(val) => onFilterChange('production', val)}
       />
       <FilterSection
         title="Tags"
         options={filterOptions.simpleTags}
-        active={activeFilters.simpleTag}
+        active={activeFilters?.category === 'simpleTag' ? activeFilters.value : undefined}
         onSelect={(val) => onFilterChange('simpleTag', val)}
       />
     </div>
@@ -586,9 +591,12 @@ function App(): React.ReactElement {
   const [loading, setLoading] = useState(false)
   const [editingVideo, setEditingVideo] = useState<VideoFile | null>(null)
   const [currentFolder, setCurrentFolder] = useState<string | null>(null)
-  const [activeFilters, setActiveFilters] = useState<
-    Partial<Record<FilterCategory, string>>
-  >({})
+  type ActiveFilter = {
+  category: FilterCategory
+  value: string
+}
+
+const [activeFilters, setActiveFilters] = useState<ActiveFilter | null>(null)
 
   // LOGICA DI CARICAMENTO/SCANSIONE
   const handleScan = async (): Promise<void> => {
@@ -665,31 +673,34 @@ function App(): React.ReactElement {
   }, [videos])
 
   const handleFilterChange = (category: FilterCategory, value: string | undefined) => {
-    setActiveFilters((prev) => {
-      const newFilters = { ...prev }
-      if (value === undefined) {
-        delete newFilters[category]
-      } else {
-        newFilters[category] = value
+    setActiveFilters(() => {
+      if (!value) {
+        // If the value is undefined, it means we are clearing the filter
+        return null
       }
-      return newFilters
+
+      // If a new filter is selected, make it the only active filter
+      return { category, value }
     })
   }
 
-  const filteredVideos = useMemo(() => {
-    return videos.filter((video) => {
-      return (Object.keys(activeFilters) as FilterCategory[]).every((filterKey) => {
-        const filterValue = activeFilters[filterKey]
-        if (!filterValue) return true
+  const handleClearFilters = () => {
+    setActiveFilters(null)
+  }
 
-        if (filterKey === 'simpleTag') {
-          return video.tags.some((t) => t.type === 'simple' && t.value === filterValue)
-        } else {
-          return video.tags.some(
-            (t) => t.type === 'kv' && t.key === filterKey && t.value === filterValue
-          )
-        }
-      })
+  const filteredVideos = useMemo(() => {
+    if (!activeFilters) {
+      return videos
+    }
+
+    return videos.filter((video) => {
+      const { category, value } = activeFilters
+
+      if (category === 'simpleTag') {
+        return video.tags.some((t) => t.type === 'simple' && t.value === value)
+      } else {
+        return video.tags.some((t) => t.type === 'kv' && t.key === category && t.value === value)
+      }
     })
   }, [videos, activeFilters])
 
@@ -701,14 +712,14 @@ function App(): React.ReactElement {
         flexDirection: 'column',
         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
         overflow: 'hidden',
-        backgroundColor: '#f9fafb'
+        backgroundColor: 'var(--color-background)'
       }}
     >
       <header
         style={{
           padding: '15px 25px',
-          backgroundColor: '#fff',
-          borderBottom: '1px solid #e5e7eb',
+          backgroundColor: 'var(--color-background-soft)',
+          borderBottom: '1px solid var(--ev-c-gray-300)',
           zIndex: 10,
           boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
           flexShrink: 0,
@@ -717,7 +728,7 @@ function App(): React.ReactElement {
           alignItems: 'center'
         }}
       >
-        <h1 style={{ color: '#111827', margin: 0, fontSize: '1.2rem' }}>Video Catalog</h1>
+        <h1 style={{ color: 'var(--color-text)', margin: 0, fontSize: '1.2rem' }}>Video Catalog</h1>
 
         <button
           onClick={handleScan}
@@ -725,7 +736,7 @@ function App(): React.ReactElement {
           style={{
             padding: '10px 20px',
             fontSize: '1rem',
-            backgroundColor: loading ? '#9ca3af' : '#2563eb',
+            backgroundColor: loading ? 'var(--ev-c-gray-400)' : 'var(--color-primary)',
             color: 'white',
             border: 'none',
             borderRadius: '6px',
@@ -742,7 +753,7 @@ function App(): React.ReactElement {
           filterOptions={filterOptions}
           activeFilters={activeFilters}
           onFilterChange={handleFilterChange}
-          onClearFilters={() => setActiveFilters({})}
+          onClearFilters={handleClearFilters}
         />
 
         <main
@@ -766,12 +777,12 @@ function App(): React.ReactElement {
             ))}
 
             {!loading && videos.length === 0 && (
-              <div style={{ textAlign: 'center', color: '#9ca3af', marginTop: '40px' }}>
+              <div style={{ textAlign: 'center', color: 'var(--color-text-mute)', marginTop: '40px' }}>
                 Nessun video caricato. Clicca il pulsante blu per iniziare.
               </div>
             )}
             {!loading && videos.length > 0 && filteredVideos.length === 0 && (
-              <div style={{ textAlign: 'center', color: '#9ca3af', marginTop: '40px' }}>
+              <div style={{ textAlign: 'center', color: 'var(--color-text-mute)', marginTop: '40px' }}>
                 Nessun video corrisponde ai filtri selezionati.
               </div>
             )}

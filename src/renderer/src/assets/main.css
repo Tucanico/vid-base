@@ -16,3 +16,19 @@ code {
   font-size: 85%;
 }
 
+.versions {
+  padding: 10px;
+  background-color: var(--color-background-mute);
+  border-radius: 8px;
+  margin-top: 20px;
+  color: var(--color-text-soft);
+  font-size: 0.9em;
+}
+
+.versions li {
+  margin-bottom: 5px;
+}
+
+.versions li:last-child {
+  margin-bottom: 0;
+}
