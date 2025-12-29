@@ -1,46 +1,42 @@
 :root {
-  /* New Color Palette */
-  --ev-c-blue-50: #e3f2fd; /* Very light blue */
-  --ev-c-blue-100: #bbdefb;
-  --ev-c-blue-200: #90caf9;
-  --ev-c-blue-300: #64b5f6; /* Accent blue */
-  --ev-c-blue-400: #42a5f5;
-  --ev-c-blue-500: #2196f3; /* Primary blue */
-  --ev-c-blue-600: #1e88e5;
-  --ev-c-blue-700: #1976d2;
-  --ev-c-blue-800: #1565c0;
-  --ev-c-blue-900: #0d47a1;
+  /* Nordic Theme Inspired Color Palette */
+  --ev-c-nordic-blue: #5E81AC; /* Primary blue */
+  --ev-c-nordic-blue-light: #88C0D0; /* Lighter blue accent */
+  --ev-c-nordic-blue-dark: #4C566A; /* Darker blue/grey for text */
 
-  --ev-c-gray-50: #fafafa; /* Lighter background */
-  --ev-c-gray-100: #f5f5f5; /* Main background */
-  --ev-c-gray-200: #eeeeee;
-  --ev-c-gray-300: #e0e0e0; /* Border/secondary background */
-  --ev-c-gray-400: #bdbdbd;
-  --ev-c-gray-500: #9e9e9e;
-  --ev-c-gray-600: #757575; /* Lighter text */
-  --ev-c-gray-700: #616161;
-  --ev-c-gray-800: #424242; /* Main text */
-  --ev-c-gray-900: #212121; /* Darkest text/headings */
+  --ev-c-snow-storm-lightest: #ECEFF4; /* Very light background */
+  --ev-c-snow-storm-light: #E5E9F0; /* Main background */
+  --ev-c-frost: #D8DEE9; /* Borders, subtle elements */
 
-  /* Semantic Colors */
-  --color-background: var(--ev-c-gray-100);
-  --color-background-soft: var(--ev-c-gray-50);
-  --color-background-mute: var(--ev-c-gray-200);
+  --ev-c-polar-night-darkest: #2E3440; /* Main text */
+  --ev-c-polar-night-dark: #3B4252; /* Secondary text */
+  --ev-c-polar-night-medium: #434C5E; /* Muted text */
 
-  --color-text: var(--ev-c-gray-800);
-  --color-text-soft: var(--ev-c-gray-600);
-  --color-text-mute: var(--ev-c-gray-400);
+  --ev-c-aurora-green: #A3BE8C; /* Success */
+  --ev-c-aurora-red: #BF616A; /* Danger */
 
-  --color-primary: var(--ev-c-blue-500);
-  --color-primary-light: var(--ev-c-blue-300);
-  --color-primary-dark: var(--ev-c-blue-700);
+  /* Semantic Colors - remapping to new palette */
+  --color-background: var(--ev-c-snow-storm-light);
+  --color-background-soft: var(--ev-c-snow-storm-lightest);
+  --color-background-mute: var(--ev-c-frost);
 
-  --ev-button-alt-border: var(--ev-c-gray-300);
+  --color-text: var(--ev-c-polar-night-darkest);
+  --color-text-soft: var(--ev-c-polar-night-dark);
+  --color-text-mute: var(--ev-c-polar-night-medium);
+
+  --color-primary: var(--ev-c-nordic-blue);
+  --color-primary-light: var(--ev-c-nordic-blue-light);
+  --color-primary-dark: var(--ev-c-nordic-blue-dark);
+
+  --color-success: var(--ev-c-aurora-green);
+  --color-danger: var(--ev-c-aurora-red);
+
+  --ev-button-alt-border: var(--ev-c-frost);
   --ev-button-alt-text: var(--color-text);
-  --ev-button-alt-bg: var(--ev-c-gray-200);
-  --ev-button-alt-hover-border: var(--ev-c-gray-400);
+  --ev-button-alt-bg: var(--ev-c-snow-storm-lightest);
+  --ev-button-alt-hover-border: var(--ev-c-polar-night-medium);
   --ev-button-alt-hover-text: var(--color-text);
-  --ev-button-alt-hover-bg: var(--ev-c-gray-300);
+  --ev-button-alt-hover-bg: var(--ev-c-frost);
 }
 
 body {

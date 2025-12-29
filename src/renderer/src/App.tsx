@@ -23,30 +23,29 @@ function InfoRow({ label, value }: { label: string; value?: string }) {
   if (!value) return null
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        padding: '8px 0',
-        borderBottom: '1px solid var(--ev-c-gray-200)'
-      }}
-    >
-      <span style={{ fontWeight: 500, color: 'var(--color-text)' }}>{label}</span>
-      <span style={{ color: 'var(--color-text-soft)' }}>{value}</span>
-    </div>
-  )
-}
-
-function EditModal({
-  video,
-  onClose,
-  onSave
-}: {
-  video: VideoFile
-  onClose: () => void
-  onSave: (tags: ParsedTag[]) => void
-}): React.ReactElement {
-  const [tags, setTags] = useState<ParsedTag[]>(video.tags)
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              padding: '8px 0',
+              borderBottom: '1px solid var(--color-background-mute)'
+            }}
+          >
+            <span style={{ fontWeight: 500, color: 'var(--color-text)' }}>{label}</span>
+            <span style={{ color: 'var(--color-text-soft)' }}>{value}</span>
+          </div>
+        )
+      }
+      
+      function EditModal({
+        video,
+        onClose,
+        onSave
+      }: {
+        video: VideoFile
+        onClose: () => void
+        onSave: (tags: ParsedTag[]) => void
+      }): React.ReactElement {  const [tags, setTags] = useState<ParsedTag[]>(video.tags)
   const [inputValue, setInputValue] = useState('')
   const [isSaving, setIsSaving] = useState(false)
 
@@ -118,7 +117,7 @@ function EditModal({
           style={{
             width: '100%',
             height: '250px',
-            backgroundColor: 'var(--ev-c-gray-200)',
+            backgroundColor: 'var(--color-background-mute)',
             borderRadius: '8px',
             overflow: 'hidden',
             marginBottom: '15px'
@@ -183,15 +182,15 @@ function EditModal({
               padding: '10px',
               background: 'var(--color-background-soft)',
               borderRadius: '6px',
-              border: '1px solid var(--ev-c-gray-300)'
+              border: '1px solid var(--color-background-mute)'
             }}
           >
             {tags.map((t, i) => (
               <span
                 key={i}
                 style={{
-                  background: t.type === 'kv' ? 'var(--ev-c-blue-100)' : 'var(--ev-c-gray-200)',
-                  color: t.type === 'kv' ? 'var(--ev-c-blue-800)' : 'var(--color-text)',
+                  background: t.type === 'kv' ? 'var(--color-primary-light)' : 'var(--color-background-mute)',
+                  color: t.type === 'kv' ? 'var(--color-primary-dark)' : 'var(--color-text)',
                   padding: '5px 12px',
                   borderRadius: '16px',
                   fontSize: '0.8rem',
@@ -238,7 +237,7 @@ function EditModal({
                 flex: 1,
                 padding: '10px',
                 borderRadius: '6px',
-                border: '1px solid var(--ev-c-gray-300)',
+                border: '1px solid var(--color-background-mute)',
                 fontSize: '0.95rem'
               }}
             />
@@ -266,7 +265,7 @@ function EditModal({
             justifyContent: 'space-between',
             alignItems: 'center',
             gap: '10px',
-            borderTop: '1px solid var(--ev-c-gray-200)',
+            borderTop: '1px solid var(--color-background-mute)',
             paddingTop: '15px',
             marginTop: '25px'
           }}
@@ -277,7 +276,7 @@ function EditModal({
               padding: '10px 20px',
               background: 'transparent',
               color: 'var(--color-text)',
-              border: '1px solid var(--ev-c-gray-300)',
+              border: '1px solid var(--color-background-mute)',
               borderRadius: '6px',
               cursor: 'pointer',
               fontWeight: 600
@@ -292,7 +291,7 @@ function EditModal({
               style={{
                 padding: '10px 20px',
                 background: 'transparent',
-                border: '1px solid var(--ev-c-gray-300)',
+                border: '1px solid var(--color-background-mute)',
                 borderRadius: '6px',
                 cursor: 'pointer',
                 color: 'var(--color-text-soft)'
@@ -305,7 +304,7 @@ function EditModal({
               disabled={isSaving}
               style={{
                 padding: '10px 20px',
-                background: isSaving ? 'var(--ev-c-gray-400)' : 'var(--ev-c-blue-700)',
+                background: isSaving ? 'var(--color-text-mute)' : 'var(--color-primary-dark)',
                 color: 'white',
                 border: 'none',
                 borderRadius: '6px',
@@ -341,7 +340,7 @@ function VideoCard({
       style={{
         width: '200px',
         height: '180px',
-        border: '1px solid var(--ev-c-gray-300)',
+        border: '1px solid var(--color-background-mute)',
         backgroundColor: 'var(--color-background-soft)',
         borderRadius: '8px',
         boxShadow: '0 4px 6px rgba(0, 0, 0, 0.04)',
@@ -366,7 +365,7 @@ function VideoCard({
         style={{
           width: '100%',
           height: '100px',
-          backgroundColor: 'var(--ev-c-gray-200)',
+          backgroundColor: 'var(--color-background-mute)',
           overflow: 'hidden'
         }}
       >
@@ -494,12 +493,12 @@ function FilterSection({
               onClick={() => onSelect(active === opt ? undefined : opt)}
               style={{
                 textAlign: 'left',
-                background: active === opt ? 'var(--ev-c-blue-100)' : 'transparent',
+                background: active === opt ? 'var(--color-primary-light)' : 'transparent',
                 border: 'none',
                 padding: '6px 10px',
                 borderRadius: '4px',
                 cursor: 'pointer',
-                color: active === opt ? 'var(--ev-c-blue-700)' : 'var(--color-text)',
+                color: active === opt ? 'var(--color-primary-dark)' : 'var(--color-text)',
                 fontWeight: active === opt ? 600 : 400
               }}
             >
@@ -529,7 +528,7 @@ function Sidebar({
       style={{
         width: '240px',
         flexShrink: 0,
-        borderRight: '1px solid var(--ev-c-gray-300)',
+        borderRight: '1px solid var(--color-background-mute)',
         padding: '20px',
         overflowY: 'auto',
         background: 'var(--color-background-soft)'
