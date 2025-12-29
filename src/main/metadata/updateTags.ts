@@ -1,5 +1,5 @@
-import { exiftool } from 'exiftool-vendored'
 import { ParsedTag } from '../../shared/types/metadata'
+import { ourExiftool } from './utils'
 
 export async function updateVideoTags(filePath: string, tags: ParsedTag[]): Promise<void> {
   // 1. Ricostruiamo la stringa "raw" (es: "vacanze; categoria:natura")
@@ -23,7 +23,7 @@ export async function updateVideoTags(filePath: string, tags: ParsedTag[]): Prom
     // XMP usa 'Subject'.
     // IPTC usa 'Keywords'.
     // Scriviamo OVUNQUE.
-    await exiftool.write(
+    await ourExiftool.write(
       filePath,
       {
         XPKeywords: tagString, // Windows (Proprietà -> Dettagli -> Contrassegni)

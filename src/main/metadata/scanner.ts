@@ -4,10 +4,9 @@ import * as path from 'path'
 import { v4 as uuidv4 } from 'uuid'
 import { ExiftoolTags, ParsedTag } from '../../shared/types/metadata'
 import { VideoFile } from '../../shared/types/video'
-import { exiftool } from 'exiftool-vendored'
 import { generateThumbnail } from './thumbnails'
+import { ourExiftool } from './utils'
 
-// La funzione di parsing rimane uguale, funziona perfettamente con i tuoi dati
 export function parseTags(rawString: string): ParsedTag[] {
   if (!rawString) return []
 
@@ -82,7 +81,7 @@ export async function scanDirectory(dirPath: string): Promise<VideoFile[]> {
     if (videoExtensions.includes(ext)) {
       try {
         // Leggi Metadata
-        const meta: ExiftoolTags = await exiftool.read(fullPath)
+        const meta: ExiftoolTags = await ourExiftool.read(fullPath)
 
         const potentialTags = [
           meta.Category,
