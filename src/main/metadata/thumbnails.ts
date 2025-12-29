@@ -33,7 +33,7 @@ export async function generateThumbnail(
   outputFolder: string,
   fileName: string
 ): Promise<string | undefined> {
-  const thumbName = `${fileName}.jpg`
+  const thumbName = `${path.parse(fileName).name}.jpg`
   const thumbPath = path.join(outputFolder, thumbName)
 
   // Cache check
