@@ -7,7 +7,11 @@ import { pathToFileURL } from 'url'
 import { scanDirectory } from './metadata/scanner'
 import { updateVideoTags } from './metadata/updateTags'
 import { closeExiftool } from './metadata/utils'
-import { loadLibrary, saveLibrary } from './metadata/library'
+import {
+  loadLibrary,
+  saveLibrary,
+  deleteVideoEntry
+} from './metadata/library'
 
 app.whenReady().then(() => {
   electronApp.setAppUserModelId('com.electron')
@@ -91,6 +95,10 @@ app.whenReady().then(() => {
   ipcMain.handle('db:load', async (_, folderPath) => await loadLibrary(folderPath))
   ipcMain.handle('db:save', async (_, folderPath, videos) => await saveLibrary(folderPath, videos))
   ipcMain.handle('videos:scan', async (_, folderPath) => await scanDirectory(folderPath))
+  ipcMain.handle(
+    'videos:delete',
+    async (_, folderPath, videoId) => await deleteVideoEntry(folderPath, videoId)
+  )
   ipcMain.on('video:open', (_, filePath) => shell.openPath(filePath))
   ipcMain.handle(
     'videos:updateTags',

@@ -11,7 +11,9 @@ const api = {
     ipcRenderer.invoke('videos:updateTags', filePath, tags),
   loadLibrary: (folderPath: string) => ipcRenderer.invoke('db:load', folderPath),
   saveLibrary: (folderPath: string, videos: VideoFile[]) =>
-    ipcRenderer.invoke('db:save', folderPath, videos)
+    ipcRenderer.invoke('db:save', folderPath, videos),
+  deleteVideoEntry: (folderPath: string, videoId: string) =>
+    ipcRenderer.invoke('videos:delete', folderPath, videoId)
 }
 
 if (process.contextIsolated) {

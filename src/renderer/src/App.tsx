@@ -14,6 +14,7 @@ declare global {
       // API per la gestione del database JSON locale
       loadLibrary: (folderPath: string) => Promise<VideoFile[] | null>
       saveLibrary: (folderPath: string, videos: VideoFile[]) => Promise<void>
+      deleteVideoEntry: (folderPath: string, videoId: string) => Promise<void>
     }
   }
 }
@@ -40,14 +41,19 @@ function InfoRow({ label, value }: { label: string; value?: string }) {
       function EditModal({
         video,
         onClose,
-        onSave
+        onSave,
+        currentFolder,
+        onDelete
       }: {
         video: VideoFile
         onClose: () => void
         onSave: (tags: ParsedTag[]) => void
+        currentFolder: string | null
+        onDelete: (videoId: string) => void
       }): React.ReactElement {  const [tags, setTags] = useState<ParsedTag[]>(video.tags)
   const [inputValue, setInputValue] = useState('')
   const [isSaving, setIsSaving] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false) // New state for deleting
 
   const handleAddTag = (e: React.FormEvent): void => {
     e.preventDefault()
@@ -81,6 +87,28 @@ function InfoRow({ label, value }: { label: string; value?: string }) {
     setIsSaving(false)
     onClose()
   }
+
+  const handleDeleteClick = async (): Promise<void> => {
+    if (!window.confirm('Sei sicuro di voler eliminare questo video e tutti i suoi file?')) {
+      return
+    }
+    setIsDeleting(true)
+    try {
+      if (currentFolder) {
+        await window.api.deleteVideoEntry(currentFolder, video.id)
+        onDelete(video.id) // Inform parent about deletion
+        onClose() // Close modal after successful deletion
+      } else {
+        console.error('Current folder is not set, cannot delete video.')
+      }
+    } catch (error) {
+      console.error('Error deleting video:', error)
+      alert("Errore durante l'eliminazione del video.")
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
 
   const categoryTag = tags.find((t) => t.type === 'kv' && t.key === 'category')
   const modelTag = tags.find((t) => t.type === 'kv' && t.key === 'model')
@@ -286,8 +314,24 @@ function InfoRow({ label, value }: { label: string; value?: string }) {
           </button>
           <div style={{ display: 'flex', gap: '10px' }}>
             <button
+              onClick={handleDeleteClick}
+              disabled={isDeleting || isSaving}
+              style={{
+                padding: '10px 20px',
+                background: isDeleting ? '#e57373' : '#f44336', // Red color for delete
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: isDeleting || isSaving ? 'not-allowed' : 'pointer',
+                fontWeight: 600,
+                marginRight: '10px' // Add some space
+              }}
+            >
+              {isDeleting ? 'Eliminazione...' : 'Elimina'}
+            </button>
+            <button
               onClick={onClose}
-              disabled={isSaving}
+              disabled={isSaving || isDeleting}
               style={{
                 padding: '10px 20px',
                 background: 'transparent',
@@ -301,14 +345,14 @@ function InfoRow({ label, value }: { label: string; value?: string }) {
             </button>
             <button
               onClick={handleSaveClick}
-              disabled={isSaving}
+              disabled={isSaving || isDeleting}
               style={{
                 padding: '10px 20px',
                 background: isSaving ? 'var(--color-text-mute)' : 'var(--color-primary-dark)',
                 color: 'white',
                 border: 'none',
                 borderRadius: '6px',
-                cursor: 'pointer',
+                cursor: isSaving || isDeleting ? 'not-allowed' : 'pointer',
                 fontWeight: 600
               }}
             >
@@ -642,6 +686,11 @@ const [activeFilters, setActiveFilters] = useState<ActiveFilter | null>(null)
     }
   }
 
+  const handleDeleteVideo = (videoId: string): void => {
+    setVideos((prevVideos) => prevVideos.filter((video) => video.id !== videoId))
+  }
+
+
   const filterOptions = useMemo(() => {
     const categories = new Set<string>()
     const models = new Set<string>()
@@ -790,7 +839,7 @@ const [activeFilters, setActiveFilters] = useState<ActiveFilter | null>(null)
       </div>
 
       {editingVideo && (
-        <EditModal video={editingVideo} onClose={() => setEditingVideo(null)} onSave={saveTags} />
+        <EditModal video={editingVideo} onClose={() => setEditingVideo(null)} onSave={saveTags} currentFolder={currentFolder} onDelete={handleDeleteVideo} />
       )}
     </div>
   )
