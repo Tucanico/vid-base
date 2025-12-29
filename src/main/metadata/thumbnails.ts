@@ -25,9 +25,7 @@ if (ffprobePath) {
   console.error('ERRORE: ffprobe-static non trovato! Esegui "npm install ffprobe-static"')
 }
 
-/**
- * Genera una miniatura per un video dato.
- */
+// Genera una miniatura per un video dato.
 export async function generateThumbnail(
   videoPath: string,
   outputFolder: string,
@@ -36,27 +34,36 @@ export async function generateThumbnail(
   const thumbName = `${path.parse(fileName).name}.jpg`
   const thumbPath = path.join(outputFolder, thumbName)
 
-  // Cache check
   if (fsSync.existsSync(thumbPath)) {
     return thumbPath
   }
 
   return new Promise((resolve) => {
-    ffmpeg(videoPath)
-      .on('end', () => {
-        // console.log(`Thumb creata: ${thumbName}`);
-        resolve(thumbPath)
-      })
-      .on('error', (err) => {
-        console.error(`❌ ERRORE FFmpeg su ${fileName}:`, err.message)
+    // 1️⃣ Get duration
+    ffmpeg.ffprobe(videoPath, (err, metadata) => {
+      if (err || !metadata.format?.duration) {
+        console.error('❌ ffprobe failed:', err)
         resolve(undefined)
-      })
-      .screenshots({
-        count: 1,
-        folder: outputFolder,
-        filename: thumbName,
-        size: '320x?',
-        timestamps: ['20%']
-      })
+        return
+      }
+
+      const duration = metadata.format.duration
+      const seekTime = duration * 0.2 // 20%
+
+      // 2️⃣ Extract frame
+      ffmpeg(videoPath)
+        .seekInput(seekTime)
+        .frames(1)
+        .outputOptions([
+          '-q:v 4' // real JPEG quality
+        ])
+        .output(thumbPath)
+        .on('end', () => resolve(thumbPath))
+        .on('error', (err) => {
+          console.error(`❌ FFmpeg error on ${fileName}:`, err.message)
+          resolve(undefined)
+        })
+        .run()
+    })
   })
 }
