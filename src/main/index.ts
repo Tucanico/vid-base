@@ -26,11 +26,11 @@ app.whenReady().then(() => {
       webPreferences: {
         preload: join(__dirname, '../preload/index.js'),
         sandbox: false,
-        webSecurity: false // Utile per evitare problemi CORS con file locali
+        webSecurity: false // Useful to avoid CORS issues with local files
       }
     })
 
-    // ... resto di createWindow ...
+    // ... rest of createWindow ...
     mainWindow.on('ready-to-show', () => {
       mainWindow.show()
     })
@@ -47,38 +47,38 @@ app.whenReady().then(() => {
     }
   }
 
-  // Questo permette di usare <img src="media://Percorso/File.jpg">
+  // This allows using <img src="media://Path/To/File.jpg">
   protocol.handle('media', (request) => {
-    // 1. Togli il protocollo. Gestisce sia "media://" che "media:///"
+    // 1. Remove the protocol. Handles both "media://" and "media:///"
     let url = request.url.replace(/^media:\/\//, '')
 
-    // 2. Decodifica (%20 -> spazio)
+    // 2. Decode (%20 -> space)
     url = decodeURIComponent(url)
 
-    // 3. FIX PER WINDOWS
-    // Se l'URL inizia con uno slash e poi una lettera di drive (es: /C:/...), togli lo slash iniziale.
+    // 3. FIX FOR WINDOWS
+    // If the URL starts with a slash followed by a drive letter (e.g., /C:/...), remove the leading slash.
     if (process.platform === 'win32' && url.startsWith('/') && /^[a-zA-Z]:/.test(url.slice(1))) {
       url = url.slice(1)
     }
 
-    // 4. Normalizza i separatori (converte / in \ su Windows)
+    // 4. Normalize separators (converts / to \ on Windows)
     const absolutePath = path.normalize(url)
 
-    // 5. Crea l'URL file:// ufficiale
+    // 5. Create the official file:// URL
     const fileUrl = pathToFileURL(absolutePath).toString()
 
-    // --- LOG DI DEBUG (Guardali nel terminale!) ---
-    // console.log('Richiesta:', request.url)
-    // console.log('Path Pulito:', absolutePath)
+    // --- DEBUG LOG (Check them in the terminal!) ---
+    // console.log('Request:', request.url)
+    // console.log('Clean Path:', absolutePath)
     // console.log('File URL:', fileUrl)
     // ----------------------------------------------
 
-    // 6. Prova a caricare e cattura l'errore se fallisce
+    // 6. Attempt to load and catch error if it fails
     return net.fetch(fileUrl).catch((e) => {
-      console.error(`❌ ERRORE CARICAMENTO: ${absolutePath}`)
-      console.error(`   Dettaglio: ${e.message}`)
-      // Ritorna un 404 per non far esplodere la console
-      return new Response('File non trovato', { status: 404 })
+      console.error(`❌ LOADING ERROR: ${absolutePath}`)
+      console.error(`   Detail: ${e.message}`)
+      // Returns a 404 to prevent console explosion
+      return new Response('File not found', { status: 404 })
     })
   })
 
@@ -112,7 +112,7 @@ app.whenReady().then(() => {
   })
 })
 
-// ... resto del file (will-quit, etc) ...
+// ... rest of the file (will-quit, etc) ...
 app.on('will-quit', () => {
   closeExiftool()
 })

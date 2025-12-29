@@ -39,7 +39,7 @@ export function parseTags(rawString: string): ParsedTag[] {
 export async function getFilesRecursively(dir: string): Promise<string[]> {
 	let results: string[] = []
 
-	// 'withFileTypes: true' è fondamentale per capire se è file o cartella
+	// 'withFileTypes: true' is essential to understand if it's a file or folder
 	const list = await fs.readdir(dir, { withFileTypes: true })
 
 	const videoExtensions = ['.mp4', '.mkv', '.mov', '.avi', '.wmv', '.m4v']
@@ -48,7 +48,7 @@ export async function getFilesRecursively(dir: string): Promise<string[]> {
 		const fullPath = path.join(dir, entry.name)
 
 		if (entry.isDirectory()) {
-			// RICORSIONE: Se trova una cartella, chiama se stessa!
+			// RECURSION: If it finds a folder, it calls itself!
 			const subFolderFiles = await getFilesRecursively(fullPath)
 			results = results.concat(subFolderFiles)
 		} else if (entry.isFile()) {
@@ -62,7 +62,7 @@ export async function getFilesRecursively(dir: string): Promise<string[]> {
 }
 
 export async function scanDirectory(dirPath: string): Promise<VideoFile[]> {
-	// Crea cartella .thumbnails se non esiste
+	// Create .thumbnails folder if it doesn't exist
 	const thumbsDir = path.join(dirPath, '.thumbnails')
 	if (!fsSync.existsSync(thumbsDir)) {
 		await fs.mkdir(thumbsDir)
@@ -74,13 +74,13 @@ export async function scanDirectory(dirPath: string): Promise<VideoFile[]> {
 	const results: VideoFile[] = []
 
 	for (const fullPath of allFilePaths) {
-		// Siccome fullPath è tutto il percorso, estraiamo il nome del file per la UI
+		// Since fullPath is the entire path, we extract the file name for the UI
 		const file = path.basename(fullPath)
 		const ext = path.extname(file).toLowerCase()
 
 		if (videoExtensions.includes(ext)) {
 			try {
-				// Leggi Metadata
+				// Read Metadata
 				const meta: ExiftoolTags = await ourExiftool.read(fullPath)
 
 				const potentialTags = [
@@ -105,7 +105,7 @@ export async function scanDirectory(dirPath: string): Promise<VideoFile[]> {
 					rawString = foundTags
 				}
 
-				// Genera Thumbnail
+				// Generate Thumbnail
 				const thumbPath = await generateThumbnail(fullPath, thumbsDir, file)
 
 				results.push({
@@ -117,7 +117,7 @@ export async function scanDirectory(dirPath: string): Promise<VideoFile[]> {
 					tags: parseTags(rawString)
 				})
 			} catch (err) {
-				console.error(`Errore leggendo ${file}:`, err)
+				console.error(`Error reading ${file}:`, err)
 			}
 		}
 	}

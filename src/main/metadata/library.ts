@@ -17,11 +17,11 @@ export async function loadLibrary(folderPath: string): Promise<VideoFile[] | nul
 export async function saveLibrary(folderPath: string, videos: VideoFile[]): Promise<void> {
 	const dbPath = path.join(folderPath, 'library.json')
 	try {
-		const data = JSON.stringify(videos, null, 2) // null, 2 per formattazione leggibile
+		const data = JSON.stringify(videos, null, 2) // null, 2 for readable formatting
 		await fs.writeFile(dbPath, data, 'utf-8')
-		console.log('Libreria salvata in:', dbPath)
+		console.log('Library saved to:', dbPath)
 	} catch (error) {
-		console.error('Errore salvataggio libreria:', error)
+		console.error('Error saving library:', error)
 	}
 }
 

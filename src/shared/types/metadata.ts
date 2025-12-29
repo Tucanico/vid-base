@@ -2,9 +2,9 @@ export type Keys = 'category' | 'channel' | 'model' | 'production'
 
 export interface ParsedTag {
   type: 'simple' | 'kv'
-  key?: string // es: "categoria"
-  value: string // es: "vintage"
-  original: string // es: "categoria:vintage"
+  key?: string // e.g.: "category"
+  value: string // e.g.: "vintage"
+  original: string // e.g.: "category:vintage"
 }
 
 export interface ExiftoolTags {

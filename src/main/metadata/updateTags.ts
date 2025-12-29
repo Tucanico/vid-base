@@ -2,7 +2,7 @@ import { ParsedTag } from '../../shared/types/metadata'
 import { ourExiftool } from './utils'
 
 export async function updateVideoTags(filePath: string, tags: ParsedTag[]): Promise<void> {
-  // 1. Ricostruiamo la stringa "raw" (es: "vacanze; categoria:natura")
+  // 1. Reconstruct the "raw" string (e.g., "holidays; category:nature")
   const tagString = tags
     .map((t) => {
       if (t.type === 'kv' && t.key) {
@@ -12,35 +12,35 @@ export async function updateVideoTags(filePath: string, tags: ParsedTag[]): Prom
     })
     .join('; ')
 
-  // Tag come array (per i formati che supportano liste vere invece di stringhe)
+  // Tags as an array (for formats that support true lists instead of strings)
   const tagList = tags.map((t) => (t.type === 'kv' ? `${t.key}:${t.value}` : t.value))
 
   try {
-    console.log(`Scrivendo tags su ${filePath}:`, tagString)
+    console.log(`Writing tags to ${filePath}:`, tagString)
 
-    // 2. Scrittura Aggressiva
-    // Windows MP4 usa spesso 'ItemList:Keyword' o 'Microsoft:XPKeywords'.
-    // XMP usa 'Subject'.
-    // IPTC usa 'Keywords'.
-    // Scriviamo OVUNQUE.
+    // 2. Aggressive Writing
+    // Windows MP4 often uses 'ItemList:Keyword' or 'Microsoft:XPKeywords'.
+    // XMP uses 'Subject'.
+    // IPTC uses 'Keywords'.
+    // Write EVERYWHERE.
     await ourExiftool.write(
       filePath,
       {
-        XPKeywords: tagString, // Windows (Proprietà -> Dettagli -> Contrassegni)
-        Keywords: tagList, // Standard IPTC (spesso array)
-        Subject: tagList, // Standard XMP (spesso array)
+        XPKeywords: tagString, // Windows (Properties -> Details -> Tags)
+        Keywords: tagList, // Standard IPTC (often array)
+        Subject: tagList, // Standard XMP (often array)
         //'ItemList:Keyword': tagString, // Specifico MP4
         Category: tagString, // Legacy Microsoft
-        Description: tagString, // Fallback descrizione
-        Comment: tagString // Fallback commenti
+        Description: tagString, // Fallback description
+        Comment: tagString // Fallback comments
       },
       // 3. writing options (removes _original files)
       { writeArgs: ['-overwrite_original'] }
     )
 
-    console.log(`Successo! Tags aggiornati.`)
+    console.log(`Success! Tags updated.`)
   } catch (err) {
-    console.error(`Errore salvataggio tags su ${filePath}:`, err)
+    console.error(`Error saving tags to ${filePath}:`, err)
     throw err
   }
 }

@@ -19,7 +19,7 @@ const api = {
 if (process.contextIsolated) {
   try {
     contextBridge.exposeInMainWorld('electron', electronAPI)
-    // Esponiamo l'oggetto api definito sopra
+    // Expose the api object defined above
     contextBridge.exposeInMainWorld('api', api)
   } catch (error) {
     console.error(error)

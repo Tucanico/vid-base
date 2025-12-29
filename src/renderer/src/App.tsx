@@ -1,9 +1,9 @@
 import React, { useState, useMemo } from 'react'
-// Assicurati che questi percorsi corrispondano alla tua struttura
+// Make sure these paths match your structure
 import { ParsedTag } from 'src/shared/types/metadata'
 import { VideoFile } from 'src/shared/types/video'
 
-// Dichiariamo i tipi per window.api (esposti dal preload)
+// Declare types for window.api (exposed by preload)
 declare global {
   interface Window {
     api: {
@@ -11,7 +11,7 @@ declare global {
       scanVideos: (path: string) => Promise<VideoFile[]>
       openVideo: (path: string) => void
       updateTags: (filePath: string, tags: ParsedTag[]) => Promise<void>
-      // API per la gestione del database JSON locale
+      // API for local JSON database management
       loadLibrary: (folderPath: string) => Promise<VideoFile[] | null>
       saveLibrary: (folderPath: string, videos: VideoFile[]) => Promise<void>
       deleteVideoEntry: (folderPath: string, videoId: string) => Promise<void>
@@ -19,7 +19,7 @@ declare global {
   }
 }
 
-// --- COMPONENTE: MODALE DI EDITING ---
+// --- COMPONENT: EDIT MODAL ---
 function InfoRow({ label, value }: { label: string; value?: string }) {
   if (!value) return null
 
@@ -59,7 +59,7 @@ function InfoRow({ label, value }: { label: string; value?: string }) {
     e.preventDefault()
     if (!inputValue.trim()) return
 
-    // Parsing tag: riconosce automaticamente "chiave:valore"
+    // Tag parsing: automatically recognizes "key:value"
     let newTag: ParsedTag
     if (inputValue.includes(':')) {
       const [key, ...val] = inputValue.split(':')
@@ -89,7 +89,7 @@ function InfoRow({ label, value }: { label: string; value?: string }) {
   }
 
   const handleDeleteClick = async (): Promise<void> => {
-    if (!window.confirm('Sei sicuro di voler eliminare questo video e tutti i suoi file?')) {
+    if (!window.confirm('Are you sure you want to delete this video and all its files?')) {
       return
     }
     setIsDeleting(true)
@@ -103,7 +103,7 @@ function InfoRow({ label, value }: { label: string; value?: string }) {
       }
     } catch (error) {
       console.error('Error deleting video:', error)
-      alert("Errore durante l'eliminazione del video.")
+      alert("Error deleting video.")
     } finally {
       setIsDeleting(false)
     }
@@ -252,7 +252,7 @@ function InfoRow({ label, value }: { label: string; value?: string }) {
               </span>
             ))}
             {tags.length === 0 && (
-              <span style={{ color: 'var(--color-text-mute)', fontStyle: 'italic' }}>Nessun tag</span>
+              <span style={{ color: 'var(--color-text-mute)', fontStyle: 'italic' }}>No tags</span>
             )}
           </div>
           <form onSubmit={handleAddTag} style={{ display: 'flex', gap: '10px' }}>
@@ -260,7 +260,7 @@ function InfoRow({ label, value }: { label: string; value?: string }) {
               type="text"
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
-              placeholder="Es: vacanze o categoria:natura"
+              placeholder="Ex: holidays or category:nature"
               style={{
                 flex: 1,
                 padding: '10px',
@@ -281,12 +281,12 @@ function InfoRow({ label, value }: { label: string; value?: string }) {
                 fontWeight: 600
               }}
             >
-              Aggiungi
+              Add
             </button>
           </form>
         </div>
 
-        {/* Bottoni Azione */}
+        {/* Action Buttons */}
         <div
           style={{
             display: 'flex',
@@ -327,7 +327,7 @@ function InfoRow({ label, value }: { label: string; value?: string }) {
                 marginRight: '10px' // Add some space
               }}
             >
-              {isDeleting ? 'Eliminazione...' : 'Elimina'}
+              {isDeleting ? 'Deleting...' : 'Delete'}
             </button>
             <button
               onClick={onClose}
@@ -341,7 +341,7 @@ function InfoRow({ label, value }: { label: string; value?: string }) {
                 color: 'var(--color-text-soft)'
               }}
             >
-              Annulla
+              Cancel
             </button>
             <button
               onClick={handleSaveClick}
@@ -356,7 +356,7 @@ function InfoRow({ label, value }: { label: string; value?: string }) {
                 fontWeight: 600
               }}
             >
-              {isSaving ? 'Salvataggio...' : 'Salva Modifiche'}
+              {isSaving ? 'Saving...' : 'Save Changes'}
             </button>
           </div>
         </div>
@@ -365,7 +365,7 @@ function InfoRow({ label, value }: { label: string; value?: string }) {
   )
 }
 
-// --- COMPONENTE: Video Card ---
+// --- COMPONENT: Video Card ---
 function VideoCard({
   video,
   onEdit
@@ -423,7 +423,7 @@ function VideoCard({
               objectFit: 'cover'
             }}
             onError={(e) => {
-              console.error('Errore caricamento:', video.thumbnailPath)
+              console.error('Loading error:', video.thumbnailPath)
               e.currentTarget.style.display = 'none'
             }}
           />
@@ -494,7 +494,7 @@ type ActiveFilter = {
   value: string
 }
 
-// --- COMPONENTE: Sezione Filtri ---
+// --- COMPONENT: Filter Section ---
 function FilterSection({
   title,
   options,
@@ -506,7 +506,7 @@ function FilterSection({
   active?: string
   onSelect: (option: string | undefined) => void
 }) {
-  const [isOpen, setIsOpen] = useState(true)
+  const [isOpen, setIsOpen] = useState(false)
 
   return (
     <div style={{ marginBottom: '10px' }}>
@@ -555,7 +555,7 @@ function FilterSection({
   )
 }
 
-// --- COMPONENTE: Sidebar ---
+// --- COMPONENT: Sidebar ---
 function Sidebar({
   filterOptions,
   activeFilters,
@@ -628,7 +628,7 @@ function Sidebar({
   )
 }
 
-// --- COMPONENTE PRINCIPALE APP ---
+// --- MAIN APP COMPONENT ---
 function App(): React.ReactElement {
   const [videos, setVideos] = useState<VideoFile[]>([])
   const [loading, setLoading] = useState(false)
@@ -641,7 +641,7 @@ function App(): React.ReactElement {
 
 const [activeFilters, setActiveFilters] = useState<ActiveFilter | null>(null)
 
-  // LOGICA DI CARICAMENTO/SCANSIONE
+  // LOADING/SCANNING LOGIC
   const handleScan = async (): Promise<void> => {
     const folder = await window.api.selectFolder()
     if (folder) {
@@ -649,27 +649,27 @@ const [activeFilters, setActiveFilters] = useState<ActiveFilter | null>(null)
       setLoading(true)
       setVideos([])
       try {
-        console.log(`Controllo library.json in: ${folder}`)
+        console.log(`Checking library.json in: ${folder}`)
         const cachedVideos = await window.api.loadLibrary(folder)
         if (cachedVideos) {
-          console.log('Trovato library.json! Caricamento immediato.')
+          console.log('library.json found! Immediate loading.')
           setVideos(cachedVideos)
         } else {
-          console.log('Nessun library.json trovato. Avvio scansione completa...')
+          console.log('No library.json found. Starting full scan...')
           const results = await window.api.scanVideos(folder)
           setVideos(results)
           await window.api.saveLibrary(folder, results)
         }
       } catch (error) {
-        console.error('Errore caricamento:', error)
-        alert("C'è stato un errore durante il caricamento.")
+        console.error('Loading error:', error)
+        alert("There was an error during loading.")
       } finally {
         setLoading(false)
       }
     }
   }
 
-  // LOGICA SALVATAGGIO TAG
+  // TAG SAVING LOGIC
   const saveTags = async (newTags: ParsedTag[]): Promise<void> => {
     if (!editingVideo || !currentFolder) return
 
@@ -682,7 +682,7 @@ const [activeFilters, setActiveFilters] = useState<ActiveFilter | null>(null)
       await window.api.saveLibrary(currentFolder, updatedList)
     } catch (error) {
       console.error(error)
-      alert('Errore impossibile salvare i tag.')
+      alert('Error: unable to save tags.')
     }
   }
 
@@ -792,7 +792,7 @@ const [activeFilters, setActiveFilters] = useState<ActiveFilter | null>(null)
             transition: 'background 0.2s'
           }}
         >
-          {loading ? 'Sto caricando...' : '📂 Seleziona Cartella Video'}
+          {loading ? 'Sto caricando...' : '📂 Select Video Folder'}
         </button>
       </header>
 
@@ -826,12 +826,12 @@ const [activeFilters, setActiveFilters] = useState<ActiveFilter | null>(null)
 
             {!loading && videos.length === 0 && (
               <div style={{ textAlign: 'center', color: 'var(--color-text-mute)', marginTop: '40px' }}>
-                Nessun video caricato. Clicca il pulsante blu per iniziare.
+                No videos loaded. Click the blue button to start.
               </div>
             )}
             {!loading && videos.length > 0 && filteredVideos.length === 0 && (
               <div style={{ textAlign: 'center', color: 'var(--color-text-mute)', marginTop: '40px' }}>
-                Nessun video corrisponde ai filtri selezionati.
+                No videos match the selected filters.
               </div>
             )}
           </div>
