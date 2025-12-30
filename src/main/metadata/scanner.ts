@@ -1,5 +1,4 @@
 import * as fs from 'fs/promises'
-import * as fsSync from 'fs'
 import * as path from 'path'
 import { v4 as uuidv4 } from 'uuid'
 import { ExiftoolTags, ParsedTag } from '../../shared/types/metadata'
@@ -62,12 +61,6 @@ export async function getFilesRecursively(dir: string): Promise<string[]> {
 }
 
 export async function scanDirectory(dirPath: string): Promise<VideoFile[]> {
-	// Create .thumbnails folder if it doesn't exist
-	const thumbsDir = path.join(dirPath, '.thumbnails')
-	if (!fsSync.existsSync(thumbsDir)) {
-		await fs.mkdir(thumbsDir)
-	}
-
 	const allFilePaths = await getFilesRecursively(dirPath)
 
 	const videoExtensions = ['.mp4', '.mkv', '.mov', '.avi', '.wmv', '.m4v']
@@ -106,7 +99,7 @@ export async function scanDirectory(dirPath: string): Promise<VideoFile[]> {
 				}
 
 				// Generate Thumbnail
-				const thumbPath = await generateThumbnail(fullPath, thumbsDir, file)
+				const thumbPath = await generateThumbnail(fullPath)
 
 				results.push({
 					id: uuidv4(),

@@ -1,5 +1,7 @@
 import * as path from 'path'
+import * as fs from 'fs/promises'
 import * as fsSync from 'fs'
+import { exec } from 'child_process'
 import ffmpeg from 'fluent-ffmpeg'
 import ffmpegPath from 'ffmpeg-static'
 import { path as ffprobePath } from 'ffprobe-static'
@@ -23,20 +25,36 @@ if (ffprobePath) {
 }
 
 // Generate a thumbnail for a given video
-export async function generateThumbnail(
-	videoPath: string,
-	outputFolder: string,
-	fileName: string
-): Promise<string | undefined> {
+export async function generateThumbnail(videoPath: string): Promise<string | undefined> {
+	const videoDir = path.dirname(videoPath)
+	const outputFolder = path.join(videoDir, '.thumbnails')
+	const fileName = path.basename(videoPath)
 	const thumbName = `${path.parse(fileName).name}.jpg`
 	const thumbPath = path.join(outputFolder, thumbName)
+
+	try {
+		// Create .thumbnails directory if it doesn't exist
+		await fs.mkdir(outputFolder, { recursive: true })
+
+		// Hide the folder on Windows
+		if (process.platform === 'win32') {
+			exec(`attrib +h "${outputFolder}"`, (err) => {
+				if (err) {
+					console.warn(`Could not hide folder ${outputFolder}:`, err)
+				}
+			})
+		}
+	} catch (error) {
+		console.error(`Failed to create .thumbnails directory at ${outputFolder}:`, error)
+		return undefined
+	}
 
 	// If it exists already, return it
 	if (fsSync.existsSync(thumbPath)) return thumbPath
 
 	return new Promise((resolve) => {
 		// 1. Get duration
-		ffmpeg.ffprobe(videoPath, (err: any, metadata: any) => {
+		ffmpeg.ffprobe(videoPath, (err: Error, metadata: ffmpeg.FfprobeData) => {
 			if (err || !metadata.format?.duration) {
 				console.error('❌ ffprobe failed:', err)
 				resolve(undefined)

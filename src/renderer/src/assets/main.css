@@ -1,34 +1,34 @@
 @import './base.css';
 
 code {
-  font-weight: 600;
-  padding: 3px 5px;
-  border-radius: 2px;
-  background-color: var(--color-background-mute);
-  font-family:
-    ui-monospace,
-    SFMono-Regular,
-    SF Mono,
-    Menlo,
-    Consolas,
-    Liberation Mono,
-    monospace;
-  font-size: 85%;
+	font-weight: 600;
+	padding: 3px 5px;
+	border-radius: 2px;
+	background-color: var(--color-background-mute);
+	font-family:
+		ui-monospace,
+		SFMono-Regular,
+		SF Mono,
+		Menlo,
+		Consolas,
+		Liberation Mono,
+		monospace;
+	font-size: 85%;
 }
 
 .versions {
-  padding: 10px;
-  background-color: var(--color-background-mute);
-  border-radius: 8px;
-  margin-top: 20px;
-  color: var(--color-text-soft);
-  font-size: 0.9em;
+	padding: 10px;
+	background-color: var(--color-background-mute);
+	border-radius: 8px;
+	margin-top: 20px;
+	color: var(--color-text-soft);
+	font-size: 0.9em;
 }
 
 .versions li {
-  margin-bottom: 5px;
+	margin-bottom: 5px;
 }
 
 .versions li:last-child {
-  margin-bottom: 0;
+	margin-bottom: 0;
 }
