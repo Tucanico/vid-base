@@ -1,5 +1,6 @@
 import * as fs from 'fs/promises'
 import * as path from 'path'
+import { shell } from 'electron'
 import { VideoFile } from '../../shared/types/video'
 import { loadLibrary, saveLibrary } from './library'
 
@@ -52,8 +53,8 @@ export async function cleanupOrphans(folderPath: string): Promise<void> {
 		for (const orphan of orphanedVideos) {
 			if (orphan.thumbnailPath) {
 				try {
-					await fs.unlink(orphan.thumbnailPath)
-					console.log(`🗑️ Deleted orphaned thumbnail: ${orphan.thumbnailPath}`)
+					await shell.trashItem(orphan.thumbnailPath)
+					console.log(`🗑️ Moved orphaned thumbnail to trash: ${orphan.thumbnailPath}`)
 				} catch (error: any) {
 					// Ignore errors if the file doesn't exist, but log others
 					if (error.code !== 'ENOENT') {
@@ -80,8 +81,8 @@ export async function cleanupOrphans(folderPath: string): Promise<void> {
 			const thumbPath = path.join(thumbnailsFolder, thumbFile)
 			if (!libraryThumbnailPaths.has(thumbPath)) {
 				try {
-					await fs.unlink(thumbPath)
-					console.log(`🗑️ Deleted orphaned thumbnail (no library entry): ${thumbPath}`)
+					await shell.trashItem(thumbPath)
+					console.log(`🗑️ Moved orphaned thumbnail to trash (no library entry): ${thumbPath}`)
 				} catch (error: any) {
 					console.error(`Error deleting orphaned thumbnail ${thumbPath}:`, error)
 				}
