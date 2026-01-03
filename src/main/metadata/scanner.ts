@@ -6,6 +6,12 @@ import { VideoFile } from '../../shared/types/video'
 import { generateThumbnail } from './thumbnails'
 import { ourExiftool } from './utils'
 
+/** Parses a raw string of tags into an array of structured ParsedTag objects
+ *  (tags can be simple strings or key-value pairs, separated by commas or semicolons)
+ *  @param rawString The raw string of tags to parse
+ *  @returns An array of ParsedTag objects
+ */
+
 export function parseTags(rawString: string): ParsedTag[] {
 	if (!rawString) return []
 
@@ -15,7 +21,7 @@ export function parseTags(rawString: string): ParsedTag[] {
 			const clean = segment.trim()
 			if (!clean) return null
 
-			// if it's a key-value
+			// If the segment contains a colon, treat it as a key-value pair
 			if (clean.includes(':')) {
 				const [key, ...rest] = clean.split(':')
 				return {
@@ -25,6 +31,7 @@ export function parseTags(rawString: string): ParsedTag[] {
 					original: clean
 				} as ParsedTag
 			} else {
+				// Otherwise, treat it as a simple tag
 				return {
 					type: 'simple',
 					value: clean,
@@ -32,13 +39,15 @@ export function parseTags(rawString: string): ParsedTag[] {
 				} as ParsedTag
 			}
 		})
-		.filter(Boolean) as ParsedTag[]
+		.filter(Boolean) as ParsedTag[] // Filter out any null entries
 }
 
+/** Recursively walks a directory and returns a flat list of all file paths
+ *  @param dir The directory to start from
+ *  @returns A promise that resolves to an array of full file paths
+ */
 export async function getFilesRecursively(dir: string): Promise<string[]> {
 	let results: string[] = []
-
-	// 'withFileTypes: true' is essential to understand if it's a file or folder
 	const list = await fs.readdir(dir, { withFileTypes: true })
 
 	const videoExtensions = ['.mp4', '.mkv', '.mov', '.avi', '.wmv', '.m4v']
@@ -47,10 +56,11 @@ export async function getFilesRecursively(dir: string): Promise<string[]> {
 		const fullPath = path.join(dir, entry.name)
 
 		if (entry.isDirectory()) {
-			// RECURSION: If it finds a folder, it calls itself!
+			// If it's a directory, recurse into it and concatenate the results
 			const subFolderFiles = await getFilesRecursively(fullPath)
 			results = results.concat(subFolderFiles)
 		} else if (entry.isFile()) {
+			// If it's a file, check if it has a valid video extension
 			const ext = path.extname(entry.name).toLowerCase()
 			if (videoExtensions.includes(ext)) {
 				results.push(fullPath)
@@ -60,58 +70,58 @@ export async function getFilesRecursively(dir: string): Promise<string[]> {
 	return results
 }
 
+/** Scans a directory for video files, extracts metadata, generates thumbnails, and returns a list of VideoFile objects
+ *  @param dirPath The path to the directory to scan
+ *  @returns A promise that resolves to an array of VideoFile objects
+ */
 export async function scanDirectory(dirPath: string): Promise<VideoFile[]> {
 	const allFilePaths = await getFilesRecursively(dirPath)
-
-	const videoExtensions = ['.mp4', '.mkv', '.mov', '.avi', '.wmv', '.m4v']
 	const results: VideoFile[] = []
 
 	for (const fullPath of allFilePaths) {
-		// Since fullPath is the entire path, we extract the file name for the UI
 		const file = path.basename(fullPath)
-		const ext = path.extname(file).toLowerCase()
+		try {
+			// Read metadata from the video file using exiftool
+			const meta: ExiftoolTags = await ourExiftool.read(fullPath)
 
-		if (videoExtensions.includes(ext)) {
-			try {
-				// Read Metadata
-				const meta: ExiftoolTags = await ourExiftool.read(fullPath)
+			// An array of potential metadata fields that might contain tags
+			// We will use the first one that is found and has content
+			const potentialTags = [
+				meta.Category,
+				meta.XPKeywords,
+				meta.Keywords,
+				meta.Subject,
+				meta.Description
+			]
 
-				const potentialTags = [
-					meta.Category,
-					meta.XPKeywords,
-					meta.Keywords,
-					meta.Subject,
-					meta.Description
-				]
+			// Find the first tag field that has a non-empty value
+			const foundTags = potentialTags.find(
+				(val) =>
+					(Array.isArray(val) && val.length > 0) ||
+					(typeof val === 'string' && val.trim() !== '')
+			)
 
-				const foundTags = potentialTags.find(
-					(val) =>
-						(Array.isArray(val) && val.length > 0) ||
-						(typeof val === 'string' && val.trim() !== '')
-				)
-
-				let rawString = ''
-
-				if (Array.isArray(foundTags)) {
-					rawString = foundTags.map(String).join('; ')
-				} else if (typeof foundTags === 'string') {
-					rawString = foundTags
-				}
-
-				// Generate Thumbnail
-				const thumbPath = await generateThumbnail(fullPath)
-
-				results.push({
-					id: uuidv4(),
-					fileName: file,
-					filePath: fullPath,
-					thumbnailPath: thumbPath,
-					rawTags: rawString,
-					tags: parseTags(rawString)
-				})
-			} catch (err) {
-				console.error(`Error reading ${file}:`, err)
+			let rawString = ''
+			if (Array.isArray(foundTags)) {
+				rawString = foundTags.map(String).join('; ')
+			} else if (typeof foundTags === 'string') {
+				rawString = foundTags
 			}
+
+			// Generate a thumbnail for the video
+			const thumbPath = await generateThumbnail(fullPath)
+
+			// Create a new VideoFile object with the extracted data
+			results.push({
+				id: uuidv4(),
+				fileName: file,
+				filePath: fullPath,
+				thumbnailPath: thumbPath,
+				rawTags: rawString,
+				tags: parseTags(rawString)
+			})
+		} catch (err) {
+			console.error(`Error reading ${file}:`, err)
 		}
 	}
 	return results

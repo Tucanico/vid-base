@@ -9,10 +9,15 @@ import { updateVideoTags } from './metadata/updateTags'
 import { closeExiftool } from './metadata/utils'
 import { loadLibrary, saveLibrary, deleteVideoEntry } from './metadata/library'
 
+// This method will be called when Electron has finished initialization and is ready to create browser windows
+// Some APIs can only be used after this event occurs
 app.whenReady().then(() => {
+	// Set app user model id for windows
 	electronApp.setAppUserModelId('com.electron')
 
+	// Creates the main browser window
 	function createWindow(): void {
+		// Create the browser window
 		const mainWindow = new BrowserWindow({
 			width: 900,
 			height: 670,
@@ -26,16 +31,18 @@ app.whenReady().then(() => {
 			}
 		})
 
-		// ... rest of createWindow ...
+		// Shows the window once it's ready to prevent a visual flash
 		mainWindow.on('ready-to-show', () => {
 			mainWindow.show()
 		})
 
+		// Opens external links in the default web browser
 		mainWindow.webContents.setWindowOpenHandler((details) => {
 			shell.openExternal(details.url)
 			return { action: 'deny' }
 		})
 
+		// Load the remote URL for development or the local html file for production
 		if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
 			mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
 		} else {
@@ -43,76 +50,81 @@ app.whenReady().then(() => {
 		}
 	}
 
-	// This allows using <img src="media://Path/To/File.jpg">
+	// Custom protocol to serve media files from the local filesystem
+	// This allows using `<img src="media:///C:/path/to/file.jpg">` in the renderer
 	protocol.handle('media', (request) => {
-		// 1. Remove the protocol. Handles both "media://" and "media:///"
+		// 1. Remove the protocol prefix. Handles both "media://" and "media:///"
 		let url = request.url.replace(/^media:\/\//, '')
 
-		// 2. Decode (%20 -> space)
+		// 2. Decode URI-encoded characters (e.g., %20 -> space)
 		url = decodeURIComponent(url)
 
-		// 3. FIX FOR WINDOWS
-		// If the URL starts with a slash followed by a drive letter (e.g., /C:/...), remove the leading slash.
+		// 3. Fix for Windows paths that start with a slash (e.g., /C:/...)
 		if (process.platform === 'win32' && url.startsWith('/') && /^[a-zA-Z]:/.test(url.slice(1))) {
 			url = url.slice(1)
 		}
 
-		// 4. Normalize separators (converts / to \ on Windows)
+		// 4. Normalize path separators for the current OS (e.g., converts / to \ on Windows)
 		const absolutePath = path.normalize(url)
 
-		// 5. Create the official file:// URL
+		// 5. Create a proper file:// URL from the absolute path
 		const fileUrl = pathToFileURL(absolutePath).toString()
 
-		// --- DEBUG LOG (Check them in the terminal!) ---
-		// console.log('Request:', request.url)
-		// console.log('Clean Path:', absolutePath)
-		// console.log('File URL:', fileUrl)
-		// ----------------------------------------------
-
-		// 6. Attempt to load and catch error if it fails
+		// 6. Fetch the file and return it. Catches errors if the file doesn't exist
 		return net.fetch(fileUrl).catch((e) => {
 			console.error(`❌ LOADING ERROR: ${absolutePath}`)
 			console.error(`   Detail: ${e.message}`)
-			// Returns a 404 to prevent console explosion
+			// Return a 404 response to prevent browser errors
 			return new Response('File not found', { status: 404 })
 		})
 	})
 
+	// Watch for and apply default window shortcuts
 	app.on('browser-window-created', (_, window) => {
 		optimizer.watchWindowShortcuts(window)
 	})
 
+	// IPC handler to show an "open directory" dialog
 	ipcMain.handle('dialog:openDirectory', async () => {
 		const { canceled, filePaths } = await dialog.showOpenDialog({ properties: ['openDirectory'] })
 		if (canceled) return null
 		return filePaths[0]
 	})
 
+	// IPC handler to load the video library from a given folder path
 	ipcMain.handle('db:load', async (_, folderPath) => await loadLibrary(folderPath))
+	// IPC handler to save the video library to a given folder path
 	ipcMain.handle('db:save', async (_, folderPath, videos) => await saveLibrary(folderPath, videos))
+	// IPC handler to scan a directory for new videos
 	ipcMain.handle('videos:scan', async (_, folderPath) => await scanDirectory(folderPath))
+	// IPC handler to delete a video entry from the library
 	ipcMain.handle(
 		'videos:delete',
 		async (_, folderPath, videoId) => await deleteVideoEntry(folderPath, videoId)
 	)
+	// IPC listener to open a video file in the default system player
 	ipcMain.on('video:open', (_, filePath) => shell.openPath(filePath))
+	// IPC handler to update the tags of a video file
 	ipcMain.handle(
 		'videos:updateTags',
 		async (_, filePath, tags) => await updateVideoTags(filePath, tags)
 	)
 
+	// Create the main window when the app is ready
 	createWindow()
 
+	// On macOS, re-create a window when the dock icon is clicked and there are no other windows open
 	app.on('activate', function () {
 		if (BrowserWindow.getAllWindows().length === 0) createWindow()
 	})
 })
 
-// ... rest of the file (will-quit, etc) ...
+// Ensures the exiftool process is closed when the app is about to quit
 app.on('will-quit', () => {
 	closeExiftool()
 })
 
+// Quit when all windows are closed
 app.on('window-all-closed', () => {
 	if (process.platform !== 'darwin') {
 		app.quit()

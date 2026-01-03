@@ -1,9 +1,9 @@
 import React, { useState, useMemo } from 'react'
-// Make sure these paths match your structure
 import { ParsedTag } from 'src/shared/types/metadata'
 import { VideoFile } from 'src/shared/types/video'
 
-// Declare types for window.api (exposed by preload)
+// Type declaration to inform TypeScript about the 'api' object exposed by the preload script
+// This provides type safety and autocompletion when using window.api
 declare global {
 	interface Window {
 		api: {
@@ -11,7 +11,6 @@ declare global {
 			scanVideos: (path: string) => Promise<VideoFile[]>
 			openVideo: (path: string) => void
 			updateTags: (filePath: string, tags: ParsedTag[]) => Promise<void>
-			// API for local JSON database management
 			loadLibrary: (folderPath: string) => Promise<VideoFile[] | null>
 			saveLibrary: (folderPath: string, videos: VideoFile[]) => Promise<void>
 			deleteVideoEntry: (folderPath: string, videoId: string) => Promise<void>
@@ -19,10 +18,14 @@ declare global {
 	}
 }
 
-// --- COMPONENT: EDIT MODAL ---
+/** --- COMPONENT: InfoRow ---
+ *  A simple presentational component to display a label and a value in the edit modal
+ *  It doesn't render anything if the value is not provided
+ *  @param label The label to display for the information
+ *  @param value The value to display
+ */
 function InfoRow({ label, value }: { label: string; value?: string }): React.ReactElement | null {
 	if (!value) return null
-
 	return (
 		<div
 			style={{
@@ -38,6 +41,14 @@ function InfoRow({ label, value }: { label: string; value?: string }): React.Rea
 	)
 }
 
+/** --- COMPONENT: EditModal ---
+ *  The modal component for viewing details and editing a video's tags
+ *  @param video The VideoFile object being edited
+ *  @param onClose A function to call when the modal should be closed
+ *  @param onSave A function to call when the user saves changes; receives the new array of tags
+ *  @param currentFolder The path of the currently open folder, needed for deletion
+ *  @param onDelete A function to call after a video has been successfully deleted
+ */
 function EditModal({
 	video,
 	onClose,
@@ -51,16 +62,21 @@ function EditModal({
 	currentFolder: string | null
 	onDelete: (videoId: string) => void
 }): React.ReactElement {
+	// State to manage the tags being edited
 	const [tags, setTags] = useState<ParsedTag[]>(video.tags)
+	// State for the new tag input field
 	const [inputValue, setInputValue] = useState('')
+	// State to track the saving process
 	const [isSaving, setIsSaving] = useState(false)
-	const [isDeleting, setIsDeleting] = useState(false) // New state for deleting
+	// State to track the deletion process
+	const [isDeleting, setIsDeleting] = useState(false)
 
+	// Handles the submission of the "Add Tag" form
 	const handleAddTag = (e: React.FormEvent): void => {
 		e.preventDefault()
 		if (!inputValue.trim()) return
 
-		// Tag parsing: automatically recognizes "key:value"
+		// Automatically parses "key:value" strings into key-value tags
 		let newTag: ParsedTag
 		if (inputValue.includes(':')) {
 			const [key, ...val] = inputValue.split(':')
@@ -75,13 +91,15 @@ function EditModal({
 		}
 
 		setTags([...tags, newTag])
-		setInputValue('')
+		setInputValue('') // Clear the input field
 	}
 
+	// Removes a tag from the state
 	const removeTag = (index: number): void => {
 		setTags(tags.filter((_, i) => i !== index))
 	}
 
+	// Handles the "Save Changes" button click
 	const handleSaveClick = async (): Promise<void> => {
 		setIsSaving(true)
 		await onSave(tags)
@@ -89,6 +107,7 @@ function EditModal({
 		onClose()
 	}
 
+	// Handles the "Delete" button click
 	const handleDeleteClick = async (): Promise<void> => {
 		if (!window.confirm('Are you sure you want to delete this video and all its files?')) {
 			return
@@ -96,9 +115,10 @@ function EditModal({
 		setIsDeleting(true)
 		try {
 			if (currentFolder) {
+				// Call the main process API to delete the entry
 				await window.api.deleteVideoEntry(currentFolder, video.id)
-				onDelete(video.id) // Inform parent about deletion
-				onClose() // Close modal after successful deletion
+				onDelete(video.id) // Inform the parent component to update its state
+				onClose()
 			} else {
 				console.error('Current folder is not set, cannot delete video.')
 			}
@@ -110,6 +130,7 @@ function EditModal({
 		}
 	}
 
+	// Find specific key-value tags for display in the info section
 	const categoryTag = tags.find((t) => t.type === 'kv' && t.key === 'category')
 	const modelTag = tags.find((t) => t.type === 'kv' && t.key === 'model')
 	const channelTag = tags.find((t) => t.type === 'kv' && t.key === 'channel')
@@ -153,6 +174,7 @@ function EditModal({
 				>
 					{video.thumbnailPath ? (
 						<img
+							// Use the custom 'media://' protocol to load the local thumbnail file
 							src={`media:///${video.thumbnailPath.replace(/\\/g, '/')}`}
 							alt="thumbnail"
 							style={{ width: '100%', height: '100%', objectFit: 'cover' }}
@@ -306,6 +328,7 @@ function EditModal({
 						marginTop: '25px'
 					}}
 				>
+					{/* Play Button */}
 					<button
 						onClick={() => window.api.openVideo(video.filePath)}
 						style={{
@@ -321,22 +344,24 @@ function EditModal({
 						▶ Play
 					</button>
 					<div style={{ display: 'flex', gap: '10px' }}>
+						{/* Delete Button */}
 						<button
 							onClick={handleDeleteClick}
 							disabled={isDeleting || isSaving}
 							style={{
 								padding: '10px 20px',
-								background: isDeleting ? '#e57373' : '#f44336', // Red color for delete
+								background: isDeleting ? '#e57373' : '#f44336',
 								color: 'white',
 								border: 'none',
 								borderRadius: '6px',
 								cursor: isDeleting || isSaving ? 'not-allowed' : 'pointer',
 								fontWeight: 600,
-								marginRight: '10px' // Add some space
+								marginRight: '10px'
 							}}
 						>
 							{isDeleting ? 'Deleting...' : 'Delete'}
 						</button>
+						{/* Cancel Button */}
 						<button
 							onClick={onClose}
 							disabled={isSaving || isDeleting}
@@ -351,6 +376,7 @@ function EditModal({
 						>
 							Cancel
 						</button>
+						{/* Save Button */}
 						<button
 							onClick={handleSaveClick}
 							disabled={isSaving || isDeleting}
@@ -375,7 +401,12 @@ function EditModal({
 	)
 }
 
-// --- COMPONENT: Video Card ---
+/** --- COMPONENT: VideoCard ---
+ *  A component to display a single video in the main grid
+ *  Shows a thumbnail, title, and key tags
+ *  @param video The VideoFile object to display
+ *  @param onEdit A function to call when the card is clicked, to open the edit modal
+ */
 function VideoCard({
 	video,
 	onEdit
@@ -383,6 +414,7 @@ function VideoCard({
 	video: VideoFile
 	onEdit: () => void
 }): React.ReactElement {
+	// Find specific tags to highlight on the card
 	const categoryTag = video.tags.find((t) => t.type === 'kv' && t.key === 'category')
 	const channelTag = video.tags.find((t) => t.type === 'kv' && t.key === 'channel')
 	const modelTag = video.tags.find((t) => t.type === 'kv' && t.key === 'model')
@@ -433,6 +465,7 @@ function VideoCard({
 							objectFit: 'cover'
 						}}
 						onError={(e) => {
+							// Fallback if the thumbnail image fails to load
 							console.error('Loading error:', video.thumbnailPath)
 							e.currentTarget.style.display = 'none'
 						}}
@@ -463,7 +496,7 @@ function VideoCard({
 					minHeight: 0
 				}}
 			>
-				{/* Category */}
+				{/* Key Tags */}
 				<div>
 					{categoryTag && (
 						<span
@@ -511,14 +544,20 @@ function VideoCard({
 	)
 }
 
+// Define the types for filter categories
 type FilterCategory = 'category' | 'model' | 'channel' | 'production' | 'simpleTag'
-
 type ActiveFilter = {
 	category: FilterCategory
 	value: string
 }
 
-// --- COMPONENT: Filter Section ---
+/** --- COMPONENT: FilterSection ---
+ *  A collapsible UI component for displaying filter options for a single category (e.g., "Category")
+ *  @param title The title of the filter section
+ *  @param options An array of strings representing the available filter values
+ *  @param active The currently active filter value in this section, if any
+ *  @param onSelect A callback function called when a user selects or deselects an option
+ */
 function FilterSection({
 	title,
 	options,
@@ -581,7 +620,13 @@ function FilterSection({
 	)
 }
 
-// --- COMPONENT: Sidebar ---
+/** --- COMPONENT: Sidebar ---
+ *  The main sidebar component that holds all the filter sections
+ *  @param filterOptions An object containing arrays of all available options for each category
+ *  @param activeFilters The currently active filter
+ *  @param onFilterChange A callback to update the active filter
+ *  @param onClearFilters A callback to clear all active filters
+ */
 function Sidebar({
 	filterOptions,
 	activeFilters,
@@ -667,36 +712,42 @@ function Sidebar({
 	)
 }
 
-// --- MAIN APP COMPONENT ---
+/** --- MAIN APP COMPONENT ---
+ *  The root component of the application. It manages the global state,
+ *  including the list of videos, loading status, and active filters
+ *  It also orchestrates all interactions with the main process via the `window.api` object
+ */
 function App(): React.ReactElement {
+	// State for the list of all video files in the current folder
 	const [videos, setVideos] = useState<VideoFile[]>([])
+	// State to indicate when a scan or load operation is in progress
 	const [loading, setLoading] = useState(false)
+	// State to hold the video file currently being edited in the modal
 	const [editingVideo, setEditingVideo] = useState<VideoFile | null>(null)
+	// State for the path of the currently selected video folder
 	const [currentFolder, setCurrentFolder] = useState<string | null>(null)
-	type ActiveFilter = {
-		category: FilterCategory
-		value: string
-	}
-
+	// State for the currently active filter. Only one filter can be active at a time
 	const [activeFilters, setActiveFilters] = useState<ActiveFilter | null>(null)
 
-	// LOADING/SCANNING LOGIC
+	// Handles the folder selection and video loading process
 	const handleScan = async (): Promise<void> => {
 		const folder = await window.api.selectFolder()
 		if (folder) {
 			setCurrentFolder(folder)
 			setLoading(true)
-			setVideos([])
+			setVideos([]) // Clear previous videos
 			try {
-				console.log(`Checking library.json in: ${folder}`)
+				// First, try to load from the 'library.json' cache file
 				const cachedVideos = await window.api.loadLibrary(folder)
 				if (cachedVideos) {
-					console.log('library.json found! Immediate loading.')
+					console.log('library.json found! Loading from cache.')
 					setVideos(cachedVideos)
 				} else {
+					// If no cache exists, perform a full scan of the directory
 					console.log('No library.json found. Starting full scan...')
 					const results = await window.api.scanVideos(folder)
 					setVideos(results)
+					// Save the results to the cache for next time
 					await window.api.saveLibrary(folder, results)
 				}
 			} catch (error) {
@@ -708,27 +759,33 @@ function App(): React.ReactElement {
 		}
 	}
 
-	// TAG SAVING LOGIC
+	// Handles saving updated tags for a video
 	const saveTags = async (newTags: ParsedTag[]): Promise<void> => {
 		if (!editingVideo || !currentFolder) return
 
 		try {
+			// 1. Tell the main process to write the new tags to the file's metadata
 			await window.api.updateTags(editingVideo.filePath, newTags)
+			// 2. Update the local state to reflect the change immediately
 			const updatedList = videos.map((v) =>
 				v.id === editingVideo.id ? { ...v, tags: newTags } : v
 			)
 			setVideos(updatedList)
+			// 3. Save the updated list to the 'library.json' cache
 			await window.api.saveLibrary(currentFolder, updatedList)
 		} catch (error) {
-			console.error(error)
+			console.error('Error saving tags:', error)
 			alert('Error: unable to save tags.')
 		}
 	}
 
+	// Removes a video from the local state after it has been deleted
 	const handleDeleteVideo = (videoId: string): void => {
 		setVideos((prevVideos) => prevVideos.filter((video) => video.id !== videoId))
 	}
 
+	// useMemo to calculate all available filter options from the current video list
+	// This is recalculated only when the 'videos' array changes
 	const filterOptions = useMemo(() => {
 		const categories = new Set<string>()
 		const models = new Set<string>()
@@ -758,25 +815,28 @@ function App(): React.ReactElement {
 		}
 	}, [videos])
 
+	// Handles changes to the active filter
 	const handleFilterChange = (category: FilterCategory, value: string | undefined): void => {
 		setActiveFilters(() => {
 			if (!value) {
-				// If the value is undefined, it means we are clearing the filter
+				// If value is undefined, it means the filter is being cleared
 				return null
 			}
-
-			// If a new filter is selected, make it the only active filter
+			// Set the new active filter
 			return { category, value }
 		})
 	}
 
+	// Clears any active filter
 	const handleClearFilters = (): void => {
 		setActiveFilters(null)
 	}
 
+	// useMemo to compute the list of videos to display based on the active filter
+	// This is recalculated only when the 'videos' or 'activeFilters' change
 	const filteredVideos = useMemo(() => {
 		if (!activeFilters) {
-			return videos
+			return videos // No filter active, return all videos
 		}
 
 		return videos.filter((video) => {
@@ -803,6 +863,7 @@ function App(): React.ReactElement {
 				backgroundColor: 'var(--color-background)'
 			}}
 		>
+			{/* --- HEADER --- */}
 			<header
 				style={{
 					padding: '15px 25px',
@@ -834,10 +895,11 @@ function App(): React.ReactElement {
 						transition: 'background 0.2s'
 					}}
 				>
-					{loading ? 'Sto caricando...' : '📂 Select Video Folder'}
+					{loading ? 'Scanning...' : '📂 Select Video Folder'}
 				</button>
 			</header>
 
+			{/* --- MAIN CONTENT --- */}
 			<div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
 				<Sidebar
 					filterOptions={filterOptions}
@@ -862,10 +924,12 @@ function App(): React.ReactElement {
 							gap: '20px'
 						}}
 					>
+						{/* Render the grid of video cards */}
 						{filteredVideos.map((vid) => (
 							<VideoCard key={vid.id} video={vid} onEdit={() => setEditingVideo(vid)} />
 						))}
 
+						{/* Conditional messages for empty states */}
 						{!loading && videos.length === 0 && (
 							<div
 								style={{
@@ -874,7 +938,7 @@ function App(): React.ReactElement {
 									marginTop: '40px'
 								}}
 							>
-								No videos loaded. Click the blue button to start.
+								No videos loaded. Click the top-right button to start.
 							</div>
 						)}
 						{!loading && videos.length > 0 && filteredVideos.length === 0 && (
@@ -892,6 +956,8 @@ function App(): React.ReactElement {
 				</main>
 			</div>
 
+			{/* --- MODAL --- */}
+			{/* Render the edit modal only when a video is selected for editing */}
 			{editingVideo && (
 				<EditModal
 					video={editingVideo}
