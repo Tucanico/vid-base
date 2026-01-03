@@ -4,7 +4,7 @@ import { VideoFile } from 'src/shared/types/video'
 import EditModal from './components/EditModal'
 import VideoCard from './components/VideoCard'
 import Sidebar from './components/Sidebar'
-import { ActiveFilter, FilterCategory } from '../../shared/types/filter'
+import { ActiveFilter, FilterCategory } from '@shared/types/filter'
 
 /** --- MAIN APP COMPONENT ---
  *  The root component of the application. It manages the global state,
@@ -71,11 +71,6 @@ function App(): React.ReactElement {
 			console.error('Error saving tags:', error)
 			alert('Error: unable to save tags.')
 		}
-	}
-
-	// Removes a video from the local state after it has been deleted
-	const handleDeleteVideo = (videoId: string): void => {
-		setVideos((prevVideos) => prevVideos.filter((video) => video.id !== videoId))
 	}
 
 	// useMemo to calculate all available filter options from the current video list
@@ -257,8 +252,6 @@ function App(): React.ReactElement {
 					video={editingVideo}
 					onClose={() => setEditingVideo(null)}
 					onSave={saveTags}
-					currentFolder={currentFolder}
-					onDelete={handleDeleteVideo}
 				/>
 			)}
 		</div>

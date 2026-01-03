@@ -12,7 +12,6 @@ declare global {
 			updateTags: (filePath: string, tags: ParsedTag[]) => Promise<void>
 			loadLibrary: (folderPath: string) => Promise<VideoFile[] | null>
 			saveLibrary: (folderPath: string, videos: VideoFile[]) => Promise<void>
-			deleteVideoEntry: (folderPath: string, videoId: string) => Promise<void>
 		}
 	}
 }

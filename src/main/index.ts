@@ -7,7 +7,9 @@ import { pathToFileURL } from 'url'
 import { scanDirectory } from './metadata/scanner'
 import { updateVideoTags } from './metadata/updateTags'
 import { closeExiftool } from './metadata/utils'
-import { loadLibrary, saveLibrary, deleteVideoEntry } from './metadata/library'
+import { loadLibrary, saveLibrary } from './metadata/library'
+
+import { cleanupOrphans } from './metadata/cleanup'
 
 // This method will be called when Electron has finished initialization and is ready to create browser windows
 // Some APIs can only be used after this event occurs
@@ -88,6 +90,7 @@ app.whenReady().then(() => {
 	ipcMain.handle('dialog:openDirectory', async () => {
 		const { canceled, filePaths } = await dialog.showOpenDialog({ properties: ['openDirectory'] })
 		if (canceled) return null
+		await cleanupOrphans(filePaths[0])
 		return filePaths[0]
 	})
 
@@ -96,12 +99,11 @@ app.whenReady().then(() => {
 	// IPC handler to save the video library to a given folder path
 	ipcMain.handle('db:save', async (_, folderPath, videos) => await saveLibrary(folderPath, videos))
 	// IPC handler to scan a directory for new videos
-	ipcMain.handle('videos:scan', async (_, folderPath) => await scanDirectory(folderPath))
-	// IPC handler to delete a video entry from the library
-	ipcMain.handle(
-		'videos:delete',
-		async (_, folderPath, videoId) => await deleteVideoEntry(folderPath, videoId)
-	)
+	ipcMain.handle('videos:scan', async (_, folderPath) => {
+		const videos = await scanDirectory(folderPath)
+		await cleanupOrphans(folderPath)
+		return videos
+	})
 	// IPC listener to open a video file in the default system player
 	ipcMain.on('video:open', (_, filePath) => shell.openPath(filePath))
 	// IPC handler to update the tags of a video file

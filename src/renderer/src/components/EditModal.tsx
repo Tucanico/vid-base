@@ -8,21 +8,15 @@ import InfoRow from './InfoRow'
  *  @param video The VideoFile object being edited
  *  @param onClose A function to call when the modal should be closed
  *  @param onSave A function to call when the user saves changes; receives the new array of tags
- *  @param currentFolder The path of the currently open folder, needed for deletion
- *  @param onDelete A function to call after a video has been successfully deleted
  */
 function EditModal({
 	video,
 	onClose,
-	onSave,
-	currentFolder,
-	onDelete
+	onSave
 }: {
 	video: VideoFile
 	onClose: () => void
 	onSave: (tags: ParsedTag[]) => void
-	currentFolder: string | null
-	onDelete: (videoId: string) => void
 }): React.ReactElement {
 	// State to manage the tags being edited
 	const [tags, setTags] = useState<ParsedTag[]>(video.tags)
@@ -30,8 +24,6 @@ function EditModal({
 	const [inputValue, setInputValue] = useState('')
 	// State to track the saving process
 	const [isSaving, setIsSaving] = useState(false)
-	// State to track the deletion process
-	const [isDeleting, setIsDeleting] = useState(false)
 
 	// Handles the submission of the "Add Tag" form
 	const handleAddTag = (e: React.FormEvent): void => {
@@ -67,29 +59,6 @@ function EditModal({
 		await onSave(tags)
 		setIsSaving(false)
 		onClose()
-	}
-
-	// Handles the "Delete" button click
-	const handleDeleteClick = async (): Promise<void> => {
-		if (!window.confirm('Are you sure you want to delete this video and all its files?')) {
-			return
-		}
-		setIsDeleting(true)
-		try {
-			if (currentFolder) {
-				// Call the main process API to delete the entry
-				await window.api.deleteVideoEntry(currentFolder, video.id)
-				onDelete(video.id) // Inform the parent component to update its state
-				onClose()
-			} else {
-				console.error('Current folder is not set, cannot delete video.')
-			}
-		} catch (error) {
-			console.error('Error deleting video:', error)
-			alert('Error deleting video.')
-		} finally {
-			setIsDeleting(false)
-		}
 	}
 
 	// Find specific key-value tags for display in the info section
@@ -306,27 +275,10 @@ function EditModal({
 						▶ Play
 					</button>
 					<div style={{ display: 'flex', gap: '10px' }}>
-						{/* Delete Button */}
-						<button
-							onClick={handleDeleteClick}
-							disabled={isDeleting || isSaving}
-							style={{
-								padding: '10px 20px',
-								background: isDeleting ? '#e57373' : '#f44336',
-								color: 'white',
-								border: 'none',
-								borderRadius: '6px',
-								cursor: isDeleting || isSaving ? 'not-allowed' : 'pointer',
-								fontWeight: 600,
-								marginRight: '10px'
-							}}
-						>
-							{isDeleting ? 'Deleting...' : 'Delete'}
-						</button>
 						{/* Cancel Button */}
 						<button
 							onClick={onClose}
-							disabled={isSaving || isDeleting}
+							disabled={isSaving}
 							style={{
 								padding: '10px 20px',
 								background: 'transparent',
@@ -341,7 +293,7 @@ function EditModal({
 						{/* Save Button */}
 						<button
 							onClick={handleSaveClick}
-							disabled={isSaving || isDeleting}
+							disabled={isSaving}
 							style={{
 								padding: '10px 20px',
 								background: isSaving
@@ -350,7 +302,7 @@ function EditModal({
 								color: 'white',
 								border: 'none',
 								borderRadius: '6px',
-								cursor: isSaving || isDeleting ? 'not-allowed' : 'pointer',
+								cursor: isSaving ? 'not-allowed' : 'pointer',
 								fontWeight: 600
 							}}
 						>

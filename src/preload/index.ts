@@ -25,10 +25,7 @@ const api = {
 		ipcRenderer.invoke('db:load', folderPath),
 	// Invokes the 'db:save' handler to save the library to a file
 	saveLibrary: (folderPath: string, videos: VideoFile[]): Promise<void> =>
-		ipcRenderer.invoke('db:save', folderPath, videos),
-	// Invokes the 'videos:delete' handler to remove a video entry and its files
-	deleteVideoEntry: (folderPath: string, videoId: string): Promise<void> =>
-		ipcRenderer.invoke('videos:delete', folderPath, videoId)
+		ipcRenderer.invoke('db:save', folderPath, videos)
 }
 
 // Use the contextBridge to securely expose the APIs to the renderer process

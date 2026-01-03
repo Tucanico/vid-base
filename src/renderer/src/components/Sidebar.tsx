@@ -1,6 +1,6 @@
 import React from 'react'
 import FilterSection from './FilterSection'
-import { ActiveFilter, FilterCategory } from '../types'
+import { ActiveFilter, FilterCategory } from '@shared/types/filter'
 
 /** --- COMPONENT: Sidebar ---
  *  The main sidebar component that holds all the filter sections
