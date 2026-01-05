@@ -1,13 +1,18 @@
 import { ElectronAPI } from '@electron-toolkit/preload'
+import { ParsedTag } from '../shared/types/metadata'
+import { VideoFile } from '../shared/types/video'
 
-// This file extends the global Window interface with the APIs
-// exposed from the preload script. This provides type safety and
-// autocompletion for the renderer process when accessing these APIs
 declare global {
 	interface Window {
-		// The standard Electron API provided by @electron-toolkit/preload
 		electron: ElectronAPI
-		// Our custom API exposed from the preload script
-		api: unknown
+		api: {
+			selectFolder: () => Promise<string | null>
+			scanVideos: (path: string) => Promise<VideoFile[]>
+			openVideo: (path: string) => void
+			updateTags: (filePath: string, tags: ParsedTag[]) => Promise<void>
+			loadLibrary: (folderPath: string) => Promise<VideoFile[] | null>
+			saveLibrary: (folderPath: string, videos: VideoFile[]) => Promise<void>
+			deleteVideo: (filePath: string, thumbnailPath: string, videoId: string) => Promise<void>
+		}
 	}
 }

@@ -38,6 +38,34 @@ export async function saveLibrary(folderPath: string, videos: VideoFile[]): Prom
 	}
 }
 
+/** Removes a video entry from the library without touching the actual files.
+ *  @param folderPath The path to the folder containing the library
+ *  @param videoId The ID of the video to remove from the library
+ *  @returns A promise that resolves when the video entry has been removed
+ */
+export async function removeVideoEntryFromLibrary(
+	folderPath: string,
+	videoId: string
+): Promise<void> {
+	try {
+		const videos = await loadLibrary(folderPath)
+		if (!videos) {
+			console.warn(
+				`Library not found or empty at ${folderPath}. Cannot remove video entry ${videoId}.`
+			)
+			return
+		}
+
+		// Filter out the video to be removed from the library
+		const updatedVideos = videos.filter((video) => video.id !== videoId)
+		// Save the updated library back to the JSON file
+		await saveLibrary(folderPath, updatedVideos)
+		console.log(`Video entry ${videoId} removed successfully from library at ${folderPath}.`)
+	} catch (error) {
+		console.error(`Error removing video entry ${videoId} from library at ${folderPath}:`, error)
+	}
+}
+
 /** Deletes a video entry from the library, including the video file and its thumbnail
  *  @param folderPath The path to the folder containing the library
  *  @param videoId The ID of the video to delete

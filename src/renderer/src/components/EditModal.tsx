@@ -12,11 +12,13 @@ import InfoRow from './InfoRow'
 function EditModal({
 	video,
 	onClose,
-	onSave
+	onSave,
+	onDelete
 }: {
 	video: VideoFile
 	onClose: () => void
 	onSave: (tags: ParsedTag[]) => void
+	onDelete: (video: VideoFile) => void
 }): React.ReactElement {
 	// State to manage the tags being edited
 	const [tags, setTags] = useState<ParsedTag[]>(video.tags)
@@ -24,6 +26,8 @@ function EditModal({
 	const [inputValue, setInputValue] = useState('')
 	// State to track the saving process
 	const [isSaving, setIsSaving] = useState(false)
+	// State to track the deleting process
+	const [isDeleting, setIsDeleting] = useState(false)
 
 	// Handles the submission of the "Add Tag" form
 	const handleAddTag = (e: React.FormEvent): void => {
@@ -59,6 +63,17 @@ function EditModal({
 		await onSave(tags)
 		setIsSaving(false)
 		onClose()
+	}
+
+	// Handles the "Delete Video" button click
+	const handleDeleteClick = async (): Promise<void> => {
+		const confirmed = window.confirm(`Are you sure you want to delete "${video.fileName}"? This action cannot be undone.`)
+		if (confirmed) {
+			setIsDeleting(true)
+			await onDelete(video)
+			setIsDeleting(false)
+			onClose()
+		}
 	}
 
 	// Find specific key-value tags for display in the info section
@@ -259,26 +274,47 @@ function EditModal({
 						marginTop: '25px'
 					}}
 				>
-					{/* Play Button */}
-					<button
-						onClick={() => window.api.openVideo(video.filePath)}
-						style={{
-							padding: '10px 20px',
-							background: 'transparent',
-							color: 'var(--color-text)',
-							border: '1px solid var(--color-background-mute)',
-							borderRadius: '6px',
-							cursor: 'pointer',
-							fontWeight: 600
-						}}
-					>
-						▶ Play
-					</button>
+					{/* Left-aligned actions */}
+					<div style={{ display: 'flex', gap: '10px' }}>
+						{/* Play Button */}
+						<button
+							onClick={() => window.api.openVideo(video.filePath)}
+							style={{
+								padding: '10px 20px',
+								background: 'transparent',
+								color: 'var(--color-text)',
+								border: '1px solid var(--color-background-mute)',
+								borderRadius: '6px',
+								cursor: 'pointer',
+								fontWeight: 600
+							}}
+						>
+							▶ Play
+						</button>
+						{/* Delete Button */}
+						<button
+							onClick={handleDeleteClick}
+							disabled={isSaving || isDeleting}
+							style={{
+								padding: '10px 20px',
+								background: isDeleting ? 'var(--color-text-mute)' : 'var(--color-danger)',
+								color: 'white',
+								border: 'none',
+								borderRadius: '6px',
+								cursor: isDeleting ? 'not-allowed' : 'pointer',
+								fontWeight: 600
+							}}
+						>
+							{isDeleting ? 'Deleting...' : 'Delete'}
+						</button>
+					</div>
+
+					{/* Right-aligned actions */}
 					<div style={{ display: 'flex', gap: '10px' }}>
 						{/* Cancel Button */}
 						<button
 							onClick={onClose}
-							disabled={isSaving}
+							disabled={isSaving || isDeleting}
 							style={{
 								padding: '10px 20px',
 								background: 'transparent',
@@ -293,7 +329,7 @@ function EditModal({
 						{/* Save Button */}
 						<button
 							onClick={handleSaveClick}
-							disabled={isSaving}
+							disabled={isSaving || isDeleting}
 							style={{
 								padding: '10px 20px',
 								background: isSaving

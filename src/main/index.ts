@@ -7,13 +7,16 @@ import { pathToFileURL } from 'url'
 import { scanDirectory } from './metadata/scanner'
 import { updateVideoTags } from './metadata/updateTags'
 import { closeExiftool } from './metadata/utils'
-import { loadLibrary, saveLibrary } from './metadata/library'
+import { loadLibrary, saveLibrary, removeVideoEntryFromLibrary } from './metadata/library'
 
 import { cleanupOrphans } from './metadata/cleanup'
 
 // This method will be called when Electron has finished initialization and is ready to create browser windows
 // Some APIs can only be used after this event occurs
 app.whenReady().then(() => {
+	// Global variable to store the currently active library root path
+	let currentLibraryRootPath: string | null = null
+
 	// Set app user model id for windows
 	electronApp.setAppUserModelId('com.electron')
 
@@ -90,8 +93,9 @@ app.whenReady().then(() => {
 	ipcMain.handle('dialog:openDirectory', async () => {
 		const { canceled, filePaths } = await dialog.showOpenDialog({ properties: ['openDirectory'] })
 		if (canceled) return null
-		await cleanupOrphans(filePaths[0])
-		return filePaths[0]
+		currentLibraryRootPath = filePaths[0] // Store the root path
+		await cleanupOrphans(currentLibraryRootPath)
+		return currentLibraryRootPath
 	})
 
 	// IPC handler to load the video library from a given folder path
@@ -110,6 +114,26 @@ app.whenReady().then(() => {
 	ipcMain.handle(
 		'videos:updateTags',
 		async (_, filePath, tags) => await updateVideoTags(filePath, tags)
+	)
+	// IPC handler to delete a video file and its thumbnail
+	ipcMain.handle(
+		'video:delete',
+		async (_, filePath: string, thumbnailPath: string, videoId: string) => {
+			try {
+				if (!currentLibraryRootPath) {
+					throw new Error('Current library root path is not set.')
+				}
+				await shell.trashItem(filePath)
+				if (thumbnailPath) {
+					await shell.trashItem(thumbnailPath)
+				}
+				await removeVideoEntryFromLibrary(currentLibraryRootPath, videoId)
+				return true // Indicate success
+			} catch (error) {
+				console.error(`Failed to trash files or remove library entry: ${error}`)
+				return false // Indicate failure
+			}
+		}
 	)
 
 	// Create the main window when the app is ready

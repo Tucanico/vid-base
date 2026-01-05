@@ -4,13 +4,11 @@ import { shell } from 'electron'
 import { VideoFile } from '../../shared/types/video'
 import { loadLibrary, saveLibrary } from './library'
 
-/**
- * Scans the library and the filesystem to find and remove orphaned entries.
- * An orphan is a video entry in the library that no longer has a corresponding
- * video file on disk, or a thumbnail for a video that no longer exists.
- *
- * @param folderPath The path to the main video folder.
- * @returns A promise that resolves when the cleanup is complete.
+/** Scans the library and the filesystem to find and remove orphaned entries
+ *  An orphan is a video entry in the library that no longer has a corresponding
+ *  video file on disk, or a thumbnail for a video that no longer exists
+ *  @param folderPath The path to the main video folder.
+ *  @returns A promise that resolves when the cleanup is complete.
  */
 export async function cleanupOrphans(folderPath: string): Promise<void> {
 	console.log('🚮 Starting cleanup of orphaned files...')
@@ -26,7 +24,9 @@ export async function cleanupOrphans(folderPath: string): Promise<void> {
 	const videoExtensions = ['.mp4', '.mov', '.avi', '.mkv', '.webm']
 	const allFiles = await fs.readdir(folderPath, { recursive: true, withFileTypes: true })
 	const videoFilePaths = allFiles
-		.filter((file) => file.isFile() && videoExtensions.includes(path.extname(file.name).toLowerCase()))
+		.filter(
+			(file) => file.isFile() && videoExtensions.includes(path.extname(file.name).toLowerCase())
+		)
 		.map((file) => path.join(file.path, file.name))
 
 	// 3. Create a Set of existing video paths for quick lookups
@@ -53,11 +53,18 @@ export async function cleanupOrphans(folderPath: string): Promise<void> {
 		for (const orphan of orphanedVideos) {
 			if (orphan.thumbnailPath) {
 				try {
-					await shell.trashItem(orphan.thumbnailPath)
+					await shell.trashItem(path.normalize(orphan.thumbnailPath))
 					console.log(`🗑️ Moved orphaned thumbnail to trash: ${orphan.thumbnailPath}`)
-				} catch (error: any) {
+				} catch (error: unknown) {
 					// Ignore errors if the file doesn't exist, but log others
-					if (error.code !== 'ENOENT') {
+					if (
+						typeof error === 'object' &&
+						error !== null &&
+						'code' in error &&
+						error.code === 'ENOENT'
+					) {
+						// File not found, ignore
+					} else {
 						console.error(`Error deleting thumbnail ${orphan.thumbnailPath}:`, error)
 					}
 				}
@@ -81,18 +88,24 @@ export async function cleanupOrphans(folderPath: string): Promise<void> {
 			const thumbPath = path.join(thumbnailsFolder, thumbFile)
 			if (!libraryThumbnailPaths.has(thumbPath)) {
 				try {
-					await shell.trashItem(thumbPath)
+					await shell.trashItem(path.normalize(thumbPath))
 					console.log(`🗑️ Moved orphaned thumbnail to trash (no library entry): ${thumbPath}`)
-				} catch (error: any) {
+				} catch (error: unknown) {
 					console.error(`Error deleting orphaned thumbnail ${thumbPath}:`, error)
 				}
 			}
 		}
-	} catch (error: any) {
-		if (error.code !== 'ENOENT') {
+	} catch (error: unknown) {
+		if (
+			typeof error === 'object' &&
+			error !== null &&
+			'code' in error &&
+			error.code === 'ENOENT'
+		) {
+			// If the folder doesn't exist, there's nothing to clean up
+		} else {
 			console.error('Error reading thumbnails folder for cleanup:', error)
 		}
-		// If the folder doesn't exist, there's nothing to clean up
 	}
 
 	console.log('🚮 Cleanup complete.')

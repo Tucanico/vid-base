@@ -73,6 +73,33 @@ function App(): React.ReactElement {
 		}
 	}
 
+	// Handles deleting a video
+	const handleDeleteVideo = async (videoToDelete: VideoFile): Promise<void> => {
+		if (!currentFolder) return
+
+		try {
+			// 1. Tell the main process to trash the video file and its thumbnail
+			const success = await window.api.deleteVideo(
+				videoToDelete.filePath,
+				videoToDelete.thumbnailPath || '',
+				videoToDelete.id
+			)
+			if (!success) {
+				alert('Failed to delete video files. Please try again.')
+				return
+			}
+			// 2. Update the local state to remove the deleted video
+			const updatedList = videos.filter((v) => v.id !== videoToDelete.id)
+			setVideos(updatedList)
+			// 3. Save the updated list to the 'library.json' cache
+			await window.api.saveLibrary(currentFolder, updatedList)
+			setEditingVideo(null) // Close the modal after deletion
+		} catch (error) {
+			console.error('Error deleting video:', error)
+			alert('Error: unable to delete video.')
+		}
+	}
+
 	// useMemo to calculate all available filter options from the current video list
 	// This is recalculated only when the 'videos' array changes
 	const filterOptions = useMemo(() => {
@@ -252,6 +279,7 @@ function App(): React.ReactElement {
 					video={editingVideo}
 					onClose={() => setEditingVideo(null)}
 					onSave={saveTags}
+					onDelete={handleDeleteVideo}
 				/>
 			)}
 		</div>
