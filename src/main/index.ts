@@ -28,7 +28,7 @@ app.whenReady().then(() => {
 
 		// Create the browser window
 		const mainWindow = new BrowserWindow({
-			width: 900,
+			width: 1080, // 20% wider than 900
 			height: height, // Use full screen height
 			show: false,
 			title: 'VidBase',

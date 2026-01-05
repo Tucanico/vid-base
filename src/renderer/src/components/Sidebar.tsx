@@ -18,7 +18,9 @@ function Sidebar({
 	onFilterChange,
 	onMultiSelectChange,
 	onClearFilters,
-	onToggleMultiSelect
+	onToggleMultiSelect,
+	openCategories,
+	onToggleCategory
 }: {
 	filterOptions: {
 		categories: Record<string, string[]>
@@ -30,6 +32,8 @@ function Sidebar({
 	onMultiSelectChange: (category: string, option: string, isSelected: boolean) => void
 	onClearFilters: () => void
 	onToggleMultiSelect: () => void
+	openCategories?: Set<string>
+	onToggleCategory?: (category: string) => void
 }): React.ReactElement {
 	return (
 		<div
@@ -90,6 +94,7 @@ function Sidebar({
 			{/* Dynamically render filter sections for each category found in the library */}
 			{Object.entries(filterOptions.categories).map(([categoryName, values]) => {
 				const activeValues = activeFilters[categoryName] || []
+				const isOpen = openCategories?.has(categoryName) ?? false
 				return (
 					<FilterSection
 						key={categoryName}
@@ -101,6 +106,8 @@ function Sidebar({
 						onMultiSelect={(opt, isSelected) =>
 							onMultiSelectChange(categoryName, opt, isSelected)
 						}
+						isOpen={isOpen}
+						onToggleOpen={onToggleCategory ? () => onToggleCategory(categoryName) : undefined}
 					/>
 				)
 			})}
@@ -119,6 +126,8 @@ function Sidebar({
 					onMultiSelect={(opt, isSelected) =>
 						onMultiSelectChange('simpleTag', opt, isSelected)
 					}
+					isOpen={openCategories?.has('simpleTag') ?? false}
+					onToggleOpen={onToggleCategory ? () => onToggleCategory('simpleTag') : undefined}
 				/>
 			)}
 		</div>

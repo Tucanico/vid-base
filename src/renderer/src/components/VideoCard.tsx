@@ -1,5 +1,6 @@
 import React from 'react'
 import { VideoFile } from 'src/shared/types/video'
+import { sanitizeFileName } from '../utils/sanitizeFileName'
 
 /** --- COMPONENT: VideoCard ---
  *  A component to display a single video in the main grid
@@ -152,7 +153,7 @@ function VideoCard({
 					}}
 					title={video.fileName}
 				>
-					{video.fileName}
+					{sanitizeFileName(video.fileName)}
 				</h3>
 			</div>
 		</div>

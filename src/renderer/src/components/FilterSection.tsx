@@ -15,7 +15,9 @@ function FilterSection({
 	active,
 	isMultiSelectMode,
 	onSelect,
-	onMultiSelect
+	onMultiSelect,
+	isOpen: controlledIsOpen,
+	onToggleOpen
 }: {
 	title: string
 	options: string[]
@@ -23,8 +25,12 @@ function FilterSection({
 	isMultiSelectMode: boolean
 	onSelect: (option: string | undefined) => void
 	onMultiSelect?: (option: string, isSelected: boolean) => void
+	isOpen?: boolean
+	onToggleOpen?: () => void
 }): React.ReactElement {
-	const [isOpen, setIsOpen] = useState(false)
+	const [internalIsOpen, setInternalIsOpen] = useState(false)
+	const isOpen = controlledIsOpen !== undefined ? controlledIsOpen : internalIsOpen
+	const setIsOpen = onToggleOpen || setInternalIsOpen
 
 	const activeSet = Array.isArray(active) ? new Set(active) : new Set(active ? [active] : [])
 

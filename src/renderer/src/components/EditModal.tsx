@@ -3,6 +3,7 @@ import { ParsedTag } from 'src/shared/types/metadata'
 import { VideoFile } from 'src/shared/types/video'
 import { Library } from '@shared/types/library'
 import InfoRow from './InfoRow'
+import { sanitizeFileName } from '../utils/sanitizeFileName'
 
 /** --- COMPONENT: EditModal ---
  *  The modal component for viewing details and editing a video's tags
@@ -226,7 +227,7 @@ function EditModal({
 
 	// Handles the "Delete Video" button click
 	const handleDeleteClick = async (): Promise<void> => {
-		const confirmed = window.confirm(`Are you sure you want to delete "${video.fileName}"? This action cannot be undone.`)
+		const confirmed = window.confirm(`Are you sure you want to delete "${sanitizeFileName(video.fileName)}"? This action cannot be undone.`)
 		if (confirmed) {
 			setIsDeleting(true)
 			await onDelete(video)
@@ -370,7 +371,7 @@ function EditModal({
 					}}
 					title={video.fileName}
 				>
-					{video.fileName}
+					{sanitizeFileName(video.fileName)}
 				</h2>
 
 				{/* Info Section */}

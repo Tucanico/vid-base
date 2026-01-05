@@ -2,13 +2,14 @@ import React, { useState, useMemo } from 'react'
 import { ParsedTag } from 'src/shared/types/metadata'
 import { VideoFile } from 'src/shared/types/video'
 import { Library } from '@shared/types/library'
-import EditModal from './components/EditModal'
+import DetailView from './components/DetailView'
 import VideoCard from './components/VideoCard'
 import Sidebar from './components/Sidebar'
 import ModeSelection from './components/ModeSelection'
 import { ActiveFilters } from '@shared/types/filter'
 
 type AppMode = 'videos' | 'movies' | null
+type ViewMode = 'list' | 'detail'
 
 /** --- MAIN APP COMPONENT ---
  *  The root component of the application. It manages the global state,
@@ -18,12 +19,14 @@ type AppMode = 'videos' | 'movies' | null
 function App(): React.ReactElement {
 	// State for the current app mode (videos or movies)
 	const [appMode, setAppMode] = useState<AppMode>(null)
+	// State for the current view mode (list or detail)
+	const [viewMode, setViewMode] = useState<ViewMode>('list')
 	// State for the list of all video files in the current folder
 	const [videos, setVideos] = useState<VideoFile[]>([])
 	// State to indicate when a scan or load operation is in progress
 	const [loading, setLoading] = useState(false)
-	// State to hold the video file currently being edited in the modal
-	const [editingVideo, setEditingVideo] = useState<VideoFile | null>(null)
+	// State to hold the video file currently being viewed in detail
+	const [viewingVideo, setViewingVideo] = useState<VideoFile | null>(null)
 	// State for the path of the currently selected video folder
 	const [currentFolder, setCurrentFolder] = useState<string | null>(null)
 	// State for the currently active filters. Supports multiple filters per category
@@ -34,6 +37,8 @@ function App(): React.ReactElement {
 	const [isMultiSelectMode, setIsMultiSelectMode] = useState(false)
 	// State for library metadata (categories and tags)
 	const [library, setLibrary] = useState<Library | null>(null)
+	// State for tracking which filter categories are open
+	const [openCategories, setOpenCategories] = useState<Set<string>>(new Set())
 
 	// Handles mode selection from the initial screen
 	const handleModeSelected = async (mode: 'videos' | 'movies', folder: string): Promise<void> => {
@@ -94,14 +99,14 @@ function App(): React.ReactElement {
 
 	// Handles saving updated tags for a video
 	const saveTags = async (newTags: ParsedTag[]): Promise<void> => {
-		if (!editingVideo || !currentFolder) return
+		if (!viewingVideo || !currentFolder) return
 
 		try {
 			// 1. Tell the main process to write the new tags to the file's metadata
-			await window.api.updateTags(editingVideo.filePath, newTags)
+			await window.api.updateTags(viewingVideo.filePath, newTags)
 			// 2. Update the local state to reflect the change immediately
 			const updatedList = videos.map((v) =>
-				v.id === editingVideo.id ? { ...v, tags: newTags } : v
+				v.id === viewingVideo.id ? { ...v, tags: newTags } : v
 			)
 			setVideos(updatedList)
 			// 3. Save the updated list to the 'library.json' cache (will update categories/tags)
@@ -137,11 +142,50 @@ function App(): React.ReactElement {
 			setVideos(updatedList)
 			// 3. Save the updated list to the 'library.json' cache
 			await window.api.saveLibrary(currentFolder, updatedList)
-			setEditingVideo(null) // Close the modal after deletion
+			// 4. Return to list view after deletion
+			setViewMode('list')
+			setViewingVideo(null)
 		} catch (error) {
 			console.error('Error deleting video:', error)
 			alert('Error: unable to delete video.')
 		}
+	}
+
+	// Handles opening a video in detail view
+	const handleVideoClick = (video: VideoFile): void => {
+		setViewingVideo(video)
+		setViewMode('detail')
+	}
+
+	// Handles going back to list view
+	const handleBackToList = (): void => {
+		setViewMode('list')
+		setViewingVideo(null)
+	}
+
+	// Handles clicking on a filterable name (model, production, etc.)
+	const handleFilterClick = (category: string, value: string): void => {
+		// Set the filter and return to list view
+		const newFilters: ActiveFilters = { simpleTag: [] }
+		newFilters[category] = [value]
+		setActiveFilters(newFilters)
+		// Open the corresponding category in the sidebar
+		setOpenCategories(new Set([category]))
+		setViewMode('list')
+		setViewingVideo(null)
+	}
+
+	// Handles toggling a filter category open/closed
+	const handleToggleCategory = (category: string): void => {
+		setOpenCategories((prev) => {
+			const newSet = new Set(prev)
+			if (newSet.has(category)) {
+				newSet.delete(category)
+			} else {
+				newSet.add(category)
+			}
+			return newSet
+		})
 	}
 
 	// useMemo to calculate all available filter options from the library
@@ -240,6 +284,21 @@ function App(): React.ReactElement {
 		return <ModeSelection onModeSelected={handleModeSelected} />
 	}
 
+	// Show detail view if in detail mode
+	if (viewMode === 'detail' && viewingVideo) {
+		return (
+			<DetailView
+				video={viewingVideo}
+				library={library}
+				onBack={handleBackToList}
+				onSave={saveTags}
+				onDelete={handleDeleteVideo}
+				onFilterClick={handleFilterClick}
+			/>
+		)
+	}
+
+	// Show list view
 	return (
 		<div
 			style={{
@@ -299,6 +358,8 @@ function App(): React.ReactElement {
 					onMultiSelectChange={handleMultiSelectChange}
 					onClearFilters={handleClearFilters}
 					onToggleMultiSelect={() => setIsMultiSelectMode(!isMultiSelectMode)}
+					openCategories={openCategories}
+					onToggleCategory={handleToggleCategory}
 				/>
 
 				<main
@@ -319,7 +380,7 @@ function App(): React.ReactElement {
 					>
 						{/* Render the grid of video cards */}
 						{filteredVideos.map((vid) => (
-							<VideoCard key={vid.id} video={vid} onEdit={() => setEditingVideo(vid)} />
+							<VideoCard key={vid.id} video={vid} onEdit={() => handleVideoClick(vid)} />
 						))}
 
 						{/* Conditional messages for empty states */}
@@ -348,18 +409,6 @@ function App(): React.ReactElement {
 					</div>
 				</main>
 			</div>
-
-			{/* --- MODAL --- */}
-			{/* Render the edit modal only when a video is selected for editing */}
-			{editingVideo && (
-				<EditModal
-					video={editingVideo}
-					library={library}
-					onClose={() => setEditingVideo(null)}
-					onSave={saveTags}
-					onDelete={handleDeleteVideo}
-				/>
-			)}
 		</div>
 	)
 }
