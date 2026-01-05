@@ -225,9 +225,7 @@ function App(): React.ReactElement {
 					alignItems: 'center'
 				}}
 			>
-				<h1 style={{ color: 'var(--color-text)', margin: 0, fontSize: '1.2rem' }}>
-					Video Catalog
-				</h1>
+				<h1 style={{ color: 'var(--color-text)', margin: 0, fontSize: '1.2rem' }}>VidBase</h1>
 
 				<button
 					onClick={handleScan}

@@ -18,7 +18,7 @@ app.whenReady().then(() => {
 	let currentLibraryRootPath: string | null = null
 
 	// Set app user model id for windows
-	electronApp.setAppUserModelId('com.electron')
+	electronApp.setAppUserModelId('com.vidbase.app')
 
 	// Creates the main browser window
 	function createWindow(): void {
@@ -27,8 +27,9 @@ app.whenReady().then(() => {
 			width: 900,
 			height: 670,
 			show: false,
+			title: 'VidBase',
 			autoHideMenuBar: true,
-			...(process.platform === 'linux' ? { icon } : {}),
+			icon: icon, // Set icon for all platforms
 			webPreferences: {
 				preload: join(__dirname, '../preload/index.js'),
 				sandbox: false,
@@ -94,7 +95,6 @@ app.whenReady().then(() => {
 		const { canceled, filePaths } = await dialog.showOpenDialog({ properties: ['openDirectory'] })
 		if (canceled) return null
 		currentLibraryRootPath = filePaths[0] // Store the root path
-		await cleanupOrphans(currentLibraryRootPath)
 		return currentLibraryRootPath
 	})
 
