@@ -3,6 +3,7 @@ import { electronAPI } from '@electron-toolkit/preload'
 import { ParsedTag } from '../shared/types/metadata'
 import { VideoFile } from '../shared/types/video'
 import { Library } from '../shared/types/library'
+import { MovieArchive } from '../shared/types/movie'
 
 // The preload script runs in a privileged environment with access to Node.js APIs
 // It acts as a secure bridge between the sandboxed renderer process (the web page)
@@ -29,7 +30,12 @@ const api = {
 		ipcRenderer.invoke('db:save', folderPath, videos),
 	// Invokes the 'video:delete' handler to delete a video file, its thumbnail, and library entry
 	deleteVideo: (filePath: string, thumbnailPath: string, videoId: string): Promise<boolean> =>
-		ipcRenderer.invoke('video:delete', filePath, thumbnailPath, videoId)
+		ipcRenderer.invoke('video:delete', filePath, thumbnailPath, videoId),
+	// Invokes the 'movies:load' handler to load movies from an Excel file
+	loadMovies: (folderPath: string, moviesFolderPath?: string): Promise<MovieArchive> =>
+		ipcRenderer.invoke('movies:load', folderPath, moviesFolderPath),
+	// Sends a one-way message to the 'folder:open' handler to open a folder in the file explorer
+	openFolder: (folderPath: string): void => ipcRenderer.send('folder:open', folderPath)
 }
 
 // Use the contextBridge to securely expose the APIs to the renderer process

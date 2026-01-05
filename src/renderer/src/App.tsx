@@ -2,8 +2,11 @@ import React, { useState, useMemo } from 'react'
 import { ParsedTag } from 'src/shared/types/metadata'
 import { VideoFile } from 'src/shared/types/video'
 import { Library } from '@shared/types/library'
+import { Movie, MovieArchive } from '@shared/types/movie'
 import DetailView from './components/DetailView'
+import MovieDetailView from './components/MovieDetailView'
 import VideoCard from './components/VideoCard'
+import MovieCard from './components/MovieCard'
 import Sidebar from './components/Sidebar'
 import ModeSelection from './components/ModeSelection'
 import { ActiveFilters } from '@shared/types/filter'
@@ -23,10 +26,16 @@ function App(): React.ReactElement {
 	const [viewMode, setViewMode] = useState<ViewMode>('list')
 	// State for the list of all video files in the current folder
 	const [videos, setVideos] = useState<VideoFile[]>([])
+	// State for the list of all movies
+	const [movies, setMovies] = useState<Movie[]>([])
+	// State for movie archive (categories for filtering)
+	const [movieArchive, setMovieArchive] = useState<MovieArchive | null>(null)
 	// State to indicate when a scan or load operation is in progress
 	const [loading, setLoading] = useState(false)
 	// State to hold the video file currently being viewed in detail
 	const [viewingVideo, setViewingVideo] = useState<VideoFile | null>(null)
+	// State to hold the movie currently being viewed in detail
+	const [viewingMovie, setViewingMovie] = useState<Movie | null>(null)
 	// State for the path of the currently selected video folder
 	const [currentFolder, setCurrentFolder] = useState<string | null>(null)
 	// State for the currently active filters. Supports multiple filters per category
@@ -65,8 +74,21 @@ function App(): React.ReactElement {
 				setLoading(false)
 			}
 		} else if (mode === 'movies') {
-			// TODO: Load movies mode (from Excel file)
-			console.log('Movies mode selected, folder:', folder)
+			// Load movies mode (from Excel file)
+			setLoading(true)
+			setMovies([]) // Clear previous movies
+			try {
+				console.log('Loading movies from Excel...')
+				// The folder contains both the Excel file and the movie folders
+				const archive = await window.api.loadMovies(folder, folder)
+				setMovies(archive.movies)
+				setMovieArchive(archive)
+			} catch (error) {
+				console.error('Loading error:', error)
+				alert('There was an error loading movies. Make sure there is an Excel file in the selected folder.')
+			} finally {
+				setLoading(false)
+			}
 		}
 	}
 
@@ -76,23 +98,40 @@ function App(): React.ReactElement {
 		if (folder) {
 			setCurrentFolder(folder)
 			setLoading(true)
-			setVideos([]) // Clear previous videos
-			try {
-				// Always scan the directory - it will use library.json metadata when available
-				// and scan new files normally
-				console.log('Scanning directory...')
-				const results = await window.api.scanVideos(folder)
-				setVideos(results)
-				// Load the updated library to get categories and tags
-				const updatedLibrary = await window.api.loadLibrary(folder)
-				if (updatedLibrary) {
-					setLibrary(updatedLibrary)
+			
+			if (appMode === 'videos') {
+				setVideos([]) // Clear previous videos
+				try {
+					// Always scan the directory - it will use library.json metadata when available
+					// and scan new files normally
+					console.log('Scanning directory...')
+					const results = await window.api.scanVideos(folder)
+					setVideos(results)
+					// Load the updated library to get categories and tags
+					const updatedLibrary = await window.api.loadLibrary(folder)
+					if (updatedLibrary) {
+						setLibrary(updatedLibrary)
+					}
+				} catch (error) {
+					console.error('Loading error:', error)
+					alert('There was an error during loading.')
+				} finally {
+					setLoading(false)
 				}
-			} catch (error) {
-				console.error('Loading error:', error)
-				alert('There was an error during loading.')
-			} finally {
-				setLoading(false)
+			} else if (appMode === 'movies') {
+				setMovies([]) // Clear previous movies
+				try {
+					console.log('Loading movies from Excel...')
+					// The folder contains both the Excel file and the movie folders
+					const archive = await window.api.loadMovies(folder, folder)
+					setMovies(archive.movies)
+					setMovieArchive(archive)
+				} catch (error) {
+					console.error('Loading error:', error)
+					alert('There was an error loading movies. Make sure there is an Excel file in the selected folder.')
+				} finally {
+					setLoading(false)
+				}
 			}
 		}
 	}
@@ -154,6 +193,15 @@ function App(): React.ReactElement {
 	// Handles opening a video in detail view
 	const handleVideoClick = (video: VideoFile): void => {
 		setViewingVideo(video)
+		setViewingMovie(null)
+		setViewMode('detail')
+	}
+
+	// Handles opening a movie in detail view
+	const handleMovieClick = (movie: Movie): void => {
+		console.log('Opening movie:', movie.title)
+		setViewingMovie(movie)
+		setViewingVideo(null)
 		setViewMode('detail')
 	}
 
@@ -161,6 +209,7 @@ function App(): React.ReactElement {
 	const handleBackToList = (): void => {
 		setViewMode('list')
 		setViewingVideo(null)
+		setViewingMovie(null)
 	}
 
 	// Handles clicking on a filterable name (model, production, etc.)
@@ -189,20 +238,25 @@ function App(): React.ReactElement {
 	}
 
 	// useMemo to calculate all available filter options from the library
-	// This uses the categories and tags from library.json, which are dynamically updated
+	// This uses the categories and tags from library.json (for videos) or movieArchive (for movies)
 	const filterOptions = useMemo(() => {
+		if (appMode === 'movies' && movieArchive) {
+			return {
+				categories: movieArchive.categories,
+				simpleTags: []
+			}
+		}
 		if (!library) {
 			return {
 				categories: {},
 				simpleTags: []
 			}
 		}
-
 		return {
 			categories: library.categories,
 			simpleTags: library.tags
 		}
-	}, [library])
+	}, [library, movieArchive, appMode])
 
 	// Handles changes to the active filter (single select mode - only one filter total)
 	const handleFilterChange = (category: string, value: string | undefined): void => {
@@ -215,6 +269,21 @@ function App(): React.ReactElement {
 			newFilters[category] = [value]
 			setActiveFilters(newFilters)
 		}
+	}
+
+	// Handles text input changes for movie filters
+	const handleMovieFilterTextChange = (category: string, value: string): void => {
+		setActiveFilters((prev) => {
+			const newFilters = { ...prev }
+			if (value.trim() === '') {
+				// Clear this category if input is empty
+				delete newFilters[category]
+			} else {
+				// Set the text value (single value array for text inputs)
+				newFilters[category] = [value]
+			}
+			return newFilters
+		})
 	}
 
 	// Handles multi-select filter changes
@@ -279,23 +348,104 @@ function App(): React.ReactElement {
 		})
 	}, [videos, activeFilters])
 
+	// Computed: Filtered movies based on active filters (text-based filtering)
+	const filteredMovies = useMemo(() => {
+		if (appMode !== 'movies') return []
+
+		// Check if any filters are active
+		const hasActiveFilters = Object.entries(activeFilters).some(
+			([key, values]) => key !== 'simpleTag' && values.length > 0
+		)
+		if (!hasActiveFilters) {
+			return movies
+		}
+
+		return movies.filter((movie) => {
+			// All categories must match (AND logic across categories)
+			for (const [category, filterValues] of Object.entries(activeFilters)) {
+				if (category === 'simpleTag') continue // Skip simpleTag for movies
+				if (filterValues.length === 0) continue // Skip empty categories
+
+				const filterValue = filterValues[0].toLowerCase() // Text input, single value
+
+				let categoryMatches = false
+
+				// Handle different movie fields (using English names)
+				switch (category.toUpperCase()) {
+					case 'TITLE':
+						categoryMatches = movie.title.toLowerCase().includes(filterValue)
+						break
+					case 'DIRECTOR':
+						categoryMatches = movie.director.toLowerCase().includes(filterValue)
+						break
+					case 'YEAR':
+						categoryMatches = movie.year?.toString().includes(filterValue) ?? false
+						break
+					case 'LANGUAGE':
+						categoryMatches = movie.language?.toLowerCase().includes(filterValue) ?? false
+						break
+					case 'ACTORS':
+						categoryMatches = movie.actors.some((actor) =>
+							actor.toLowerCase().includes(filterValue)
+						)
+						break
+					case 'GENRES':
+						categoryMatches = movie.genres.some((genre) =>
+							genre.toLowerCase().includes(filterValue)
+						)
+						break
+					case 'TYPE':
+						categoryMatches = movie.type?.toLowerCase().includes(filterValue) ?? false
+						break
+					case 'LQ':
+						categoryMatches = movie.lq?.toLowerCase().includes(filterValue) ?? false
+						break
+					case 'NOTES':
+						categoryMatches = movie.notes?.toLowerCase().includes(filterValue) ?? false
+						break
+					case 'CHECK':
+						categoryMatches = movie.check?.toLowerCase().includes(filterValue) ?? false
+						break
+					default:
+						categoryMatches = false
+				}
+
+				if (!categoryMatches) {
+					return false // This category doesn't match, exclude the movie
+				}
+			}
+			return true // All categories matched
+		})
+	}, [movies, activeFilters, appMode])
+
 	// Show mode selection screen if no mode is selected
 	if (!appMode) {
 		return <ModeSelection onModeSelected={handleModeSelected} />
 	}
 
 	// Show detail view if in detail mode
-	if (viewMode === 'detail' && viewingVideo) {
-		return (
-			<DetailView
-				video={viewingVideo}
-				library={library}
-				onBack={handleBackToList}
-				onSave={saveTags}
-				onDelete={handleDeleteVideo}
-				onFilterClick={handleFilterClick}
-			/>
-		)
+	if (viewMode === 'detail') {
+		if (appMode === 'videos' && viewingVideo) {
+			return (
+				<DetailView
+					video={viewingVideo}
+					library={library}
+					onBack={handleBackToList}
+					onSave={saveTags}
+					onDelete={handleDeleteVideo}
+					onFilterClick={handleFilterClick}
+				/>
+			)
+		}
+		if (appMode === 'movies' && viewingMovie) {
+			return (
+				<MovieDetailView
+					movie={viewingMovie}
+					onBack={handleBackToList}
+					onFilterClick={handleFilterClick}
+				/>
+			)
+		}
 	}
 
 	// Show list view
@@ -369,44 +519,86 @@ function App(): React.ReactElement {
 						padding: '20px'
 					}}
 				>
-					<div
-						style={{
-							display: 'flex',
-							flexDirection: 'row',
-							flexWrap: 'wrap',
-							justifyContent: 'center',
-							gap: '20px'
-						}}
-					>
-						{/* Render the grid of video cards */}
-						{filteredVideos.map((vid) => (
-							<VideoCard key={vid.id} video={vid} onEdit={() => handleVideoClick(vid)} />
-						))}
+					{appMode === 'videos' ? (
+						<div
+							style={{
+								display: 'flex',
+								flexDirection: 'row',
+								flexWrap: 'wrap',
+								justifyContent: 'center',
+								gap: '20px'
+							}}
+						>
+							{/* Render the grid of video cards */}
+							{filteredVideos.map((vid) => (
+								<VideoCard key={vid.id} video={vid} onEdit={() => handleVideoClick(vid)} />
+							))}
 
-						{/* Conditional messages for empty states */}
-						{!loading && videos.length === 0 && (
-							<div
-								style={{
-									textAlign: 'center',
-									color: 'var(--color-text-mute)',
-									marginTop: '40px'
-								}}
-							>
-								No videos loaded. Click the top-right button to start.
-							</div>
-						)}
-						{!loading && videos.length > 0 && filteredVideos.length === 0 && (
-							<div
-								style={{
-									textAlign: 'center',
-									color: 'var(--color-text-mute)',
-									marginTop: '40px'
-								}}
-							>
-								No videos match the selected filters.
-							</div>
-						)}
-					</div>
+							{/* Conditional messages for empty states */}
+							{!loading && videos.length === 0 && (
+								<div
+									style={{
+										textAlign: 'center',
+										color: 'var(--color-text-mute)',
+										marginTop: '40px'
+									}}
+								>
+									No videos loaded. Click the top-right button to start.
+								</div>
+							)}
+							{!loading && videos.length > 0 && filteredVideos.length === 0 && (
+								<div
+									style={{
+										textAlign: 'center',
+										color: 'var(--color-text-mute)',
+										marginTop: '40px'
+									}}
+								>
+									No videos match the selected filters.
+								</div>
+							)}
+						</div>
+					) : (
+						<div
+							style={{
+								display: 'flex',
+								flexDirection: 'column',
+								gap: '12px',
+								maxWidth: '1200px',
+								width: '100%',
+								margin: '0 auto'
+							}}
+						>
+							{/* Render the list of movie cards */}
+							{filteredMovies.map((movie) => (
+								<MovieCard key={movie.id} movie={movie} onEdit={() => handleMovieClick(movie)} />
+							))}
+
+							{/* Conditional messages for empty states */}
+							{!loading && movies.length === 0 && (
+								<div
+									style={{
+										textAlign: 'center',
+										color: 'var(--color-text-mute)',
+										marginTop: '40px'
+									}}
+								>
+									No movies loaded. Click the top-right button to select a folder with an Excel file.
+								</div>
+							)}
+							{!loading && movies.length > 0 && filteredMovies.length === 0 && (
+								<div
+									style={{
+										textAlign: 'center',
+										color: 'var(--color-text-mute)',
+										marginTop: '40px'
+									}}
+								>
+									No movies match the selected filters.
+								</div>
+							)}
+						</div>
+					)}
 				</main>
 			</div>
 		</div>

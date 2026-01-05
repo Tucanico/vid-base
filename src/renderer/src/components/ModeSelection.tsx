@@ -138,7 +138,7 @@ function ModeSelection({
 							{selectedFolder}
 						</div>
 					)}
-					{selectedFolder && (
+					{selectedFolder && (selectedMode === 'videos' || selectedMode === 'movies') && (
 						<button
 							onClick={handleContinue}
 							style={{

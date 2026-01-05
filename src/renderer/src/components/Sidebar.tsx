@@ -20,7 +20,9 @@ function Sidebar({
 	onClearFilters,
 	onToggleMultiSelect,
 	openCategories,
-	onToggleCategory
+	onToggleCategory,
+	isMovieMode = false,
+	onMovieFilterTextChange
 }: {
 	filterOptions: {
 		categories: Record<string, string[]>
@@ -34,6 +36,8 @@ function Sidebar({
 	onToggleMultiSelect: () => void
 	openCategories?: Set<string>
 	onToggleCategory?: (category: string) => void
+	isMovieMode?: boolean
+	onMovieFilterTextChange?: (category: string, value: string) => void
 }): React.ReactElement {
 	return (
 		<div
@@ -95,6 +99,7 @@ function Sidebar({
 			{Object.entries(filterOptions.categories).map(([categoryName, values]) => {
 				const activeValues = activeFilters[categoryName] || []
 				const isOpen = openCategories?.has(categoryName) ?? false
+				const currentValue = activeValues[0] || ''
 				return (
 					<FilterSection
 						key={categoryName}
@@ -108,6 +113,12 @@ function Sidebar({
 						}
 						isOpen={isOpen}
 						onToggleOpen={onToggleCategory ? () => onToggleCategory(categoryName) : undefined}
+						isTextInput={isMovieMode}
+						onTextInputChange={
+							isMovieMode && onMovieFilterTextChange
+								? (value) => onMovieFilterTextChange(categoryName, value)
+								: undefined
+						}
 					/>
 				)
 			})}

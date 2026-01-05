@@ -8,7 +8,7 @@ import { scanDirectoryWithLibrary } from './metadata/scanner'
 import { updateVideoTags } from './metadata/updateTags'
 import { closeExiftool } from './metadata/utils'
 import { loadLibrary, saveLibrary, removeVideoEntryFromLibrary } from './metadata/library'
-
+import { parseMovieExcel, findExcelFile } from './metadata/movieParser'
 import { cleanupOrphans } from './metadata/cleanup'
 
 // This method will be called when Electron has finished initialization and is ready to create browser windows
@@ -152,6 +152,18 @@ app.whenReady().then(() => {
 			}
 		}
 	)
+	// IPC handler to load movies from an Excel file
+	ipcMain.handle('movies:load', async (_, folderPath: string, moviesFolderPath?: string) => {
+		const excelPath = await findExcelFile(folderPath)
+		if (!excelPath) {
+			throw new Error('No Excel file found in the selected folder')
+		}
+		return await parseMovieExcel(excelPath, moviesFolderPath)
+	})
+	// IPC handler to open a folder in the file explorer
+	ipcMain.on('folder:open', (_, folderPath: string) => {
+		shell.openPath(folderPath)
+	})
 
 	// Create the main window when the app is ready
 	createWindow()

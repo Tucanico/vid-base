@@ -17,7 +17,9 @@ function FilterSection({
 	onSelect,
 	onMultiSelect,
 	isOpen: controlledIsOpen,
-	onToggleOpen
+	onToggleOpen,
+	isTextInput = false,
+	onTextInputChange
 }: {
 	title: string
 	options: string[]
@@ -27,12 +29,16 @@ function FilterSection({
 	onMultiSelect?: (option: string, isSelected: boolean) => void
 	isOpen?: boolean
 	onToggleOpen?: () => void
+	isTextInput?: boolean
+	onTextInputChange?: (value: string) => void
 }): React.ReactElement {
 	const [internalIsOpen, setInternalIsOpen] = useState(false)
 	const isOpen = controlledIsOpen !== undefined ? controlledIsOpen : internalIsOpen
 	const setIsOpen = onToggleOpen || setInternalIsOpen
-
+	
+	// Get current text input value from active prop
 	const activeSet = Array.isArray(active) ? new Set(active) : new Set(active ? [active] : [])
+	const textInputValue = isTextInput ? (Array.isArray(active) ? active[0] || '' : active || '') : ''
 
 	const handleOptionClick = (opt: string): void => {
 		if (isMultiSelectMode && onMultiSelect) {
@@ -71,27 +77,50 @@ function FilterSection({
 				<div
 					style={{ display: 'flex', flexDirection: 'column', gap: '4px', paddingTop: '5px' }}
 				>
-					{options.map((opt) => {
-						const isSelected = activeSet.has(opt)
-						return (
-							<button
-								key={opt}
-								onClick={() => handleOptionClick(opt)}
-								style={{
-									textAlign: 'left',
-									background: isSelected ? 'var(--color-primary-light)' : 'transparent',
-									border: 'none',
-									padding: '6px 10px',
-									borderRadius: '4px',
-									cursor: 'pointer',
-									color: isSelected ? 'var(--color-primary-dark)' : 'var(--color-text)',
-									fontWeight: isSelected ? 600 : 400
-								}}
-							>
-								{opt}
-							</button>
-						)
-					})}
+					{isTextInput ? (
+						<input
+							type="text"
+							value={textInputValue}
+							onChange={(e) => {
+								const value = e.target.value
+								if (onTextInputChange) {
+									onTextInputChange(value)
+								}
+							}}
+							placeholder={`Filter by ${title.toLowerCase()}...`}
+							style={{
+								padding: '8px 10px',
+								border: '1px solid var(--color-background-mute)',
+								borderRadius: '4px',
+								backgroundColor: 'var(--color-background)',
+								color: 'var(--color-text)',
+								fontSize: '0.9rem',
+								width: '100%'
+							}}
+						/>
+					) : (
+						options.map((opt) => {
+							const isSelected = activeSet.has(opt)
+							return (
+								<button
+									key={opt}
+									onClick={() => handleOptionClick(opt)}
+									style={{
+										textAlign: 'left',
+										background: isSelected ? 'var(--color-primary-light)' : 'transparent',
+										border: 'none',
+										padding: '6px 10px',
+										borderRadius: '4px',
+										cursor: 'pointer',
+										color: isSelected ? 'var(--color-primary-dark)' : 'var(--color-text)',
+										fontWeight: isSelected ? 600 : 400
+									}}
+								>
+									{opt}
+								</button>
+							)
+						})
+					)}
 				</div>
 			)}
 		</div>
