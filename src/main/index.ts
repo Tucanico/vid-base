@@ -101,15 +101,23 @@ app.whenReady().then(() => {
 	// IPC handler to load the video library from a given folder path
 	ipcMain.handle('db:load', async (_, folderPath) => await loadLibrary(folderPath))
 	// IPC handler to save the video library to a given folder path
-	ipcMain.handle('db:save', async (_, folderPath, videos) => await saveLibrary(folderPath, videos))
+	ipcMain.handle('db:save', async (_, folderPath, videos) => {
+		const existingLibrary = await loadLibrary(folderPath)
+		await saveLibrary(folderPath, videos, existingLibrary)
+	})
 	// IPC handler to scan a directory for new videos
 	// Uses library.json metadata when available, but always scans for new files
 	ipcMain.handle('videos:scan', async (_, folderPath) => {
 		// Load existing library if it exists
 		const existingLibrary = await loadLibrary(folderPath)
 		// Scan directory using smart scan (uses library metadata when available)
-		const videos = await scanDirectoryWithLibrary(folderPath, existingLibrary)
+		const videos = await scanDirectoryWithLibrary(
+			folderPath,
+			existingLibrary ? existingLibrary.files : null
+		)
 		await cleanupOrphans(folderPath)
+		// Save library with updated categories and tags
+		await saveLibrary(folderPath, videos, existingLibrary)
 		return videos
 	})
 	// IPC listener to open a video file in the default system player

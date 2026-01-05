@@ -3,7 +3,7 @@ import * as path from 'path'
 import * as fsSync from 'fs'
 import { v4 as uuidv4 } from 'uuid'
 import { ExiftoolTags, ParsedTag } from '../../shared/types/metadata'
-import { VideoFile } from '../../shared/types/video'
+import { VideoFile, MediaType } from '../../shared/types/video'
 import { generateThumbnail } from './thumbnails'
 import { ourExiftool } from './utils'
 
@@ -52,6 +52,7 @@ export async function getFilesRecursively(dir: string): Promise<string[]> {
 	const list = await fs.readdir(dir, { withFileTypes: true })
 
 	const videoExtensions = ['.mp4', '.mkv', '.mov', '.avi', '.wmv', '.m4v']
+	const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tiff', '.tif']
 
 	for (const entry of list) {
 		const fullPath = path.join(dir, entry.name)
@@ -61,9 +62,9 @@ export async function getFilesRecursively(dir: string): Promise<string[]> {
 			const subFolderFiles = await getFilesRecursively(fullPath)
 			results = results.concat(subFolderFiles)
 		} else if (entry.isFile()) {
-			// If it's a file, check if it has a valid video extension
+			// If it's a file, check if it has a valid video or image extension
 			const ext = path.extname(entry.name).toLowerCase()
-			if (videoExtensions.includes(ext)) {
+			if (videoExtensions.includes(ext) || imageExtensions.includes(ext)) {
 				results.push(fullPath)
 			}
 		}
@@ -71,7 +72,7 @@ export async function getFilesRecursively(dir: string): Promise<string[]> {
 	return results
 }
 
-/** Scans a directory for video files, extracts metadata, generates thumbnails, and returns a list of VideoFile objects
+/** Scans a directory for media files (videos and images), extracts metadata, generates thumbnails, and returns a list of VideoFile objects
  *  @param dirPath The path to the directory to scan
  *  @returns A promise that resolves to an array of VideoFile objects
  */
@@ -82,7 +83,7 @@ export async function scanDirectory(dirPath: string): Promise<VideoFile[]> {
 	for (const fullPath of allFilePaths) {
 		const file = path.basename(fullPath)
 		try {
-			// Read metadata from the video file using exiftool
+			// Read metadata from the file using exiftool
 			const meta: ExiftoolTags = await ourExiftool.read(fullPath)
 
 			// An array of potential metadata fields that might contain tags
@@ -109,14 +110,23 @@ export async function scanDirectory(dirPath: string): Promise<VideoFile[]> {
 				rawString = foundTags
 			}
 
-			// Generate a thumbnail for the video
-			const thumbPath = await generateThumbnail(fullPath)
+			// Determine media type
+			const ext = path.extname(fullPath).toLowerCase()
+			const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tiff', '.tif']
+			const mediaType: MediaType = imageExtensions.includes(ext) ? 'image' : 'video'
+
+			// Generate a thumbnail only for videos
+			let thumbPath: string | undefined = undefined
+			if (mediaType === 'video') {
+				thumbPath = await generateThumbnail(fullPath)
+			}
 
 			// Create a new VideoFile object with the extracted data
 			results.push({
 				id: uuidv4(),
 				fileName: file,
 				filePath: fullPath,
+				mediaType: mediaType,
 				thumbnailPath: thumbPath,
 				rawTags: rawString,
 				tags: parseTags(rawString)
@@ -130,46 +140,59 @@ export async function scanDirectory(dirPath: string): Promise<VideoFile[]> {
 
 /** Smart scan that uses library.json metadata when available, but always scans for new files
  *  @param dirPath The path to the directory to scan
- *  @param existingLibrary Optional array of VideoFile objects from library.json
+ *  @param existingFiles Optional array of VideoFile objects from library.json files array
  *  @returns A promise that resolves to an array of VideoFile objects
  */
 export async function scanDirectoryWithLibrary(
 	dirPath: string,
-	existingLibrary: VideoFile[] | null = null
+	existingFiles: VideoFile[] | null = null
 ): Promise<VideoFile[]> {
 	const allFilePaths = await getFilesRecursively(dirPath)
 	const results: VideoFile[] = []
 
 	// Create a map of existing library entries by filePath for quick lookup
 	const libraryMap = new Map<string, VideoFile>()
-	if (existingLibrary) {
-		for (const video of existingLibrary) {
+	if (existingFiles) {
+		for (const video of existingFiles) {
 			libraryMap.set(video.filePath, video)
 		}
+	}
+
+	// Helper function to determine media type from file extension
+	const getMediaType = (filePath: string): MediaType => {
+		const ext = path.extname(filePath).toLowerCase()
+		const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tiff', '.tif']
+		return imageExtensions.includes(ext) ? 'image' : 'video'
 	}
 
 	for (const fullPath of allFilePaths) {
 		const file = path.basename(fullPath)
 		const existingEntry = libraryMap.get(fullPath)
+		const mediaType = getMediaType(fullPath)
 
 		if (existingEntry) {
 			// File exists in library.json - use its metadata
-			// Check if thumbnail exists, if not generate it
+			// For backward compatibility, if mediaType is missing, detect it
+			const entryMediaType = existingEntry.mediaType || mediaType
+			
+			// For videos, check if thumbnail exists, if not generate it
+			// For images, no thumbnail needed (use image itself)
 			let thumbPath = existingEntry.thumbnailPath
-			if (!thumbPath || !fsSync.existsSync(thumbPath)) {
+			if (entryMediaType === 'video' && (!thumbPath || !fsSync.existsSync(thumbPath))) {
 				// Thumbnail doesn't exist, generate it
 				thumbPath = await generateThumbnail(fullPath)
 			}
 
-			// Use existing metadata but update thumbnail path if it changed
+			// Use existing metadata but update thumbnail path and mediaType if needed
 			results.push({
 				...existingEntry,
+				mediaType: entryMediaType,
 				thumbnailPath: thumbPath
 			})
 		} else {
 			// New file - scan it normally
 			try {
-				// Read metadata from the video file using exiftool
+				// Read metadata from the file using exiftool
 				const meta: ExiftoolTags = await ourExiftool.read(fullPath)
 
 				// An array of potential metadata fields that might contain tags
@@ -195,14 +218,18 @@ export async function scanDirectoryWithLibrary(
 					rawString = foundTags
 				}
 
-				// Generate a thumbnail for the video
-				const thumbPath = await generateThumbnail(fullPath)
+				// Generate a thumbnail only for videos
+				let thumbPath: string | undefined = undefined
+				if (mediaType === 'video') {
+					thumbPath = await generateThumbnail(fullPath)
+				}
 
 				// Create a new VideoFile object with the extracted data
 				results.push({
 					id: uuidv4(),
 					fileName: file,
 					filePath: fullPath,
+					mediaType: mediaType,
 					thumbnailPath: thumbPath,
 					rawTags: rawString,
 					tags: parseTags(rawString)

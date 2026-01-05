@@ -1,10 +1,11 @@
 import React, { useState, useMemo } from 'react'
 import { ParsedTag } from 'src/shared/types/metadata'
 import { VideoFile } from 'src/shared/types/video'
+import { Library } from '@shared/types/library'
 import EditModal from './components/EditModal'
 import VideoCard from './components/VideoCard'
 import Sidebar from './components/Sidebar'
-import { ActiveFilters, FilterCategory } from '@shared/types/filter'
+import { ActiveFilters } from '@shared/types/filter'
 
 /** --- MAIN APP COMPONENT ---
  *  The root component of the application. It manages the global state,
@@ -22,14 +23,12 @@ function App(): React.ReactElement {
 	const [currentFolder, setCurrentFolder] = useState<string | null>(null)
 	// State for the currently active filters. Supports multiple filters per category
 	const [activeFilters, setActiveFilters] = useState<ActiveFilters>({
-		category: [],
-		model: [],
-		channel: [],
-		production: [],
 		simpleTag: []
 	})
 	// State for global multi-select mode
 	const [isMultiSelectMode, setIsMultiSelectMode] = useState(false)
+	// State for library metadata (categories and tags)
+	const [library, setLibrary] = useState<Library | null>(null)
 
 	// Handles the folder selection and video loading process
 	const handleScan = async (): Promise<void> => {
@@ -44,8 +43,11 @@ function App(): React.ReactElement {
 				console.log('Scanning directory...')
 				const results = await window.api.scanVideos(folder)
 				setVideos(results)
-				// Save the results to the cache
-				await window.api.saveLibrary(folder, results)
+				// Load the updated library to get categories and tags
+				const updatedLibrary = await window.api.loadLibrary(folder)
+				if (updatedLibrary) {
+					setLibrary(updatedLibrary)
+				}
 			} catch (error) {
 				console.error('Loading error:', error)
 				alert('There was an error during loading.')
@@ -67,8 +69,13 @@ function App(): React.ReactElement {
 				v.id === editingVideo.id ? { ...v, tags: newTags } : v
 			)
 			setVideos(updatedList)
-			// 3. Save the updated list to the 'library.json' cache
+			// 3. Save the updated list to the 'library.json' cache (will update categories/tags)
 			await window.api.saveLibrary(currentFolder, updatedList)
+			// 4. Reload library to get updated categories and tags
+			const updatedLibrary = await window.api.loadLibrary(currentFolder)
+			if (updatedLibrary) {
+				setLibrary(updatedLibrary)
+			}
 		} catch (error) {
 			console.error('Error saving tags:', error)
 			alert('Error: unable to save tags.')
@@ -102,69 +109,46 @@ function App(): React.ReactElement {
 		}
 	}
 
-	// useMemo to calculate all available filter options from the current video list
-	// This is recalculated only when the 'videos' array changes
+	// useMemo to calculate all available filter options from the library
+	// This uses the categories and tags from library.json, which are dynamically updated
 	const filterOptions = useMemo(() => {
-		const categories = new Set<string>()
-		const models = new Set<string>()
-		const channels = new Set<string>()
-		const productions = new Set<string>()
-		const simpleTags = new Set<string>()
-
-		videos.forEach((video) => {
-			video.tags.forEach((tag) => {
-				if (tag.type === 'kv') {
-					if (tag.key === 'category') categories.add(tag.value)
-					if (tag.key === 'model') models.add(tag.value)
-					if (tag.key === 'channel') channels.add(tag.value)
-					if (tag.key === 'production') productions.add(tag.value)
-				} else {
-					simpleTags.add(tag.value)
-				}
-			})
-		})
+		if (!library) {
+			return {
+				categories: {},
+				simpleTags: []
+			}
+		}
 
 		return {
-			categories: Array.from(categories).sort(),
-			models: Array.from(models).sort(),
-			channels: Array.from(channels).sort(),
-			productions: Array.from(productions).sort(),
-			simpleTags: Array.from(simpleTags).sort()
+			categories: library.categories,
+			simpleTags: library.tags
 		}
-	}, [videos])
+	}, [library])
 
 	// Handles changes to the active filter (single select mode - only one filter total)
-	const handleFilterChange = (category: FilterCategory, value: string | undefined): void => {
+	const handleFilterChange = (category: string, value: string | undefined): void => {
 		if (!value) {
 			// If value is undefined, clear all filters
-			setActiveFilters({
-				category: [],
-				model: [],
-				channel: [],
-				production: [],
-				simpleTag: []
-			})
+			setActiveFilters({ simpleTag: [] })
 		} else {
 			// Single select: clear all categories and set only this one
-			setActiveFilters({
-				category: [],
-				model: [],
-				channel: [],
-				production: [],
-				simpleTag: [],
-				[category]: [value]
-			})
+			const newFilters: ActiveFilters = { simpleTag: [] }
+			newFilters[category] = [value]
+			setActiveFilters(newFilters)
 		}
 	}
 
 	// Handles multi-select filter changes
 	const handleMultiSelectChange = (
-		category: FilterCategory,
+		category: string,
 		option: string,
 		isSelected: boolean
 	): void => {
 		setActiveFilters((prev) => {
 			const newFilters = { ...prev }
+			if (!newFilters[category]) {
+				newFilters[category] = []
+			}
 			if (isSelected) {
 				// Remove the option
 				newFilters[category] = newFilters[category].filter((v) => v !== option)
@@ -178,13 +162,7 @@ function App(): React.ReactElement {
 
 	// Clears any active filter
 	const handleClearFilters = (): void => {
-		setActiveFilters({
-			category: [],
-			model: [],
-			channel: [],
-			production: [],
-			simpleTag: []
-		})
+		setActiveFilters({ simpleTag: [] })
 	}
 
 	// useMemo to compute the list of videos to display based on the active filters
@@ -200,10 +178,7 @@ function App(): React.ReactElement {
 		return videos.filter((video) => {
 			// For each category, check if the video matches any of the selected values (OR logic)
 			// All categories must match (AND logic across categories)
-			for (const [category, values] of Object.entries(activeFilters) as [
-				FilterCategory,
-				string[]
-			][]) {
+			for (const [category, values] of Object.entries(activeFilters)) {
 				if (values.length === 0) continue // Skip empty categories
 
 				let categoryMatches = false

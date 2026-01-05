@@ -16,28 +16,32 @@ export async function cleanupOrphans(folderPath: string): Promise<void> {
 	// 1. Load the library from library.json
 	const library = await loadLibrary(folderPath)
 	if (!library) {
-		console.log('✅ No library file found, no cleanup needed.')
+		// Library not found - this is expected for new folders, no cleanup needed
 		return
 	}
+	const videos = library.files
 
-	// 2. Get all actual video file paths from the filesystem
-	const videoExtensions = ['.mp4', '.mov', '.avi', '.mkv', '.webm']
+	// 2. Get all actual media file paths from the filesystem (videos and images)
+	const videoExtensions = ['.mp4', '.mov', '.avi', '.mkv', '.webm', '.wmv', '.m4v']
+	const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tiff', '.tif']
 	const allFiles = await fs.readdir(folderPath, { recursive: true, withFileTypes: true })
-	const videoFilePaths = allFiles
-		.filter(
-			(file) => file.isFile() && videoExtensions.includes(path.extname(file.name).toLowerCase())
-		)
+	const mediaFilePaths = allFiles
+		.filter((file) => {
+			if (!file.isFile()) return false
+			const ext = path.extname(file.name).toLowerCase()
+			return videoExtensions.includes(ext) || imageExtensions.includes(ext)
+		})
 		.map((file) => path.join(file.path, file.name))
 
-	// 3. Create a Set of existing video paths for quick lookups
-	const existingVideoPaths = new Set(videoFilePaths)
+	// 3. Create a Set of existing media paths for quick lookups
+	const existingMediaPaths = new Set(mediaFilePaths)
 
 	// 4. Find orphaned videos in the library
 	const videosToKeep: VideoFile[] = []
 	const orphanedVideos: VideoFile[] = []
 
-	for (const video of library) {
-		if (existingVideoPaths.has(video.filePath)) {
+	for (const video of videos) {
+		if (existingMediaPaths.has(video.filePath)) {
 			videosToKeep.push(video)
 		} else {
 			orphanedVideos.push(video)
@@ -72,7 +76,7 @@ export async function cleanupOrphans(folderPath: string): Promise<void> {
 		}
 
 		// 6. Save the cleaned library
-		await saveLibrary(folderPath, videosToKeep)
+		await saveLibrary(folderPath, videosToKeep, library)
 		console.log('💾 Saved cleaned library file.')
 	}
 

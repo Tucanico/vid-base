@@ -107,7 +107,7 @@ function EditModal({
 					boxShadow: '0 4px 20px rgba(0,0,0,0.2)'
 				}}
 			>
-				{/* Thumbnail */}
+				{/* Thumbnail or Image */}
 				<div
 					style={{
 						width: '100%',
@@ -118,9 +118,20 @@ function EditModal({
 						marginBottom: '15px'
 					}}
 				>
-					{video.thumbnailPath ? (
+					{video.mediaType === 'image' ? (
+						// For images, show the image itself
 						<img
-							// Use the custom 'media://' protocol to load the local thumbnail file
+							src={`media:///${video.filePath.replace(/\\/g, '/')}`}
+							alt={video.fileName}
+							style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+							onError={(e) => {
+								console.error('Loading error:', video.filePath)
+								e.currentTarget.style.display = 'none'
+							}}
+						/>
+					) : video.thumbnailPath ? (
+						// For videos, show thumbnail
+						<img
 							src={`media:///${video.thumbnailPath.replace(/\\/g, '/')}`}
 							alt="thumbnail"
 							style={{ width: '100%', height: '100%', objectFit: 'cover' }}
@@ -276,7 +287,7 @@ function EditModal({
 				>
 					{/* Left-aligned actions */}
 					<div style={{ display: 'flex', gap: '10px' }}>
-						{/* Play Button */}
+						{/* Play/Open Button */}
 						<button
 							onClick={() => window.api.openVideo(video.filePath)}
 							style={{
@@ -289,7 +300,7 @@ function EditModal({
 								fontWeight: 600
 							}}
 						>
-							▶ Play
+							{video.mediaType === 'image' ? '📂 Open' : '▶ Play'}
 						</button>
 						{/* Delete Button */}
 						<button

@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 import { ParsedTag } from '../shared/types/metadata'
 import { VideoFile } from '../shared/types/video'
+import { Library } from '../shared/types/library'
 
 // The preload script runs in a privileged environment with access to Node.js APIs
 // It acts as a secure bridge between the sandboxed renderer process (the web page)
@@ -21,7 +22,7 @@ const api = {
 	updateTags: (filePath: string, tags: ParsedTag[]): Promise<void> =>
 		ipcRenderer.invoke('videos:updateTags', filePath, tags),
 	// Invokes the 'db:load' handler to load the library from a file
-	loadLibrary: (folderPath: string): Promise<VideoFile[] | null> =>
+	loadLibrary: (folderPath: string): Promise<Library | null> =>
 		ipcRenderer.invoke('db:load', folderPath),
 	// Invokes the 'db:save' handler to save the library to a file
 	saveLibrary: (folderPath: string, videos: VideoFile[]): Promise<void> =>

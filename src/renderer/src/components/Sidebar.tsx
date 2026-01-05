@@ -1,6 +1,6 @@
 import React from 'react'
 import FilterSection from './FilterSection'
-import { ActiveFilters, FilterCategory } from '@shared/types/filter'
+import { ActiveFilters } from '@shared/types/filter'
 
 /** --- COMPONENT: Sidebar ---
  *  The main sidebar component that holds all the filter sections
@@ -21,16 +21,13 @@ function Sidebar({
 	onToggleMultiSelect
 }: {
 	filterOptions: {
-		categories: string[]
-		models: string[]
-		channels: string[]
-		productions: string[]
+		categories: Record<string, string[]>
 		simpleTags: string[]
 	}
 	activeFilters: ActiveFilters
 	isMultiSelectMode: boolean
-	onFilterChange: (category: FilterCategory, value: string | undefined) => void
-	onMultiSelectChange: (category: FilterCategory, option: string, isSelected: boolean) => void
+	onFilterChange: (category: string, value: string | undefined) => void
+	onMultiSelectChange: (category: string, option: string, isSelected: boolean) => void
 	onClearFilters: () => void
 	onToggleMultiSelect: () => void
 }): React.ReactElement {
@@ -90,60 +87,40 @@ function Sidebar({
 				</button>
 			</div>
 
-			<FilterSection
-				title="Category"
-				options={filterOptions.categories}
-				active={
-					activeFilters.category.length > 1
-						? activeFilters.category
-						: activeFilters.category[0]
-				}
-				isMultiSelectMode={isMultiSelectMode}
-				onSelect={(val) => onFilterChange('category', val)}
-				onMultiSelect={(opt, isSelected) => onMultiSelectChange('category', opt, isSelected)}
-			/>
-			<FilterSection
-				title="Model"
-				options={filterOptions.models}
-				active={activeFilters.model.length > 1 ? activeFilters.model : activeFilters.model[0]}
-				isMultiSelectMode={isMultiSelectMode}
-				onSelect={(val) => onFilterChange('model', val)}
-				onMultiSelect={(opt, isSelected) => onMultiSelectChange('model', opt, isSelected)}
-			/>
-			<FilterSection
-				title="Channel"
-				options={filterOptions.channels}
-				active={
-					activeFilters.channel.length > 1 ? activeFilters.channel : activeFilters.channel[0]
-				}
-				isMultiSelectMode={isMultiSelectMode}
-				onSelect={(val) => onFilterChange('channel', val)}
-				onMultiSelect={(opt, isSelected) => onMultiSelectChange('channel', opt, isSelected)}
-			/>
-			<FilterSection
-				title="Production"
-				options={filterOptions.productions}
-				active={
-					activeFilters.production.length > 1
-						? activeFilters.production
-						: activeFilters.production[0]
-				}
-				isMultiSelectMode={isMultiSelectMode}
-				onSelect={(val) => onFilterChange('production', val)}
-				onMultiSelect={(opt, isSelected) => onMultiSelectChange('production', opt, isSelected)}
-			/>
-			<FilterSection
-				title="Tags"
-				options={filterOptions.simpleTags}
-				active={
-					activeFilters.simpleTag.length > 1
-						? activeFilters.simpleTag
-						: activeFilters.simpleTag[0]
-				}
-				isMultiSelectMode={isMultiSelectMode}
-				onSelect={(val) => onFilterChange('simpleTag', val)}
-				onMultiSelect={(opt, isSelected) => onMultiSelectChange('simpleTag', opt, isSelected)}
-			/>
+			{/* Dynamically render filter sections for each category found in the library */}
+			{Object.entries(filterOptions.categories).map(([categoryName, values]) => {
+				const activeValues = activeFilters[categoryName] || []
+				return (
+					<FilterSection
+						key={categoryName}
+						title={categoryName.charAt(0).toUpperCase() + categoryName.slice(1)}
+						options={values}
+						active={activeValues.length > 1 ? activeValues : activeValues[0]}
+						isMultiSelectMode={isMultiSelectMode}
+						onSelect={(val) => onFilterChange(categoryName, val)}
+						onMultiSelect={(opt, isSelected) =>
+							onMultiSelectChange(categoryName, opt, isSelected)
+						}
+					/>
+				)
+			})}
+			{/* Simple tags section */}
+			{filterOptions.simpleTags.length > 0 && (
+				<FilterSection
+					title="Tags"
+					options={filterOptions.simpleTags}
+					active={
+						activeFilters.simpleTag.length > 1
+							? activeFilters.simpleTag
+							: activeFilters.simpleTag[0]
+					}
+					isMultiSelectMode={isMultiSelectMode}
+					onSelect={(val) => onFilterChange('simpleTag', val)}
+					onMultiSelect={(opt, isSelected) =>
+						onMultiSelectChange('simpleTag', opt, isSelected)
+					}
+				/>
+			)}
 		</div>
 	)
 }

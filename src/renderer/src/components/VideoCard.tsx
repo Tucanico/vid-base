@@ -46,7 +46,7 @@ function VideoCard({
 				e.currentTarget.style.transform = 'translateY(0)'
 			}}
 		>
-			{/* Thumbnail */}
+			{/* Thumbnail or Image */}
 			<div
 				style={{
 					width: '100%',
@@ -55,7 +55,23 @@ function VideoCard({
 					overflow: 'hidden'
 				}}
 			>
-				{video.thumbnailPath ? (
+				{video.mediaType === 'image' ? (
+					// For images, show the image itself
+					<img
+						src={`media:///${video.filePath.replace(/\\/g, '/')}`}
+						alt={video.fileName}
+						style={{
+							width: '100%',
+							height: '100%',
+							objectFit: 'cover'
+						}}
+						onError={(e) => {
+							console.error('Loading error:', video.filePath)
+							e.currentTarget.style.display = 'none'
+						}}
+					/>
+				) : video.thumbnailPath ? (
+					// For videos, show thumbnail
 					<img
 						src={`media:///${video.thumbnailPath.replace(/\\/g, '/')}`}
 						alt="thumbnail"
@@ -65,7 +81,6 @@ function VideoCard({
 							objectFit: 'cover'
 						}}
 						onError={(e) => {
-							// Fallback if the thumbnail image fails to load
 							console.error('Loading error:', video.thumbnailPath)
 							e.currentTarget.style.display = 'none'
 						}}
