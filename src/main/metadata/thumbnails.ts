@@ -78,7 +78,7 @@ export async function generateThumbnail(videoPath: string): Promise<string | und
 				])
 				.output(thumbPath) // Save the frame to the thumbnail path
 				.on('end', () => resolve(thumbPath)) // Resolve the promise on success
-				.on('error', (err) => {
+				.on('error', (err: Error) => {
 					console.error(`❌ FFmpeg error on ${fileName}:`, err.message)
 					resolve(undefined) // Resolve with undefined on error
 				})

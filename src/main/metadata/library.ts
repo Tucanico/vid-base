@@ -2,7 +2,6 @@ import * as fs from 'fs/promises'
 import * as path from 'path'
 import { VideoFile } from '../../shared/types/video'
 import { Library } from '../../shared/types/library'
-import { ParsedTag } from '../../shared/types/metadata'
 import { deleteFile } from './utils'
 
 // The name of the file used to store the video library metadata
@@ -21,7 +20,7 @@ function extractCategoriesAndTags(videos: VideoFile[]): {
 
 	videos.forEach((video) => {
 		video.tags.forEach((tag) => {
-			if (tag.type === 'kv') {
+			if (tag.type === 'kv' && tag.key) {
 				// Key-value tag - add to categories
 				if (!categories[tag.key]) {
 					categories[tag.key] = new Set<string>()
@@ -57,20 +56,23 @@ export async function loadLibrary(folderPath: string): Promise<Library | null> {
 		const parsed = JSON.parse(data)
 
 		// Validate that it's a Library object with files, categories, and tags
-		if (parsed && parsed.files && Array.isArray(parsed.files) && parsed.categories && parsed.tags) {
+		if (
+			parsed &&
+			parsed.files &&
+			Array.isArray(parsed.files) &&
+			parsed.categories &&
+			parsed.tags
+		) {
 			return parsed as Library
 		} else {
-			console.warn('Invalid library format - expected Library object with files, categories, and tags')
+			console.warn(
+				'Invalid library format - expected Library object with files, categories, and tags'
+			)
 			return null
 		}
 	} catch (error) {
 		// Check if it's a "file not found" error (ENOENT)
-		if (
-			error &&
-			typeof error === 'object' &&
-			'code' in error &&
-			error.code === 'ENOENT'
-		) {
+		if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
 			console.log('Library not present, creating it...')
 		} else {
 			// For other errors, log them

@@ -44,6 +44,7 @@ export function parseTags(rawString: string): ParsedTag[] {
 }
 
 /** Recursively walks a directory and returns a flat list of all file paths
+ *  Skips hidden folders (folders starting with a dot)
  *  @param dir The directory to start from
  *  @returns A promise that resolves to an array of full file paths
  */
@@ -55,6 +56,11 @@ export async function getFilesRecursively(dir: string): Promise<string[]> {
 	const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tiff', '.tif']
 
 	for (const entry of list) {
+		// Skip hidden folders (folders starting with a dot, like .thumbnails)
+		if (entry.isDirectory() && entry.name.startsWith('.')) {
+			continue
+		}
+
 		const fullPath = path.join(dir, entry.name)
 
 		if (entry.isDirectory()) {

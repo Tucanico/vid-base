@@ -312,6 +312,7 @@ function App(): React.ReactElement {
 			{editingVideo && (
 				<EditModal
 					video={editingVideo}
+					library={library}
 					onClose={() => setEditingVideo(null)}
 					onSave={saveTags}
 					onDelete={handleDeleteVideo}

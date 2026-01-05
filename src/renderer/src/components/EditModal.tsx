@@ -1,21 +1,25 @@
-import React, { useState } from 'react'
+import React, { useState, useMemo, useRef, useEffect } from 'react'
 import { ParsedTag } from 'src/shared/types/metadata'
 import { VideoFile } from 'src/shared/types/video'
+import { Library } from '@shared/types/library'
 import InfoRow from './InfoRow'
 
 /** --- COMPONENT: EditModal ---
  *  The modal component for viewing details and editing a video's tags
  *  @param video The VideoFile object being edited
+ *  @param library The Library object containing categories and tags for autocomplete
  *  @param onClose A function to call when the modal should be closed
  *  @param onSave A function to call when the user saves changes; receives the new array of tags
  */
 function EditModal({
 	video,
+	library,
 	onClose,
 	onSave,
 	onDelete
 }: {
 	video: VideoFile
+	library: Library | null
 	onClose: () => void
 	onSave: (tags: ParsedTag[]) => void
 	onDelete: (video: VideoFile) => void
@@ -28,9 +32,129 @@ function EditModal({
 	const [isSaving, setIsSaving] = useState(false)
 	// State to track the deleting process
 	const [isDeleting, setIsDeleting] = useState(false)
+	// State for autocomplete suggestions
+	const [showSuggestions, setShowSuggestions] = useState(false)
+	const [selectedIndex, setSelectedIndex] = useState(0)
+	const inputRef = useRef<HTMLInputElement>(null)
+	const suggestionsRef = useRef<HTMLDivElement>(null)
+
+	// Generate autocomplete suggestions based on input value
+	const suggestions = useMemo(() => {
+		if (!inputValue.trim() || !library) return []
+
+		const query = inputValue.trim().toLowerCase()
+		const results: Array<{ display: string; value: string; type: 'category' | 'tag' }> = []
+
+		// Check if input contains a colon (key:value format)
+		if (query.includes(':')) {
+			const [keyPart, ...valueParts] = query.split(':')
+			const key = keyPart.trim()
+			const valueQuery = valueParts.join(':').trim().toLowerCase()
+
+			// If we have a category key, suggest values for that category
+			if (library.categories[key] && valueQuery) {
+				library.categories[key]
+					.filter((val) => val.toLowerCase().startsWith(valueQuery))
+					.forEach((val) => {
+						results.push({
+							display: `${key}:${val}`,
+							value: `${key}:${val}`,
+							type: 'category'
+						})
+					})
+			} else if (key && !valueQuery) {
+				// If we have a key but no value query, suggest the key with available values
+				if (library.categories[key]) {
+					library.categories[key].forEach((val) => {
+						results.push({
+							display: `${key}:${val}`,
+							value: `${key}:${val}`,
+							type: 'category'
+						})
+					})
+				}
+			}
+		} else {
+			// No colon - suggest both category keys and simple tags
+			// Suggest category keys that start with the query
+			Object.keys(library.categories)
+				.filter((key) => key.toLowerCase().startsWith(query))
+				.forEach((key) => {
+					// Show first few values for this category
+					const values = library.categories[key].slice(0, 3)
+					values.forEach((val) => {
+						results.push({
+							display: `${key}:${val}`,
+							value: `${key}:${val}`,
+							type: 'category'
+						})
+					})
+				})
+
+			// Suggest simple tags that start with the query
+			library.tags
+				.filter((tag) => tag.toLowerCase().startsWith(query))
+				.forEach((tag) => {
+					results.push({
+						display: tag,
+						value: tag,
+						type: 'tag'
+					})
+				})
+		}
+
+		return results.slice(0, 10) // Limit to 10 suggestions
+	}, [inputValue, library])
+
+	// Handle input change
+	const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
+		setInputValue(e.target.value)
+		setShowSuggestions(true)
+		setSelectedIndex(0)
+	}
+
+	// Handle selecting a suggestion
+	const selectSuggestion = (suggestion: { display: string; value: string }): void => {
+		setInputValue(suggestion.value)
+		setShowSuggestions(false)
+		setSelectedIndex(0)
+		inputRef.current?.focus()
+	}
+
+	// Handle keyboard navigation in suggestions
+	const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>): void => {
+		if (!showSuggestions || suggestions.length === 0) {
+			if (e.key === 'Enter') {
+				handleAddTag(e)
+			}
+			return
+		}
+
+		switch (e.key) {
+			case 'ArrowDown':
+				e.preventDefault()
+				setSelectedIndex((prev) => (prev < suggestions.length - 1 ? prev + 1 : prev))
+				break
+			case 'ArrowUp':
+				e.preventDefault()
+				setSelectedIndex((prev) => (prev > 0 ? prev - 1 : 0))
+				break
+			case 'Enter':
+				e.preventDefault()
+				if (suggestions[selectedIndex]) {
+					selectSuggestion(suggestions[selectedIndex])
+				} else {
+					handleAddTag(e)
+				}
+				break
+			case 'Escape':
+				setShowSuggestions(false)
+				break
+		}
+	}
 
 	// Handles the submission of the "Add Tag" form
-	const handleAddTag = (e: React.FormEvent): void => {
+	const handleAddTag = (e: React.FormEvent | React.KeyboardEvent): void => {
 		e.preventDefault()
 		if (!inputValue.trim()) return
 
@@ -50,7 +174,29 @@ function EditModal({
 
 		setTags([...tags, newTag])
 		setInputValue('') // Clear the input field
+		setShowSuggestions(false)
 	}
+
+	// Close suggestions when clicking outside
+	useEffect(() => {
+		const handleClickOutside = (event: MouseEvent): void => {
+			if (
+				suggestionsRef.current &&
+				!suggestionsRef.current.contains(event.target as Node) &&
+				inputRef.current &&
+				!inputRef.current.contains(event.target as Node)
+			) {
+				setShowSuggestions(false)
+			}
+		}
+
+		if (showSuggestions) {
+			document.addEventListener('mousedown', handleClickOutside)
+			return () => {
+				document.removeEventListener('mousedown', handleClickOutside)
+			}
+		}
+	}, [showSuggestions])
 
 	// Removes a tag from the state
 	const removeTag = (index: number): void => {
@@ -242,20 +388,81 @@ function EditModal({
 							</span>
 						)}
 					</div>
-					<form onSubmit={handleAddTag} style={{ display: 'flex', gap: '10px' }}>
-						<input
-							type="text"
-							value={inputValue}
-							onChange={(e) => setInputValue(e.target.value)}
-							placeholder="Ex: holidays or category:nature"
-							style={{
-								flex: 1,
-								padding: '10px',
-								borderRadius: '6px',
-								border: '1px solid var(--color-background-mute)',
-								fontSize: '0.95rem'
-							}}
-						/>
+					<form onSubmit={handleAddTag} style={{ display: 'flex', gap: '10px', position: 'relative' }}>
+						<div style={{ flex: 1, position: 'relative' }}>
+							<input
+								ref={inputRef}
+								type="text"
+								value={inputValue}
+								onChange={handleInputChange}
+								onKeyDown={handleKeyDown}
+								onFocus={() => setShowSuggestions(inputValue.trim().length > 0 && suggestions.length > 0)}
+								placeholder="Ex: holidays or category:nature"
+								style={{
+									width: '100%',
+									padding: '10px',
+									borderRadius: '6px',
+									border: '1px solid var(--color-background-mute)',
+									fontSize: '0.95rem'
+								}}
+							/>
+							{/* Autocomplete suggestions dropdown */}
+							{showSuggestions && suggestions.length > 0 && (
+								<div
+									ref={suggestionsRef}
+									style={{
+										position: 'absolute',
+										top: '100%',
+										left: 0,
+										right: 0,
+										marginTop: '4px',
+										backgroundColor: 'var(--color-background-soft)',
+										border: '1px solid var(--color-background-mute)',
+										borderRadius: '6px',
+										boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+										maxHeight: '200px',
+										overflowY: 'auto',
+										zIndex: 1000
+									}}
+								>
+									{suggestions.map((suggestion, index) => (
+										<button
+											key={index}
+											type="button"
+											onClick={() => selectSuggestion(suggestion)}
+											onMouseEnter={() => setSelectedIndex(index)}
+											style={{
+												width: '100%',
+												padding: '10px 12px',
+												textAlign: 'left',
+												background:
+													index === selectedIndex
+														? 'var(--color-primary-light)'
+														: 'transparent',
+												border: 'none',
+												cursor: 'pointer',
+												color: 'var(--color-text)',
+												fontSize: '0.9rem',
+												display: 'flex',
+												alignItems: 'center',
+												gap: '8px'
+											}}
+										>
+											<span
+												style={{
+													color: 'var(--color-text-mute)',
+													fontSize: '0.75rem',
+													minWidth: '50px'
+												}}
+											>
+												{suggestion.type === 'category' ? '📁' : '🏷️'}
+											</span>
+											<span>{suggestion.display}</span>
+										</button>
+									))}
+								</div>
+							)}
+						</div>
 						<button
 							type="submit"
 							style={{
