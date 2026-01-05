@@ -5,7 +5,10 @@ import { Library } from '@shared/types/library'
 import EditModal from './components/EditModal'
 import VideoCard from './components/VideoCard'
 import Sidebar from './components/Sidebar'
+import ModeSelection from './components/ModeSelection'
 import { ActiveFilters } from '@shared/types/filter'
+
+type AppMode = 'videos' | 'movies' | null
 
 /** --- MAIN APP COMPONENT ---
  *  The root component of the application. It manages the global state,
@@ -13,6 +16,8 @@ import { ActiveFilters } from '@shared/types/filter'
  *  It also orchestrates all interactions with the main process via the `window.api` object
  */
 function App(): React.ReactElement {
+	// State for the current app mode (videos or movies)
+	const [appMode, setAppMode] = useState<AppMode>(null)
 	// State for the list of all video files in the current folder
 	const [videos, setVideos] = useState<VideoFile[]>([])
 	// State to indicate when a scan or load operation is in progress
@@ -30,7 +35,37 @@ function App(): React.ReactElement {
 	// State for library metadata (categories and tags)
 	const [library, setLibrary] = useState<Library | null>(null)
 
-	// Handles the folder selection and video loading process
+	// Handles mode selection from the initial screen
+	const handleModeSelected = async (mode: 'videos' | 'movies', folder: string): Promise<void> => {
+		setAppMode(mode)
+		setCurrentFolder(folder)
+
+		if (mode === 'videos') {
+			// Load videos mode
+			setLoading(true)
+			setVideos([]) // Clear previous videos
+			try {
+				console.log('Scanning directory...')
+				const results = await window.api.scanVideos(folder)
+				setVideos(results)
+				// Load the updated library to get categories and tags
+				const updatedLibrary = await window.api.loadLibrary(folder)
+				if (updatedLibrary) {
+					setLibrary(updatedLibrary)
+				}
+			} catch (error) {
+				console.error('Loading error:', error)
+				alert('There was an error during loading.')
+			} finally {
+				setLoading(false)
+			}
+		} else if (mode === 'movies') {
+			// TODO: Load movies mode (from Excel file)
+			console.log('Movies mode selected, folder:', folder)
+		}
+	}
+
+	// Handles the folder selection and video loading process (for changing folder after initial selection)
 	const handleScan = async (): Promise<void> => {
 		const folder = await window.api.selectFolder()
 		if (folder) {
@@ -200,6 +235,11 @@ function App(): React.ReactElement {
 		})
 	}, [videos, activeFilters])
 
+	// Show mode selection screen if no mode is selected
+	if (!appMode) {
+		return <ModeSelection onModeSelected={handleModeSelected} />
+	}
+
 	return (
 		<div
 			style={{
@@ -241,7 +281,11 @@ function App(): React.ReactElement {
 						transition: 'background 0.2s'
 					}}
 				>
-					{loading ? 'Scanning...' : '📂 Select Video Folder'}
+					{loading
+						? 'Scanning...'
+						: appMode === 'videos'
+							? '📂 Select Video Folder'
+							: '📂 Select Movies Folder'}
 				</button>
 			</header>
 

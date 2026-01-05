@@ -127,6 +127,29 @@ export async function scanDirectory(dirPath: string): Promise<VideoFile[]> {
 				thumbPath = await generateThumbnail(fullPath)
 			}
 
+			// Extract file size and duration
+			let fileSize: number | undefined = undefined
+			let duration: number | undefined = undefined
+
+			// Get file size from filesystem stats
+			try {
+				const stats = await fs.stat(fullPath)
+				fileSize = stats.size
+			} catch (err) {
+				// If stat fails, try to get from metadata
+				if (meta.FileSize) {
+					fileSize = typeof meta.FileSize === 'number' ? meta.FileSize : parseInt(String(meta.FileSize), 10)
+				}
+			}
+
+			// Get duration from metadata (for videos)
+			if (mediaType === 'video' && meta.Duration) {
+				const durationValue = typeof meta.Duration === 'number' ? meta.Duration : parseFloat(String(meta.Duration))
+				if (!isNaN(durationValue)) {
+					duration = durationValue
+				}
+			}
+
 			// Create a new VideoFile object with the extracted data
 			results.push({
 				id: uuidv4(),
@@ -135,7 +158,9 @@ export async function scanDirectory(dirPath: string): Promise<VideoFile[]> {
 				mediaType: mediaType,
 				thumbnailPath: thumbPath,
 				rawTags: rawString,
-				tags: parseTags(rawString)
+				tags: parseTags(rawString),
+				fileSize: fileSize,
+				duration: duration
 			})
 		} catch (err) {
 			console.error(`Error reading ${file}:`, err)
@@ -189,11 +214,21 @@ export async function scanDirectoryWithLibrary(
 				thumbPath = await generateThumbnail(fullPath)
 			}
 
-			// Use existing metadata but update thumbnail path and mediaType if needed
+			// Update file size from filesystem (in case file was modified)
+			let fileSize = existingEntry.fileSize
+			try {
+				const stats = await fs.stat(fullPath)
+				fileSize = stats.size
+			} catch (err) {
+				// If stat fails, keep existing fileSize
+			}
+
+			// Use existing metadata but update thumbnail path, mediaType, and fileSize if needed
 			results.push({
 				...existingEntry,
 				mediaType: entryMediaType,
-				thumbnailPath: thumbPath
+				thumbnailPath: thumbPath,
+				fileSize: fileSize
 			})
 		} else {
 			// New file - scan it normally
@@ -230,6 +265,29 @@ export async function scanDirectoryWithLibrary(
 					thumbPath = await generateThumbnail(fullPath)
 				}
 
+				// Extract file size and duration
+				let fileSize: number | undefined = undefined
+				let duration: number | undefined = undefined
+
+				// Get file size from filesystem stats
+				try {
+					const stats = await fs.stat(fullPath)
+					fileSize = stats.size
+				} catch (err) {
+					// If stat fails, try to get from metadata
+					if (meta.FileSize) {
+						fileSize = typeof meta.FileSize === 'number' ? meta.FileSize : parseInt(String(meta.FileSize), 10)
+					}
+				}
+
+				// Get duration from metadata (for videos)
+				if (mediaType === 'video' && meta.Duration) {
+					const durationValue = typeof meta.Duration === 'number' ? meta.Duration : parseFloat(String(meta.Duration))
+					if (!isNaN(durationValue)) {
+						duration = durationValue
+					}
+				}
+
 				// Create a new VideoFile object with the extracted data
 				results.push({
 					id: uuidv4(),
@@ -238,7 +296,9 @@ export async function scanDirectoryWithLibrary(
 					mediaType: mediaType,
 					thumbnailPath: thumbPath,
 					rawTags: rawString,
-					tags: parseTags(rawString)
+					tags: parseTags(rawString),
+					fileSize: fileSize,
+					duration: duration
 				})
 			} catch (err) {
 				console.error(`Error reading ${file}:`, err)

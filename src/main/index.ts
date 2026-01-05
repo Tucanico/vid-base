@@ -1,5 +1,5 @@
 import * as path from 'path'
-import { app, shell, BrowserWindow, ipcMain, dialog, protocol, net } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, dialog, protocol, net, screen } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
@@ -22,10 +22,14 @@ app.whenReady().then(() => {
 
 	// Creates the main browser window
 	function createWindow(): void {
+		// Get the primary display's work area size (screen size minus taskbar/dock)
+		const primaryDisplay = screen.getPrimaryDisplay()
+		const { width, height } = primaryDisplay.workAreaSize
+
 		// Create the browser window
 		const mainWindow = new BrowserWindow({
 			width: 900,
-			height: 670,
+			height: height, // Use full screen height
 			show: false,
 			title: 'VidBase',
 			autoHideMenuBar: true,
@@ -115,9 +119,10 @@ app.whenReady().then(() => {
 			folderPath,
 			existingLibrary ? existingLibrary.files : null
 		)
-		await cleanupOrphans(folderPath)
-		// Save library with updated categories and tags
+		// Save library with updated categories and tags FIRST
 		await saveLibrary(folderPath, videos, existingLibrary)
+		// Then run cleanup (now it will use the updated library with new files)
+		await cleanupOrphans(folderPath)
 		return videos
 	})
 	// IPC listener to open a video file in the default system player

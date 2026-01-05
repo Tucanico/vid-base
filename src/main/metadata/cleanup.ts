@@ -24,24 +24,46 @@ export async function cleanupOrphans(folderPath: string): Promise<void> {
 	// 2. Get all actual media file paths from the filesystem (videos and images)
 	const videoExtensions = ['.mp4', '.mov', '.avi', '.mkv', '.webm', '.wmv', '.m4v']
 	const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tiff', '.tif']
-	const allFiles = await fs.readdir(folderPath, { recursive: true, withFileTypes: true })
-	const mediaFilePaths = allFiles
-		.filter((file) => {
-			if (!file.isFile()) return false
-			const ext = path.extname(file.name).toLowerCase()
-			return videoExtensions.includes(ext) || imageExtensions.includes(ext)
-		})
-		.map((file) => path.join(file.path, file.name))
+	
+	// Helper function to recursively get all files
+	const getAllFiles = async (dir: string, basePath: string = dir): Promise<string[]> => {
+		const entries = await fs.readdir(dir, { withFileTypes: true })
+		const files: string[] = []
+		
+		for (const entry of entries) {
+			// Skip hidden folders (like .thumbnails)
+			if (entry.isDirectory() && entry.name.startsWith('.')) {
+				continue
+			}
+			
+			const fullPath = path.join(dir, entry.name)
+			if (entry.isFile()) {
+				const ext = path.extname(entry.name).toLowerCase()
+				if (videoExtensions.includes(ext) || imageExtensions.includes(ext)) {
+					files.push(path.normalize(fullPath))
+				}
+			} else if (entry.isDirectory()) {
+				const subFiles = await getAllFiles(fullPath, basePath)
+				files.push(...subFiles)
+			}
+		}
+		
+		return files
+	}
+	
+	const mediaFilePaths = await getAllFiles(folderPath)
 
-	// 3. Create a Set of existing media paths for quick lookups
-	const existingMediaPaths = new Set(mediaFilePaths)
+	// 3. Create a Set of normalized existing media paths for quick lookups
+	const existingMediaPaths = new Set(mediaFilePaths.map((p) => path.normalize(p)))
 
 	// 4. Find orphaned videos in the library
 	const videosToKeep: VideoFile[] = []
 	const orphanedVideos: VideoFile[] = []
 
 	for (const video of videos) {
-		if (existingMediaPaths.has(video.filePath)) {
+		// Normalize paths for comparison
+		const normalizedVideoPath = path.normalize(video.filePath)
+		if (existingMediaPaths.has(normalizedVideoPath)) {
 			videosToKeep.push(video)
 		} else {
 			orphanedVideos.push(video)
@@ -57,7 +79,9 @@ export async function cleanupOrphans(folderPath: string): Promise<void> {
 		for (const orphan of orphanedVideos) {
 			if (orphan.thumbnailPath) {
 				try {
-					await shell.trashItem(path.normalize(orphan.thumbnailPath))
+					// Use absolute resolved path for shell.trashItem to handle special characters
+					const absoluteThumbPath = path.resolve(orphan.thumbnailPath)
+					await shell.trashItem(absoluteThumbPath)
 					console.log(`🗑️ Moved orphaned thumbnail to trash: ${orphan.thumbnailPath}`)
 				} catch (error: unknown) {
 					// Ignore errors if the file doesn't exist, but log others
@@ -84,18 +108,37 @@ export async function cleanupOrphans(folderPath: string): Promise<void> {
 	const thumbnailsFolder = path.join(folderPath, '.thumbnails')
 	try {
 		const thumbnailFiles = await fs.readdir(thumbnailsFolder)
+		// Normalize all thumbnail paths for comparison
 		const libraryThumbnailPaths = new Set(
-			videosToKeep.map((v) => v.thumbnailPath).filter(Boolean)
+			videosToKeep
+				.map((v) => v.thumbnailPath)
+				.filter(Boolean)
+				.map((p) => path.normalize(p))
 		)
 
 		for (const thumbFile of thumbnailFiles) {
 			const thumbPath = path.join(thumbnailsFolder, thumbFile)
-			if (!libraryThumbnailPaths.has(thumbPath)) {
+			const normalizedThumbPath = path.normalize(thumbPath)
+			
+			// Only delete if the thumbnail is not referenced by any video in the library
+			if (!libraryThumbnailPaths.has(normalizedThumbPath)) {
 				try {
-					await shell.trashItem(path.normalize(thumbPath))
+					// Use the original path for shell.trashItem, but ensure it's properly formatted
+					const absoluteThumbPath = path.resolve(thumbPath)
+					await shell.trashItem(absoluteThumbPath)
 					console.log(`🗑️ Moved orphaned thumbnail to trash (no library entry): ${thumbPath}`)
 				} catch (error: unknown) {
-					console.error(`Error deleting orphaned thumbnail ${thumbPath}:`, error)
+					// Ignore ENOENT errors (file already deleted)
+					if (
+						typeof error === 'object' &&
+						error !== null &&
+						'code' in error &&
+						error.code === 'ENOENT'
+					) {
+						// File not found, ignore
+					} else {
+						console.error(`Error deleting orphaned thumbnail ${thumbPath}:`, error)
+					}
 				}
 			}
 		}

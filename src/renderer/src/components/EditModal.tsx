@@ -198,6 +198,19 @@ function EditModal({
 		}
 	}, [showSuggestions])
 
+	// Disable background scrolling when modal is open
+	useEffect(() => {
+		// Save original overflow style
+		const originalOverflow = document.body.style.overflow
+		// Disable scrolling on body
+		document.body.style.overflow = 'hidden'
+
+		// Cleanup: restore original overflow when modal closes
+		return () => {
+			document.body.style.overflow = originalOverflow
+		}
+	}, [])
+
 	// Removes a tag from the state
 	const removeTag = (index: number): void => {
 		setTags(tags.filter((_, i) => i !== index))
@@ -222,14 +235,51 @@ function EditModal({
 		}
 	}
 
-	// Find specific key-value tags for display in the info section
-	const categoryTag = tags.find((t) => t.type === 'kv' && t.key === 'category')
-	const modelTag = tags.find((t) => t.type === 'kv' && t.key === 'model')
-	const channelTag = tags.find((t) => t.type === 'kv' && t.key === 'channel')
-	const productionTag = tags.find((t) => t.type === 'kv' && t.key === 'production')
+	// Find all key-value tags for each category and combine their values
+	const getCategoryValues = (key: string): string | undefined => {
+		const matchingTags = tags.filter((t) => t.type === 'kv' && t.key === key)
+		if (matchingTags.length === 0) return undefined
+		return matchingTags.map((t) => t.value).join(', ')
+	}
+
+	const categoryValue = getCategoryValues('category')
+	const modelValue = getCategoryValues('model')
+	const channelValue = getCategoryValues('channel')
+	const productionValue = getCategoryValues('production')
+
+	// Format file size to human-readable format
+	const formatFileSize = (bytes?: number): string | undefined => {
+		if (!bytes) return undefined
+		const units = ['B', 'KB', 'MB', 'GB', 'TB']
+		let size = bytes
+		let unitIndex = 0
+		while (size >= 1024 && unitIndex < units.length - 1) {
+			size /= 1024
+			unitIndex++
+		}
+		return `${size.toFixed(unitIndex === 0 ? 0 : 2)} ${units[unitIndex]}`
+	}
+
+	// Format duration to HH:MM:SS format
+	const formatDuration = (seconds?: number): string | undefined => {
+		if (!seconds) return undefined
+		const hours = Math.floor(seconds / 3600)
+		const minutes = Math.floor((seconds % 3600) / 60)
+		const secs = Math.floor(seconds % 60)
+		if (hours > 0) {
+			return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+		}
+		return `${minutes}:${secs.toString().padStart(2, '0')}`
+	}
 
 	return (
 		<div
+			onClick={(e) => {
+				// Close modal if clicking on the overlay (not the content)
+				if (e.target === e.currentTarget) {
+					onClose()
+				}
+			}}
 			style={{
 				position: 'fixed',
 				top: 0,
@@ -239,18 +289,27 @@ function EditModal({
 				backgroundColor: 'rgba(0,0,0,0.5)',
 				display: 'flex',
 				justifyContent: 'center',
-				alignItems: 'center',
-				zIndex: 1000
+				alignItems: 'flex-start',
+				zIndex: 1000,
+				overflow: 'hidden',
+				paddingBottom: '40px'
 			}}
 		>
 			<div
+				onClick={(e) => {
+					// Prevent clicks inside the modal from closing it
+					e.stopPropagation()
+				}}
 				style={{
 					backgroundColor: 'var(--color-background-soft)',
 					padding: '25px',
 					borderRadius: '12px',
 					width: '600px',
 					maxWidth: '95%',
-					boxShadow: '0 4px 20px rgba(0,0,0,0.2)'
+					maxHeight: 'calc(100vh - 40px)',
+					boxShadow: '0 4px 20px rgba(0,0,0,0.2)',
+					overflowY: 'auto',
+					margin: '0 auto'
 				}}
 			>
 				{/* Thumbnail or Image */}
@@ -316,10 +375,17 @@ function EditModal({
 
 				{/* Info Section */}
 				<div style={{ marginBottom: '25px' }}>
-					<InfoRow label="Category" value={categoryTag?.value} />
-					<InfoRow label="Model" value={modelTag?.value} />
-					<InfoRow label="Channel" value={channelTag?.value} />
-					<InfoRow label="Production" value={productionTag?.value} />
+					<InfoRow label="Category" value={categoryValue} />
+					<InfoRow label="Model" value={modelValue} />
+					<InfoRow label="Channel" value={channelValue} />
+					<InfoRow label="Production" value={productionValue} />
+					{video.mediaType === 'video' && (
+						<>
+							<InfoRow label="Duration" value={formatDuration(video.duration)} />
+							<InfoRow label="Size" value={formatFileSize(video.fileSize)} />
+						</>
+					)}
+					{video.mediaType === 'image' && <InfoRow label="Size" value={formatFileSize(video.fileSize)} />}
 				</div>
 
 				{/* Tag Editor */}
