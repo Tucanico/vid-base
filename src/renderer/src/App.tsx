@@ -4,7 +4,7 @@ import { VideoFile } from 'src/shared/types/video'
 import EditModal from './components/EditModal'
 import VideoCard from './components/VideoCard'
 import Sidebar from './components/Sidebar'
-import { ActiveFilter, FilterCategory } from '@shared/types/filter'
+import { ActiveFilters, FilterCategory } from '@shared/types/filter'
 
 /** --- MAIN APP COMPONENT ---
  *  The root component of the application. It manages the global state,
@@ -20,8 +20,16 @@ function App(): React.ReactElement {
 	const [editingVideo, setEditingVideo] = useState<VideoFile | null>(null)
 	// State for the path of the currently selected video folder
 	const [currentFolder, setCurrentFolder] = useState<string | null>(null)
-	// State for the currently active filter. Only one filter can be active at a time
-	const [activeFilters, setActiveFilters] = useState<ActiveFilter | null>(null)
+	// State for the currently active filters. Supports multiple filters per category
+	const [activeFilters, setActiveFilters] = useState<ActiveFilters>({
+		category: [],
+		model: [],
+		channel: [],
+		production: [],
+		simpleTag: []
+	})
+	// State for global multi-select mode
+	const [isMultiSelectMode, setIsMultiSelectMode] = useState(false)
 
 	// Handles the folder selection and video loading process
 	const handleScan = async (): Promise<void> => {
@@ -31,19 +39,13 @@ function App(): React.ReactElement {
 			setLoading(true)
 			setVideos([]) // Clear previous videos
 			try {
-				// First, try to load from the 'library.json' cache file
-				const cachedVideos = await window.api.loadLibrary(folder)
-				if (cachedVideos) {
-					console.log('library.json found! Loading from cache.')
-					setVideos(cachedVideos)
-				} else {
-					// If no cache exists, perform a full scan of the directory
-					console.log('No library.json found. Starting full scan...')
-					const results = await window.api.scanVideos(folder)
-					setVideos(results)
-					// Save the results to the cache for next time
-					await window.api.saveLibrary(folder, results)
-				}
+				// Always scan the directory - it will use library.json metadata when available
+				// and scan new files normally
+				console.log('Scanning directory...')
+				const results = await window.api.scanVideos(folder)
+				setVideos(results)
+				// Save the results to the cache
+				await window.api.saveLibrary(folder, results)
 			} catch (error) {
 				console.error('Loading error:', error)
 				alert('There was an error during loading.')
@@ -123,48 +125,103 @@ function App(): React.ReactElement {
 		})
 
 		return {
-			categories: [...categories].sort(),
-			models: [...models].sort(),
-			channels: [...channels].sort(),
-			productions: [...productions].sort(),
-			simpleTags: [...simpleTags].sort()
+			categories: Array.from(categories).sort(),
+			models: Array.from(models).sort(),
+			channels: Array.from(channels).sort(),
+			productions: Array.from(productions).sort(),
+			simpleTags: Array.from(simpleTags).sort()
 		}
 	}, [videos])
 
-	// Handles changes to the active filter
+	// Handles changes to the active filter (single select mode - only one filter total)
 	const handleFilterChange = (category: FilterCategory, value: string | undefined): void => {
-		setActiveFilters(() => {
-			if (!value) {
-				// If value is undefined, it means the filter is being cleared
-				return null
+		if (!value) {
+			// If value is undefined, clear all filters
+			setActiveFilters({
+				category: [],
+				model: [],
+				channel: [],
+				production: [],
+				simpleTag: []
+			})
+		} else {
+			// Single select: clear all categories and set only this one
+			setActiveFilters({
+				category: [],
+				model: [],
+				channel: [],
+				production: [],
+				simpleTag: [],
+				[category]: [value]
+			})
+		}
+	}
+
+	// Handles multi-select filter changes
+	const handleMultiSelectChange = (
+		category: FilterCategory,
+		option: string,
+		isSelected: boolean
+	): void => {
+		setActiveFilters((prev) => {
+			const newFilters = { ...prev }
+			if (isSelected) {
+				// Remove the option
+				newFilters[category] = newFilters[category].filter((v) => v !== option)
+			} else {
+				// Add the option
+				newFilters[category] = [...newFilters[category], option]
 			}
-			// Set the new active filter
-			return { category, value }
+			return newFilters
 		})
 	}
 
 	// Clears any active filter
 	const handleClearFilters = (): void => {
-		setActiveFilters(null)
+		setActiveFilters({
+			category: [],
+			model: [],
+			channel: [],
+			production: [],
+			simpleTag: []
+		})
 	}
 
-	// useMemo to compute the list of videos to display based on the active filter
+	// useMemo to compute the list of videos to display based on the active filters
 	// This is recalculated only when the 'videos' or 'activeFilters' change
+	// Uses OR logic within each category, AND logic across categories
 	const filteredVideos = useMemo(() => {
-		if (!activeFilters) {
-			return videos // No filter active, return all videos
+		// Check if any filters are active
+		const hasActiveFilters = Object.values(activeFilters).some((arr) => arr.length > 0)
+		if (!hasActiveFilters) {
+			return videos // No filters active, return all videos
 		}
 
 		return videos.filter((video) => {
-			const { category, value } = activeFilters
+			// For each category, check if the video matches any of the selected values (OR logic)
+			// All categories must match (AND logic across categories)
+			for (const [category, values] of Object.entries(activeFilters) as [
+				FilterCategory,
+				string[]
+			][]) {
+				if (values.length === 0) continue // Skip empty categories
 
-			if (category === 'simpleTag') {
-				return video.tags.some((t) => t.type === 'simple' && t.value === value)
-			} else {
-				return video.tags.some(
-					(t) => t.type === 'kv' && t.key === category && t.value === value
-				)
+				let categoryMatches = false
+				if (category === 'simpleTag') {
+					categoryMatches = video.tags.some(
+						(t) => t.type === 'simple' && values.includes(t.value)
+					)
+				} else {
+					categoryMatches = video.tags.some(
+						(t) => t.type === 'kv' && t.key === category && values.includes(t.value)
+					)
+				}
+
+				if (!categoryMatches) {
+					return false // This category doesn't match, exclude the video
+				}
 			}
+			return true // All categories matched
 		})
 	}, [videos, activeFilters])
 
@@ -220,8 +277,11 @@ function App(): React.ReactElement {
 				<Sidebar
 					filterOptions={filterOptions}
 					activeFilters={activeFilters}
+					isMultiSelectMode={isMultiSelectMode}
 					onFilterChange={handleFilterChange}
+					onMultiSelectChange={handleMultiSelectChange}
 					onClearFilters={handleClearFilters}
+					onToggleMultiSelect={() => setIsMultiSelectMode(!isMultiSelectMode)}
 				/>
 
 				<main

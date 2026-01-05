@@ -1,5 +1,6 @@
 import * as fs from 'fs/promises'
 import * as path from 'path'
+import * as fsSync from 'fs'
 import { v4 as uuidv4 } from 'uuid'
 import { ExiftoolTags, ParsedTag } from '../../shared/types/metadata'
 import { VideoFile } from '../../shared/types/video'
@@ -122,6 +123,93 @@ export async function scanDirectory(dirPath: string): Promise<VideoFile[]> {
 			})
 		} catch (err) {
 			console.error(`Error reading ${file}:`, err)
+		}
+	}
+	return results
+}
+
+/** Smart scan that uses library.json metadata when available, but always scans for new files
+ *  @param dirPath The path to the directory to scan
+ *  @param existingLibrary Optional array of VideoFile objects from library.json
+ *  @returns A promise that resolves to an array of VideoFile objects
+ */
+export async function scanDirectoryWithLibrary(
+	dirPath: string,
+	existingLibrary: VideoFile[] | null = null
+): Promise<VideoFile[]> {
+	const allFilePaths = await getFilesRecursively(dirPath)
+	const results: VideoFile[] = []
+
+	// Create a map of existing library entries by filePath for quick lookup
+	const libraryMap = new Map<string, VideoFile>()
+	if (existingLibrary) {
+		for (const video of existingLibrary) {
+			libraryMap.set(video.filePath, video)
+		}
+	}
+
+	for (const fullPath of allFilePaths) {
+		const file = path.basename(fullPath)
+		const existingEntry = libraryMap.get(fullPath)
+
+		if (existingEntry) {
+			// File exists in library.json - use its metadata
+			// Check if thumbnail exists, if not generate it
+			let thumbPath = existingEntry.thumbnailPath
+			if (!thumbPath || !fsSync.existsSync(thumbPath)) {
+				// Thumbnail doesn't exist, generate it
+				thumbPath = await generateThumbnail(fullPath)
+			}
+
+			// Use existing metadata but update thumbnail path if it changed
+			results.push({
+				...existingEntry,
+				thumbnailPath: thumbPath
+			})
+		} else {
+			// New file - scan it normally
+			try {
+				// Read metadata from the video file using exiftool
+				const meta: ExiftoolTags = await ourExiftool.read(fullPath)
+
+				// An array of potential metadata fields that might contain tags
+				const potentialTags = [
+					meta.Category,
+					meta.XPKeywords,
+					meta.Keywords,
+					meta.Subject,
+					meta.Description
+				]
+
+				// Find the first tag field that has a non-empty value
+				const foundTags = potentialTags.find(
+					(val) =>
+						(Array.isArray(val) && val.length > 0) ||
+						(typeof val === 'string' && val.trim() !== '')
+				)
+
+				let rawString = ''
+				if (Array.isArray(foundTags)) {
+					rawString = foundTags.map(String).join('; ')
+				} else if (typeof foundTags === 'string') {
+					rawString = foundTags
+				}
+
+				// Generate a thumbnail for the video
+				const thumbPath = await generateThumbnail(fullPath)
+
+				// Create a new VideoFile object with the extracted data
+				results.push({
+					id: uuidv4(),
+					fileName: file,
+					filePath: fullPath,
+					thumbnailPath: thumbPath,
+					rawTags: rawString,
+					tags: parseTags(rawString)
+				})
+			} catch (err) {
+				console.error(`Error reading ${file}:`, err)
+			}
 		}
 	}
 	return results

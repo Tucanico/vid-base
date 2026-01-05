@@ -27,7 +27,7 @@ const api = {
 	saveLibrary: (folderPath: string, videos: VideoFile[]): Promise<void> =>
 		ipcRenderer.invoke('db:save', folderPath, videos),
 	// Invokes the 'video:delete' handler to delete a video file, its thumbnail, and library entry
-	deleteVideo: (filePath: string, thumbnailPath: string, videoId: string): Promise<void> =>
+	deleteVideo: (filePath: string, thumbnailPath: string, videoId: string): Promise<boolean> =>
 		ipcRenderer.invoke('video:delete', filePath, thumbnailPath, videoId)
 }
 

@@ -12,7 +12,7 @@ declare global {
 			updateTags: (filePath: string, tags: ParsedTag[]) => Promise<void>
 			loadLibrary: (folderPath: string) => Promise<VideoFile[] | null>
 			saveLibrary: (folderPath: string, videos: VideoFile[]) => Promise<void>
-			deleteVideo: (filePath: string, thumbnailPath: string, videoId: string) => Promise<void>
+			deleteVideo: (filePath: string, thumbnailPath: string, videoId: string) => Promise<boolean>
 		}
 	}
 }

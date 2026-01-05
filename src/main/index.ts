@@ -4,7 +4,7 @@ import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { pathToFileURL } from 'url'
-import { scanDirectory } from './metadata/scanner'
+import { scanDirectoryWithLibrary } from './metadata/scanner'
 import { updateVideoTags } from './metadata/updateTags'
 import { closeExiftool } from './metadata/utils'
 import { loadLibrary, saveLibrary, removeVideoEntryFromLibrary } from './metadata/library'
@@ -103,8 +103,12 @@ app.whenReady().then(() => {
 	// IPC handler to save the video library to a given folder path
 	ipcMain.handle('db:save', async (_, folderPath, videos) => await saveLibrary(folderPath, videos))
 	// IPC handler to scan a directory for new videos
+	// Uses library.json metadata when available, but always scans for new files
 	ipcMain.handle('videos:scan', async (_, folderPath) => {
-		const videos = await scanDirectory(folderPath)
+		// Load existing library if it exists
+		const existingLibrary = await loadLibrary(folderPath)
+		// Scan directory using smart scan (uses library metadata when available)
+		const videos = await scanDirectoryWithLibrary(folderPath, existingLibrary)
 		await cleanupOrphans(folderPath)
 		return videos
 	})
