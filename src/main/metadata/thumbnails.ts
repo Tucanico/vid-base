@@ -10,7 +10,6 @@ import { path as ffprobePath } from 'ffprobe-static'
 // This logic adjusts the path to point to the correct location
 if (ffmpegPath) {
 	const fixedFfmpegPath = ffmpegPath.replace('app.asar', 'app.asar.unpacked')
-	console.log('FFmpeg Path:', fixedFfmpegPath)
 	ffmpeg.setFfmpegPath(fixedFfmpegPath)
 } else {
 	console.error('ERROR: ffmpeg-static not found!')
@@ -19,8 +18,6 @@ if (ffmpegPath) {
 // Same path adjustment for ffprobe
 if (ffprobePath) {
 	const fixedFfprobePath = ffprobePath.replace('app.asar', 'app.asar.unpacked')
-	console.log('FFprobe Path:', fixedFfprobePath)
-	console.log('') // Extra newline after FFprobe Path
 	ffmpeg.setFfprobePath(fixedFfprobePath)
 } else {
 	console.error('ERROR: ffprobe-static not found! Run "npm install ffprobe-static"')

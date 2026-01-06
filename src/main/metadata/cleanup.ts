@@ -11,8 +11,6 @@ import { loadLibrary, saveLibrary } from './library'
  *  @returns A promise that resolves when the cleanup is complete.
  */
 export async function cleanupOrphans(folderPath: string): Promise<void> {
-	console.log('🚮 Starting cleanup of orphaned files...')
-
 	// 1. Load the library from library.json
 	const library = await loadLibrary(folderPath)
 	if (!library) {
@@ -70,19 +68,25 @@ export async function cleanupOrphans(folderPath: string): Promise<void> {
 		}
 	}
 
-	if (orphanedVideos.length === 0) {
-		console.log('✅ No orphaned library entries found.')
-	} else {
-		console.log(`🔪 Found ${orphanedVideos.length} orphaned library entries to remove.`)
+	// Track if anything was removed
+	let somethingRemoved = false
 
-		// 5. Delete thumbnails of orphaned videos
+	// 5. Remove orphaned library entries (videos in library.json that don't have files on disk)
+	if (orphanedVideos.length > 0) {
+		somethingRemoved = true
+		const entryNames = orphanedVideos.map((v) => v.fileName)
+		console.log(`Removed ${orphanedVideos.length} orphaned library entry(s):`)
+		entryNames.forEach((name) => {
+			console.log(`  ${name}`)
+		})
+
+		// Delete thumbnails of orphaned videos (these are part of the library entry cleanup)
 		for (const orphan of orphanedVideos) {
 			if (orphan.thumbnailPath) {
 				try {
 					// Use absolute resolved path for shell.trashItem to handle special characters
 					const absoluteThumbPath = path.resolve(orphan.thumbnailPath)
 					await shell.trashItem(absoluteThumbPath)
-					console.log(`🗑️ Moved orphaned thumbnail to trash: ${orphan.thumbnailPath}`)
 				} catch (error: unknown) {
 					// Ignore errors if the file doesn't exist, but log others
 					if (
@@ -93,19 +97,20 @@ export async function cleanupOrphans(folderPath: string): Promise<void> {
 					) {
 						// File not found, ignore
 					} else {
-						console.error(`Error deleting thumbnail ${orphan.thumbnailPath}:`, error)
+						console.error('Error deleting thumbnail:', error)
 					}
 				}
 			}
 		}
 
-		// 6. Save the cleaned library
+		// Save the cleaned library
 		await saveLibrary(folderPath, videosToKeep, library)
-		console.log('💾 Saved cleaned library file.')
 	}
 
-	// 7. Find and delete orphaned thumbnails that don't have a library entry
+	// 6. Find and delete orphaned thumbnails (thumbnail files that don't have a library entry)
+	// This checks for thumbnails that exist on disk but aren't in the library
 	const thumbnailsFolder = path.join(folderPath, '.thumbnails')
+	const orphanedThumbnailNames: string[] = []
 	try {
 		const thumbnailFiles = await fs.readdir(thumbnailsFolder)
 		// Normalize all thumbnail paths for comparison
@@ -122,11 +127,12 @@ export async function cleanupOrphans(folderPath: string): Promise<void> {
 
 			// Only delete if the thumbnail is not referenced by any video in the library
 			if (!libraryThumbnailPaths.has(normalizedThumbPath)) {
+				orphanedThumbnailNames.push(thumbFile)
+				somethingRemoved = true
 				try {
 					// Use the original path for shell.trashItem, but ensure it's properly formatted
 					const absoluteThumbPath = path.resolve(thumbPath)
 					await shell.trashItem(absoluteThumbPath)
-					console.log(`🗑️ Moved orphaned thumbnail to trash (no library entry): ${thumbPath}`)
 				} catch (error: unknown) {
 					// Ignore ENOENT errors (file already deleted)
 					if (
@@ -137,9 +143,16 @@ export async function cleanupOrphans(folderPath: string): Promise<void> {
 					) {
 						// File not found, ignore
 					} else {
-						console.error(`Error deleting orphaned thumbnail ${thumbPath}:`, error)
+						console.error('Error deleting orphaned thumbnail:', error)
 					}
 				}
+			}
+		}
+		
+		if (orphanedThumbnailNames.length > 0) {
+			console.log(`Removed ${orphanedThumbnailNames.length} orphaned thumbnail(s):`)
+			for (const name of orphanedThumbnailNames) {
+				console.log(`  ${name}`)
 			}
 		}
 	} catch (error: unknown) {
@@ -155,5 +168,7 @@ export async function cleanupOrphans(folderPath: string): Promise<void> {
 		}
 	}
 
-	console.log('🚮 Cleanup complete.')
+	if (somethingRemoved) {
+		console.log('Cleanup completed.')
+	}
 }

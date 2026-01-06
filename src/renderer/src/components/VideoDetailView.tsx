@@ -321,15 +321,19 @@ function VideoDetailView({
 		return `${size.toFixed(unitIndex === 0 ? 0 : 2)} ${units[unitIndex]}`
 	}
 
-	// Format duration to "1h26m" format
+	// Format duration to "1h26m30s" format
 	const formatDuration = (seconds?: number): string | undefined => {
 		if (!seconds) return undefined
 		const hours = Math.floor(seconds / 3600)
 		const minutes = Math.floor((seconds % 3600) / 60)
-		if (hours > 0) {
-			return `${hours}h${minutes}m`
-		}
-		return `${minutes}m`
+		const secs = Math.floor(seconds % 60)
+		
+		const parts: string[] = []
+		if (hours > 0) parts.push(`${hours}h`)
+		if (minutes > 0) parts.push(`${minutes}m`)
+		if (secs > 0 || parts.length === 0) parts.push(`${secs}s`)
+		
+		return parts.join('')
 	}
 
 	return (

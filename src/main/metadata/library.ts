@@ -129,7 +129,6 @@ export async function saveLibrary(
 		// Stringify the library with pretty printing (2-space indentation) for readability
 		const data = JSON.stringify(library, null, 2)
 		await fs.writeFile(dbPath, data, 'utf-8')
-		console.log('Library saved to:', dbPath)
 	} catch (error) {
 		console.error('Error saving library:', error)
 	}

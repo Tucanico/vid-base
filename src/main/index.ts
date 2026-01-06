@@ -135,15 +135,15 @@ app.whenReady().then(() => {
 	ipcMain.handle('videos:scan', async (_, folderPath) => {
 		// Load existing library if it exists
 		const existingLibrary = await loadLibrary(folderPath)
+		// Run cleanup FIRST (before saving new library, so it can detect orphaned entries)
+		await cleanupOrphans(folderPath)
 		// Scan directory using smart scan (uses library metadata when available)
 		const videos = await scanDirectoryWithLibrary(
 			folderPath,
 			existingLibrary ? existingLibrary.files : null
 		)
-		// Save library with updated categories and tags FIRST
+		// Save library with updated categories and tags
 		await saveLibrary(folderPath, videos, existingLibrary)
-		// Then run cleanup (now it will use the updated library with new files)
-		await cleanupOrphans(folderPath)
 		return videos
 	})
 	// IPC listener to open a video file in the default system player

@@ -48,6 +48,11 @@ function App(): React.ReactElement {
 	const [library, setLibrary] = useState<Library | null>(null)
 	// State for tracking which filter categories are open
 	const [openCategories, setOpenCategories] = useState<Set<string>>(new Set())
+	// State for global search query
+	const [searchQuery, setSearchQuery] = useState<string>('')
+	// State for sorting
+	const [sortField, setSortField] = useState<string>('name')
+	const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
 
 	// Handles mode selection from the initial screen
 	const handleModeSelected = async (mode: 'videos' | 'movies', folder: string): Promise<void> => {
@@ -317,110 +322,231 @@ function App(): React.ReactElement {
 		setActiveFilters({ simpleTag: [] })
 	}
 
-	// useMemo to compute the list of videos to display based on the active filters
-	// This is recalculated only when the 'videos' or 'activeFilters' change
-	// Uses OR logic within each category, AND logic across categories
-	const filteredVideos = useMemo(() => {
-		// Check if any filters are active
-		const hasActiveFilters = Object.values(activeFilters).some((arr) => arr.length > 0)
-		if (!hasActiveFilters) {
-			return videos // No filters active, return all videos
+	// Helper function to check if a video matches the search query
+	const videoMatchesSearch = (video: VideoFile, query: string): boolean => {
+		if (!query.trim()) return true
+		const lowerQuery = query.toLowerCase()
+		
+		// Search in file name
+		if (video.fileName.toLowerCase().includes(lowerQuery)) return true
+		
+		// Search in all tags (both kv and simple)
+		for (const tag of video.tags) {
+			if (tag.value.toLowerCase().includes(lowerQuery)) return true
+			if (tag.key && tag.key.toLowerCase().includes(lowerQuery)) return true
 		}
+		
+		return false
+	}
 
-		return videos.filter((video) => {
-			// For each category, check if the video matches any of the selected values (OR logic)
-			// All categories must match (AND logic across categories)
-			for (const [category, values] of Object.entries(activeFilters)) {
-				if (values.length === 0) continue // Skip empty categories
-
-				let categoryMatches = false
-				if (category === 'simpleTag') {
-					categoryMatches = video.tags.some(
-						(t) => t.type === 'simple' && values.includes(t.value)
-					)
-				} else {
-					categoryMatches = video.tags.some(
-						(t) => t.type === 'kv' && t.key === category && values.includes(t.value)
-					)
-				}
-
-				if (!categoryMatches) {
-					return false // This category doesn't match, exclude the video
-				}
+	// Helper function to sort videos
+	const sortVideos = (videos: VideoFile[], field: string, direction: 'asc' | 'desc'): VideoFile[] => {
+		const sorted = [...videos].sort((a, b) => {
+			let aValue: string | number | undefined
+			let bValue: string | number | undefined
+			
+			switch (field) {
+				case 'name':
+					aValue = a.fileName.toLowerCase()
+					bValue = b.fileName.toLowerCase()
+					break
+				case 'size':
+					aValue = a.fileSize ?? 0
+					bValue = b.fileSize ?? 0
+					break
+				case 'duration':
+					aValue = a.duration ?? 0
+					bValue = b.duration ?? 0
+					break
+				default:
+					aValue = a.fileName.toLowerCase()
+					bValue = b.fileName.toLowerCase()
 			}
-			return true // All categories matched
+			
+			if (aValue < bValue) return direction === 'asc' ? -1 : 1
+			if (aValue > bValue) return direction === 'asc' ? 1 : -1
+			return 0
 		})
-	}, [videos, activeFilters])
+		
+		return sorted
+	}
 
-	// Computed: Filtered movies based on active filters (text-based filtering)
+	// useMemo to compute the list of videos to display based on filters, search, and sorting
+	const filteredVideos = useMemo(() => {
+		let result = videos
+		
+		// Apply filters
+		const hasActiveFilters = Object.values(activeFilters).some((arr) => arr.length > 0)
+		if (hasActiveFilters) {
+			result = result.filter((video) => {
+				for (const [category, values] of Object.entries(activeFilters)) {
+					if (values.length === 0) continue
+					
+					let categoryMatches = false
+					if (category === 'simpleTag') {
+						categoryMatches = video.tags.some(
+							(t) => t.type === 'simple' && values.includes(t.value)
+						)
+					} else {
+						categoryMatches = video.tags.some(
+							(t) => t.type === 'kv' && t.key === category && values.includes(t.value)
+						)
+					}
+					
+					if (!categoryMatches) return false
+				}
+				return true
+			})
+		}
+		
+		// Apply search
+		if (searchQuery.trim()) {
+			result = result.filter((video) => videoMatchesSearch(video, searchQuery))
+		}
+		
+		// Apply sorting
+		result = sortVideos(result, sortField, sortDirection)
+		
+		return result
+	}, [videos, activeFilters, searchQuery, sortField, sortDirection])
+
+	// Helper function to check if a movie matches the search query
+	const movieMatchesSearch = (movie: Movie, query: string): boolean => {
+		if (!query.trim()) return true
+		const lowerQuery = query.toLowerCase()
+		
+		// Search across all movie fields
+		if (movie.title.toLowerCase().includes(lowerQuery)) return true
+		if (movie.director.toLowerCase().includes(lowerQuery)) return true
+		if (movie.year?.toString().includes(lowerQuery)) return true
+		if (movie.language?.toLowerCase().includes(lowerQuery)) return true
+		if (movie.type?.toLowerCase().includes(lowerQuery)) return true
+		if (movie.notes?.toLowerCase().includes(lowerQuery)) return true
+		if (movie.lq?.toLowerCase().includes(lowerQuery)) return true
+		if (movie.check?.toLowerCase().includes(lowerQuery)) return true
+		
+		// Search in arrays
+		if (movie.actors.some((actor) => actor.toLowerCase().includes(lowerQuery))) return true
+		if (movie.genres.some((genre) => genre.toLowerCase().includes(lowerQuery))) return true
+		
+		return false
+	}
+
+	// Helper function to sort movies
+	const sortMovies = (movies: Movie[], field: string, direction: 'asc' | 'desc'): Movie[] => {
+		const sorted = [...movies].sort((a, b) => {
+			let aValue: string | number | undefined
+			let bValue: string | number | undefined
+			
+			switch (field) {
+				case 'title':
+					aValue = a.title.toLowerCase()
+					bValue = b.title.toLowerCase()
+					break
+				case 'year':
+					aValue = a.year ?? 0
+					bValue = b.year ?? 0
+					break
+				case 'director':
+					aValue = a.director.toLowerCase()
+					bValue = b.director.toLowerCase()
+					break
+				case 'duration':
+					aValue = a.duration ?? 0
+					bValue = b.duration ?? 0
+					break
+				case 'size':
+					aValue = a.size ?? 0
+					bValue = b.size ?? 0
+					break
+				default:
+					aValue = a.title.toLowerCase()
+					bValue = b.title.toLowerCase()
+			}
+			
+			if (aValue < bValue) return direction === 'asc' ? -1 : 1
+			if (aValue > bValue) return direction === 'asc' ? 1 : -1
+			return 0
+		})
+		
+		return sorted
+	}
+
+	// Computed: Filtered and sorted movies based on active filters, search, and sorting
 	const filteredMovies = useMemo(() => {
 		if (appMode !== 'movies') return []
 
-		// Check if any filters are active
+		let result = movies
+
+		// Apply filters
 		const hasActiveFilters = Object.entries(activeFilters).some(
 			([key, values]) => key !== 'simpleTag' && values.length > 0
 		)
-		if (!hasActiveFilters) {
-			return movies
+		if (hasActiveFilters) {
+			result = result.filter((movie) => {
+				for (const [category, filterValues] of Object.entries(activeFilters)) {
+					if (category === 'simpleTag') continue
+					if (filterValues.length === 0) continue
+
+					const filterValue = filterValues[0].toLowerCase()
+
+					let categoryMatches = false
+
+					switch (category.toUpperCase()) {
+						case 'TITLE':
+							categoryMatches = movie.title.toLowerCase().includes(filterValue)
+							break
+						case 'DIRECTOR':
+							categoryMatches = movie.director.toLowerCase().includes(filterValue)
+							break
+						case 'YEAR':
+							categoryMatches = movie.year?.toString().includes(filterValue) ?? false
+							break
+						case 'LANGUAGE':
+							categoryMatches = movie.language?.toLowerCase().includes(filterValue) ?? false
+							break
+						case 'ACTORS':
+							categoryMatches = movie.actors.some((actor) =>
+								actor.toLowerCase().includes(filterValue)
+							)
+							break
+						case 'GENRES':
+							categoryMatches = movie.genres.some((genre) =>
+								genre.toLowerCase().includes(filterValue)
+							)
+							break
+						case 'TYPE':
+							categoryMatches = movie.type?.toLowerCase().includes(filterValue) ?? false
+							break
+						case 'LQ':
+							categoryMatches = movie.lq?.toLowerCase().includes(filterValue) ?? false
+							break
+						case 'NOTES':
+							categoryMatches = movie.notes?.toLowerCase().includes(filterValue) ?? false
+							break
+						case 'CHECK':
+							categoryMatches = movie.check?.toLowerCase().includes(filterValue) ?? false
+							break
+						default:
+							categoryMatches = false
+					}
+
+					if (!categoryMatches) return false
+				}
+				return true
+			})
 		}
-
-		return movies.filter((movie) => {
-			// All categories must match (AND logic across categories)
-			for (const [category, filterValues] of Object.entries(activeFilters)) {
-				if (category === 'simpleTag') continue // Skip simpleTag for movies
-				if (filterValues.length === 0) continue // Skip empty categories
-
-				const filterValue = filterValues[0].toLowerCase() // Text input, single value
-
-				let categoryMatches = false
-
-				// Handle different movie fields (using English names)
-				switch (category.toUpperCase()) {
-					case 'TITLE':
-						categoryMatches = movie.title.toLowerCase().includes(filterValue)
-						break
-					case 'DIRECTOR':
-						categoryMatches = movie.director.toLowerCase().includes(filterValue)
-						break
-					case 'YEAR':
-						categoryMatches = movie.year?.toString().includes(filterValue) ?? false
-						break
-					case 'LANGUAGE':
-						categoryMatches = movie.language?.toLowerCase().includes(filterValue) ?? false
-						break
-					case 'ACTORS':
-						categoryMatches = movie.actors.some((actor) =>
-							actor.toLowerCase().includes(filterValue)
-						)
-						break
-					case 'GENRES':
-						categoryMatches = movie.genres.some((genre) =>
-							genre.toLowerCase().includes(filterValue)
-						)
-						break
-					case 'TYPE':
-						categoryMatches = movie.type?.toLowerCase().includes(filterValue) ?? false
-						break
-					case 'LQ':
-						categoryMatches = movie.lq?.toLowerCase().includes(filterValue) ?? false
-						break
-					case 'NOTES':
-						categoryMatches = movie.notes?.toLowerCase().includes(filterValue) ?? false
-						break
-					case 'CHECK':
-						categoryMatches = movie.check?.toLowerCase().includes(filterValue) ?? false
-						break
-					default:
-						categoryMatches = false
-				}
-
-				if (!categoryMatches) {
-					return false // This category doesn't match, exclude the movie
-				}
-			}
-			return true // All categories matched
-		})
-	}, [movies, activeFilters, appMode])
+		
+		// Apply search
+		if (searchQuery.trim()) {
+			result = result.filter((movie) => movieMatchesSearch(movie, searchQuery))
+		}
+		
+		// Apply sorting
+		result = sortMovies(result, sortField, sortDirection)
+		
+		return result
+	}, [movies, activeFilters, appMode, searchQuery, sortField, sortDirection])
 
 	// Show mode selection screen if no mode is selected
 	if (!appMode) {
@@ -474,32 +600,122 @@ function App(): React.ReactElement {
 					boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
 					flexShrink: 0,
 					display: 'flex',
-					justifyContent: 'space-between',
-					alignItems: 'center'
+					flexDirection: 'column',
+					gap: '15px'
 				}}
 			>
-				<h1 style={{ color: 'var(--color-text)', margin: 0, fontSize: '1.2rem' }}>VidBase</h1>
-
-				<button
-					onClick={handleScan}
-					disabled={loading}
+				{/* Top row: Title and Scan button */}
+				<div
 					style={{
-						padding: '10px 20px',
-						fontSize: '1rem',
-						backgroundColor: loading ? 'var(--ev-c-gray-400)' : 'var(--color-primary)',
-						color: 'white',
-						border: 'none',
-						borderRadius: '6px',
-						cursor: loading ? 'not-allowed' : 'pointer',
-						transition: 'background 0.2s'
+						display: 'flex',
+						justifyContent: 'space-between',
+						alignItems: 'center'
 					}}
 				>
-					{loading
-						? 'Scanning...'
-						: appMode === 'videos'
-							? '📂 Select Video Folder'
-							: '📂 Select Movies Folder'}
-				</button>
+					<h1 style={{ color: 'var(--color-text)', margin: 0, fontSize: '1.2rem' }}>VidBase</h1>
+
+					<button
+						onClick={handleScan}
+						disabled={loading}
+						style={{
+							padding: '10px 20px',
+							fontSize: '1rem',
+							backgroundColor: loading ? 'var(--ev-c-gray-400)' : 'var(--color-primary)',
+							color: 'white',
+							border: 'none',
+							borderRadius: '6px',
+							cursor: loading ? 'not-allowed' : 'pointer',
+							transition: 'background 0.2s'
+						}}
+					>
+						{loading
+							? 'Scanning...'
+							: appMode === 'videos'
+								? '📂 Select Video Folder'
+								: '📂 Select Movies Folder'}
+					</button>
+				</div>
+
+				{/* Bottom row: Search and Sort controls */}
+				<div
+					style={{
+						display: 'flex',
+						gap: '15px',
+						alignItems: 'center',
+						flexWrap: 'wrap'
+					}}
+				>
+					{/* Search input */}
+					<input
+						type="text"
+						placeholder="Search across all fields..."
+						value={searchQuery}
+						onChange={(e) => setSearchQuery(e.target.value)}
+						style={{
+							flex: 1,
+							minWidth: '200px',
+							padding: '8px 12px',
+							fontSize: '0.9rem',
+							border: '1px solid var(--color-background-mute)',
+							borderRadius: '6px',
+							backgroundColor: 'var(--color-background)',
+							color: 'var(--color-text)',
+							outline: 'none'
+						}}
+					/>
+
+					{/* Sort field selector */}
+					<select
+						value={sortField}
+						onChange={(e) => setSortField(e.target.value)}
+						style={{
+							padding: '8px 12px',
+							fontSize: '0.9rem',
+							border: '1px solid var(--color-background-mute)',
+							borderRadius: '6px',
+							backgroundColor: 'var(--color-background)',
+							color: 'var(--color-text)',
+							outline: 'none',
+							cursor: 'pointer'
+						}}
+					>
+						{appMode === 'videos' ? (
+							<>
+								<option value="name">Name</option>
+								<option value="size">Size</option>
+								<option value="duration">Duration</option>
+							</>
+						) : (
+							<>
+								<option value="title">Title</option>
+								<option value="year">Year</option>
+								<option value="director">Director</option>
+								<option value="duration">Duration</option>
+								<option value="size">Size</option>
+							</>
+						)}
+					</select>
+
+					{/* Sort direction toggle */}
+					<button
+						onClick={() => setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')}
+						title={`Sort ${sortDirection === 'asc' ? 'Ascending' : 'Descending'}`}
+						style={{
+							padding: '8px 12px',
+							fontSize: '0.9rem',
+							border: '1px solid var(--color-background-mute)',
+							borderRadius: '6px',
+							backgroundColor: 'var(--color-background)',
+							color: 'var(--color-text)',
+							cursor: 'pointer',
+							display: 'flex',
+							alignItems: 'center',
+							gap: '5px'
+						}}
+					>
+						{sortDirection === 'asc' ? '↑' : '↓'} {sortDirection === 'asc' ? 'Asc' : 'Desc'}
+					</button>
+				</div>
 			</header>
 
 			{/* --- MAIN CONTENT --- */}
