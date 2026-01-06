@@ -10,10 +10,16 @@ import { sanitizeFileName } from '../utils/sanitizeFileName'
  */
 function VideoCard({
 	video,
-	onEdit
+	onEdit,
+	isSelected = false,
+	onSelect,
+	onSelectToggle
 }: {
 	video: VideoFile
-	onEdit: () => void
+	onEdit: (event?: React.MouseEvent) => void
+	isSelected?: boolean
+	onSelect?: (isSelected: boolean) => void
+	onSelectToggle?: () => void
 }): React.ReactElement {
 	// Find specific tags to highlight on the card
 	const categoryTag = video.tags.find((t) => t.type === 'kv' && t.key === 'category')
@@ -21,21 +27,80 @@ function VideoCard({
 	const modelTag = video.tags.find((t) => t.type === 'kv' && t.key === 'model')
 	const secondaryTag = channelTag || modelTag
 
+	// Use ref to track click timeout
+	const clickTimeoutRef = React.useRef<NodeJS.Timeout | null>(null)
+
+	const handleClick = (e: React.MouseEvent): void => {
+		// If checkbox is clicked, toggle selection
+		if ((e.target as HTMLElement).closest('.selection-checkbox')) {
+			e.stopPropagation()
+			if (onSelectToggle) {
+				onSelectToggle()
+			} else if (onSelect) {
+				onSelect(!isSelected)
+			}
+			return
+		}
+
+		// Clear any existing timeout
+		if (clickTimeoutRef.current) {
+			clearTimeout(clickTimeoutRef.current)
+		}
+
+		// Set a delay before handling single click (to allow double-click to register)
+		clickTimeoutRef.current = setTimeout(() => {
+			onEdit(e)
+		}, 250) // 250ms delay
+	}
+
+	const handleDoubleClick = (e: React.MouseEvent): void => {
+		// Clear the single-click timeout
+		if (clickTimeoutRef.current) {
+			clearTimeout(clickTimeoutRef.current)
+			clickTimeoutRef.current = null
+		}
+
+		// Don't trigger if checkbox was clicked
+		if ((e.target as HTMLElement).closest('.selection-checkbox')) {
+			return
+		}
+
+		// Open video in default player
+		window.api.openVideo(video.filePath)
+	}
+
+	// Cleanup timeout on unmount
+	React.useEffect(() => {
+		return () => {
+			if (clickTimeoutRef.current) {
+				clearTimeout(clickTimeoutRef.current)
+			}
+		}
+	}, [])
+
 	return (
 		<div
-			onClick={onEdit}
+			onClick={handleClick}
+			onDoubleClick={handleDoubleClick}
 			style={{
 				width: '200px',
 				height: '180px',
-				border: '1px solid var(--color-background-mute)',
-				backgroundColor: 'var(--color-background-soft)',
+				border: isSelected
+					? '2px solid var(--color-primary)'
+					: '1px solid var(--color-background-mute)',
+				backgroundColor: isSelected
+					? 'var(--color-primary-light)'
+					: 'var(--color-background-soft)',
 				borderRadius: '8px',
-				boxShadow: '0 4px 6px rgba(0, 0, 0, 0.04)',
+				boxShadow: isSelected
+					? '0 4px 12px rgba(0, 0, 0, 0.15)'
+					: '0 4px 6px rgba(0, 0, 0, 0.04)',
 				cursor: 'pointer',
 				transition: 'all 0.2s ease-in-out',
 				display: 'flex',
 				flexDirection: 'column',
-				overflow: 'hidden'
+				overflow: 'hidden',
+				position: 'relative'
 			}}
 			onMouseEnter={(e) => {
 				e.currentTarget.style.boxShadow =
@@ -43,10 +108,47 @@ function VideoCard({
 				e.currentTarget.style.transform = 'translateY(-2px)'
 			}}
 			onMouseLeave={(e) => {
-				e.currentTarget.style.boxShadow = '0 4px 6px rgba(0, 0, 0, 0.04)'
+				e.currentTarget.style.boxShadow = isSelected
+					? '0 4px 12px rgba(0, 0, 0, 0.15)'
+					: '0 4px 6px rgba(0, 0, 0, 0.04)'
 				e.currentTarget.style.transform = 'translateY(0)'
 			}}
 		>
+			{/* Selection Checkbox */}
+			{(onSelect || onSelectToggle) && (
+				<div
+					className="selection-checkbox"
+					onClick={(e) => {
+						e.stopPropagation()
+						if (onSelectToggle) {
+							onSelectToggle()
+						} else if (onSelect) {
+							onSelect(!isSelected)
+						}
+					}}
+					style={{
+						position: 'absolute',
+						top: '8px',
+						left: '8px',
+						zIndex: 10,
+						width: '15px',
+						height: '15px',
+						backgroundColor: isSelected ? 'var(--color-primary)' : 'white',
+						border: `2px solid ${isSelected ? 'var(--color-primary)' : 'var(--color-background-mute)'}`,
+						borderRadius: '3px',
+						display: 'flex',
+						alignItems: 'center',
+						justifyContent: 'center',
+						cursor: 'pointer',
+						boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+					}}
+				>
+					{isSelected && (
+						<span style={{ color: 'white', fontSize: '12px', fontWeight: 'bold' }}>✓</span>
+					)}
+				</div>
+			)}
+
 			{/* Thumbnail or Image */}
 			<div
 				style={{

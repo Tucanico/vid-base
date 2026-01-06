@@ -7,14 +7,48 @@ import { Movie } from '@shared/types/movie'
  *  @param onEdit A function to call when the card is clicked, to open the detail view
  */
 function MovieCard({ movie, onEdit }: { movie: Movie; onEdit: () => void }): React.ReactElement {
+	// Use ref to track click timeout
+	const clickTimeoutRef = React.useRef<NodeJS.Timeout | null>(null)
+
 	const handleClick = (): void => {
-		console.log('MovieCard clicked:', movie.title)
-		onEdit()
+		// Clear any existing timeout
+		if (clickTimeoutRef.current) {
+			clearTimeout(clickTimeoutRef.current)
+		}
+
+		// Set a delay before handling single click (to allow double-click to register)
+		clickTimeoutRef.current = setTimeout(() => {
+			console.log('MovieCard clicked:', movie.title)
+			onEdit()
+		}, 250) // 250ms delay
 	}
+
+	const handleDoubleClick = (): void => {
+		// Clear the single-click timeout
+		if (clickTimeoutRef.current) {
+			clearTimeout(clickTimeoutRef.current)
+			clickTimeoutRef.current = null
+		}
+
+		// Open movie folder
+		if (movie.folderPath) {
+			window.api.openFolder(movie.folderPath)
+		}
+	}
+
+	// Cleanup timeout on unmount
+	React.useEffect(() => {
+		return () => {
+			if (clickTimeoutRef.current) {
+				clearTimeout(clickTimeoutRef.current)
+			}
+		}
+	}, [])
 
 	return (
 		<div
 			onClick={handleClick}
+			onDoubleClick={handleDoubleClick}
 			style={{
 				width: '100%',
 				maxWidth: '100%',

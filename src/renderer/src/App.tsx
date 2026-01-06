@@ -9,6 +9,7 @@ import VideoCard from './components/VideoCard'
 import MovieCard from './components/MovieCard'
 import Sidebar from './components/Sidebar'
 import ModeSelection from './components/ModeSelection'
+import BatchEditModal from './components/BatchEditModal'
 import { ActiveFilters } from '@shared/types/filter'
 
 type AppMode = 'videos' | 'movies' | null
@@ -53,6 +54,10 @@ function App(): React.ReactElement {
 	// State for sorting
 	const [sortField, setSortField] = useState<string>('name')
 	const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+	// State for selected videos (for batch editing)
+	const [selectedVideoIds, setSelectedVideoIds] = useState<Set<string>>(new Set())
+	// State for batch edit modal
+	const [showBatchEditModal, setShowBatchEditModal] = useState(false)
 
 	// Handles mode selection from the initial screen
 	const handleModeSelected = async (mode: 'videos' | 'movies', folder: string): Promise<void> => {
@@ -199,11 +204,118 @@ function App(): React.ReactElement {
 		}
 	}
 
-	// Handles opening a video in detail view
-	const handleVideoClick = (video: VideoFile): void => {
+	// Handles opening a video in detail view or toggling selection
+	const handleVideoClick = (video: VideoFile, event?: React.MouseEvent): void => {
+		// If Ctrl/Cmd is held, toggle selection instead of opening detail view
+		if (event && (event.ctrlKey || event.metaKey)) {
+			setSelectedVideoIds((prev) => {
+				const newSet = new Set(prev)
+				if (newSet.has(video.id)) {
+					newSet.delete(video.id)
+				} else {
+					newSet.add(video.id)
+				}
+				return newSet
+			})
+			return
+		}
+		
+		// Normal click - open detail view
 		setViewingVideo(video)
 		setViewingMovie(null)
 		setViewMode('detail')
+	}
+
+	// Handles toggling video selection
+	const handleVideoSelect = (videoId: string, isSelected: boolean): void => {
+		setSelectedVideoIds((prev) => {
+			const newSet = new Set(prev)
+			if (isSelected) {
+				newSet.add(videoId)
+			} else {
+				newSet.delete(videoId)
+			}
+			return newSet
+		})
+	}
+
+	// Handles batch editing
+	const handleBatchEdit = (): void => {
+		if (selectedVideoIds.size === 0) return
+		setShowBatchEditModal(true)
+	}
+
+	// Handles batch save (applies tags to all selected videos)
+	const handleBatchSave = async (tagsToAdd: ParsedTag[], tagsToRemove: ParsedTag[]): Promise<void> => {
+		if (selectedVideoIds.size === 0 || !currentFolder) return
+
+		const selectedVideos = videos.filter((v) => selectedVideoIds.has(v.id))
+		
+		try {
+			// Update local state with new tags for all selected videos
+			const updatedList = videos.map((video) => {
+				if (!selectedVideoIds.has(video.id)) {
+					return video // Not selected, keep as is
+				}
+
+				// Start with current tags
+				let newTags = [...video.tags]
+
+				// Remove tags that should be removed
+				for (const tagToRemove of tagsToRemove) {
+					if (tagToRemove.type === 'kv') {
+						newTags = newTags.filter(
+							(t) => !(t.type === 'kv' && t.key === tagToRemove.key && t.value === tagToRemove.value)
+						)
+					} else {
+						newTags = newTags.filter((t) => !(t.type === 'simple' && t.value === tagToRemove.value))
+					}
+				}
+
+				// Add new tags (avoid duplicates)
+				for (const tagToAdd of tagsToAdd) {
+					const exists = newTags.some((t) => {
+						if (tagToAdd.type === 'kv') {
+							return t.type === 'kv' && t.key === tagToAdd.key && t.value === tagToAdd.value
+						} else {
+							return t.type === 'simple' && t.value === tagToAdd.value
+						}
+					})
+					if (!exists) {
+						newTags.push(tagToAdd)
+					}
+				}
+
+				return { ...video, tags: newTags }
+			})
+
+			// Update file metadata for all selected videos
+			for (const video of selectedVideos) {
+				const updatedVideo = updatedList.find((v) => v.id === video.id)
+				if (updatedVideo) {
+					await window.api.updateTags(video.filePath, updatedVideo.tags)
+				}
+			}
+
+			// Update local state
+			setVideos(updatedList)
+
+			// Save the updated list to the 'library.json' cache (will update categories/tags)
+			await window.api.saveLibrary(currentFolder, updatedList)
+
+			// Reload library to get updated categories and tags
+			const updatedLibrary = await window.api.loadLibrary(currentFolder)
+			if (updatedLibrary) {
+				setLibrary(updatedLibrary)
+			}
+
+			// Clear selection and close modal
+			setSelectedVideoIds(new Set())
+			setShowBatchEditModal(false)
+		} catch (error) {
+			console.error('Error in batch save:', error)
+			alert('Error updating videos. Please try again.')
+		}
 	}
 
 	// Handles opening a movie in detail view
@@ -614,26 +726,45 @@ function App(): React.ReactElement {
 				>
 					<h1 style={{ color: 'var(--color-text)', margin: 0, fontSize: '1.2rem' }}>VidBase</h1>
 
-					<button
-						onClick={handleScan}
-						disabled={loading}
-						style={{
-							padding: '10px 20px',
-							fontSize: '1rem',
-							backgroundColor: loading ? 'var(--ev-c-gray-400)' : 'var(--color-primary)',
-							color: 'white',
-							border: 'none',
-							borderRadius: '6px',
-							cursor: loading ? 'not-allowed' : 'pointer',
-							transition: 'background 0.2s'
-						}}
-					>
-						{loading
-							? 'Scanning...'
-							: appMode === 'videos'
-								? '📂 Select Video Folder'
-								: '📂 Select Movies Folder'}
-					</button>
+					<div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+						{appMode === 'videos' && selectedVideoIds.size > 0 && (
+							<button
+								onClick={handleBatchEdit}
+								style={{
+									padding: '10px 20px',
+									fontSize: '1rem',
+									backgroundColor: 'var(--color-primary)',
+									color: 'white',
+									border: 'none',
+									borderRadius: '6px',
+									cursor: 'pointer',
+									transition: 'background 0.2s'
+								}}
+							>
+								Edit {selectedVideoIds.size} Selected
+							</button>
+						)}
+						<button
+							onClick={handleScan}
+							disabled={loading}
+							style={{
+								padding: '10px 20px',
+								fontSize: '1rem',
+								backgroundColor: loading ? 'var(--ev-c-gray-400)' : 'var(--color-primary)',
+								color: 'white',
+								border: 'none',
+								borderRadius: '6px',
+								cursor: loading ? 'not-allowed' : 'pointer',
+								transition: 'background 0.2s'
+							}}
+						>
+							{loading
+								? 'Scanning...'
+								: appMode === 'videos'
+									? '📂 Select Video Folder'
+									: '📂 Select Movies Folder'}
+						</button>
+					</div>
 				</div>
 
 				{/* Bottom row: Search and Sort controls */}
@@ -757,7 +888,14 @@ function App(): React.ReactElement {
 						>
 							{/* Render the grid of video cards */}
 							{filteredVideos.map((vid) => (
-								<VideoCard key={vid.id} video={vid} onEdit={() => handleVideoClick(vid)} />
+								<VideoCard
+									key={vid.id}
+									video={vid}
+									onEdit={(e) => handleVideoClick(vid, e)}
+									isSelected={selectedVideoIds.has(vid.id)}
+									onSelect={(isSelected) => handleVideoSelect(vid.id, isSelected)}
+									onSelectToggle={() => handleVideoSelect(vid.id, !selectedVideoIds.has(vid.id))}
+								/>
 							))}
 
 							{/* Conditional messages for empty states */}
@@ -832,6 +970,19 @@ function App(): React.ReactElement {
 					)}
 				</main>
 			</div>
+
+			{/* Batch Edit Modal */}
+			{showBatchEditModal && appMode === 'videos' && (
+				<BatchEditModal
+					videos={videos.filter((v) => selectedVideoIds.has(v.id))}
+					library={library}
+					onClose={() => {
+						setShowBatchEditModal(false)
+						setSelectedVideoIds(new Set())
+					}}
+					onSave={handleBatchSave}
+				/>
+			)}
 		</div>
 	)
 }
