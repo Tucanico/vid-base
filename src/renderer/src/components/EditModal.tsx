@@ -227,7 +227,9 @@ function EditModal({
 
 	// Handles the "Delete Video" button click
 	const handleDeleteClick = async (): Promise<void> => {
-		const confirmed = window.confirm(`Are you sure you want to delete "${sanitizeFileName(video.fileName)}"? This action cannot be undone.`)
+		const confirmed = window.confirm(
+			`Are you sure you want to delete "${sanitizeFileName(video.fileName)}"? This action cannot be undone.`
+		)
 		if (confirmed) {
 			setIsDeleting(true)
 			await onDelete(video)
@@ -261,16 +263,15 @@ function EditModal({
 		return `${size.toFixed(unitIndex === 0 ? 0 : 2)} ${units[unitIndex]}`
 	}
 
-	// Format duration to HH:MM:SS format
+	// Format duration to "1h26m" format
 	const formatDuration = (seconds?: number): string | undefined => {
 		if (!seconds) return undefined
 		const hours = Math.floor(seconds / 3600)
 		const minutes = Math.floor((seconds % 3600) / 60)
-		const secs = Math.floor(seconds % 60)
 		if (hours > 0) {
-			return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+			return `${hours}h${minutes}m`
 		}
-		return `${minutes}:${secs.toString().padStart(2, '0')}`
+		return `${minutes}m`
 	}
 
 	return (
@@ -386,7 +387,9 @@ function EditModal({
 							<InfoRow label="Size" value={formatFileSize(video.fileSize)} />
 						</>
 					)}
-					{video.mediaType === 'image' && <InfoRow label="Size" value={formatFileSize(video.fileSize)} />}
+					{video.mediaType === 'image' && (
+						<InfoRow label="Size" value={formatFileSize(video.fileSize)} />
+					)}
 				</div>
 
 				{/* Tag Editor */}
@@ -455,7 +458,10 @@ function EditModal({
 							</span>
 						)}
 					</div>
-					<form onSubmit={handleAddTag} style={{ display: 'flex', gap: '10px', position: 'relative' }}>
+					<form
+						onSubmit={handleAddTag}
+						style={{ display: 'flex', gap: '10px', position: 'relative' }}
+					>
 						<div style={{ flex: 1, position: 'relative' }}>
 							<input
 								ref={inputRef}
@@ -463,7 +469,11 @@ function EditModal({
 								value={inputValue}
 								onChange={handleInputChange}
 								onKeyDown={handleKeyDown}
-								onFocus={() => setShowSuggestions(inputValue.trim().length > 0 && suggestions.length > 0)}
+								onFocus={() =>
+									setShowSuggestions(
+										inputValue.trim().length > 0 && suggestions.length > 0
+									)
+								}
 								placeholder="Ex: holidays or category:nature"
 								style={{
 									width: '100%',

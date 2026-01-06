@@ -24,18 +24,18 @@ export async function cleanupOrphans(folderPath: string): Promise<void> {
 	// 2. Get all actual media file paths from the filesystem (videos and images)
 	const videoExtensions = ['.mp4', '.mov', '.avi', '.mkv', '.webm', '.wmv', '.m4v']
 	const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.tiff', '.tif']
-	
+
 	// Helper function to recursively get all files
 	const getAllFiles = async (dir: string, basePath: string = dir): Promise<string[]> => {
 		const entries = await fs.readdir(dir, { withFileTypes: true })
 		const files: string[] = []
-		
+
 		for (const entry of entries) {
 			// Skip hidden folders (like .thumbnails)
 			if (entry.isDirectory() && entry.name.startsWith('.')) {
 				continue
 			}
-			
+
 			const fullPath = path.join(dir, entry.name)
 			if (entry.isFile()) {
 				const ext = path.extname(entry.name).toLowerCase()
@@ -47,10 +47,10 @@ export async function cleanupOrphans(folderPath: string): Promise<void> {
 				files.push(...subFiles)
 			}
 		}
-		
+
 		return files
 	}
-	
+
 	const mediaFilePaths = await getAllFiles(folderPath)
 
 	// 3. Create a Set of normalized existing media paths for quick lookups
@@ -112,14 +112,14 @@ export async function cleanupOrphans(folderPath: string): Promise<void> {
 		const libraryThumbnailPaths = new Set(
 			videosToKeep
 				.map((v) => v.thumbnailPath)
-				.filter(Boolean)
+				.filter((p): p is string => Boolean(p))
 				.map((p) => path.normalize(p))
 		)
 
 		for (const thumbFile of thumbnailFiles) {
 			const thumbPath = path.join(thumbnailsFolder, thumbFile)
 			const normalizedThumbPath = path.normalize(thumbPath)
-			
+
 			// Only delete if the thumbnail is not referenced by any video in the library
 			if (!libraryThumbnailPaths.has(normalizedThumbPath)) {
 				try {

@@ -63,7 +63,9 @@ function ModeSelection({
 								: 'var(--color-background-soft)',
 						color: selectedMode === 'videos' ? 'white' : 'var(--color-text)',
 						border: `2px solid ${
-							selectedMode === 'videos' ? 'var(--color-primary)' : 'var(--color-background-mute)'
+							selectedMode === 'videos'
+								? 'var(--color-primary)'
+								: 'var(--color-background-mute)'
 						}`,
 						borderRadius: '8px',
 						cursor: 'pointer',
@@ -84,7 +86,9 @@ function ModeSelection({
 								: 'var(--color-background-soft)',
 						color: selectedMode === 'movies' ? 'white' : 'var(--color-text)',
 						border: `2px solid ${
-							selectedMode === 'movies' ? 'var(--color-primary)' : 'var(--color-background-mute)'
+							selectedMode === 'movies'
+								? 'var(--color-primary)'
+								: 'var(--color-background-mute)'
 						}`,
 						borderRadius: '8px',
 						cursor: 'pointer',
@@ -163,4 +167,3 @@ function ModeSelection({
 }
 
 export default ModeSelection
-

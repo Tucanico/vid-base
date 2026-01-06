@@ -2,7 +2,7 @@
  * Sanitizes a file name by:
  * 1. Removing leading brackets and content inside them (e.g., "[Test] Ciaone" -> "Ciaone")
  * 2. Removing file extensions (e.g., "file.mp4" -> "file")
- * 
+ *
  * @param fileName The original file name
  * @returns The sanitized file name
  */
@@ -21,4 +21,3 @@ export function sanitizeFileName(fileName: string): string {
 
 	return sanitized.trim()
 }
-

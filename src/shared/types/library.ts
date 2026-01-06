@@ -6,4 +6,3 @@ export interface Library {
 	categories: Record<string, string[]> // Key-value pairs: category name -> array of values
 	tags: string[] // Simple tags
 }
-

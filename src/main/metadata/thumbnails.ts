@@ -2,7 +2,7 @@ import * as path from 'path'
 import * as fs from 'fs/promises'
 import * as fsSync from 'fs'
 import { exec } from 'child_process'
-import ffmpeg from 'fluent-ffmpeg'
+import ffmpeg, { FfprobeData } from 'fluent-ffmpeg'
 import ffmpegPath from 'ffmpeg-static'
 import { path as ffprobePath } from 'ffprobe-static'
 
@@ -20,6 +20,7 @@ if (ffmpegPath) {
 if (ffprobePath) {
 	const fixedFfprobePath = ffprobePath.replace('app.asar', 'app.asar.unpacked')
 	console.log('FFprobe Path:', fixedFfprobePath)
+	console.log('') // Extra newline after FFprobe Path
 	ffmpeg.setFfprobePath(fixedFfprobePath)
 } else {
 	console.error('ERROR: ffprobe-static not found! Run "npm install ffprobe-static"')
@@ -58,7 +59,7 @@ export async function generateThumbnail(videoPath: string): Promise<string | und
 
 	return new Promise((resolve) => {
 		// 1. Get video duration using ffprobe
-		ffmpeg.ffprobe(videoPath, (err: Error, metadata: ffmpeg.FfprobeData) => {
+		ffmpeg.ffprobe(videoPath, (err: Error, metadata: FfprobeData) => {
 			if (err || !metadata.format?.duration) {
 				console.error('❌ ffprobe failed:', err)
 				resolve(undefined)

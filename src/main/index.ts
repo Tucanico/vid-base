@@ -1,5 +1,26 @@
 import * as path from 'path'
 import { app, shell, BrowserWindow, ipcMain, dialog, protocol, net, screen } from 'electron'
+import * as dotenv from 'dotenv'
+
+// Load environment variables from .env file (silent mode to suppress logs)
+// Suppress dotenv console output by temporarily overriding console.log
+const originalLog = console.log
+const originalInfo = console.info
+console.log = (...args: unknown[]) => {
+	const message = args[0]?.toString() || ''
+	if (!message.includes('[dotenv]') && !message.includes('injecting env')) {
+		originalLog(...args)
+	}
+}
+console.info = (...args: unknown[]) => {
+	const message = args[0]?.toString() || ''
+	if (!message.includes('[dotenv]') && !message.includes('injecting env')) {
+		originalInfo(...args)
+	}
+}
+dotenv.config()
+console.log = originalLog
+console.info = originalInfo
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
@@ -24,7 +45,7 @@ app.whenReady().then(() => {
 	function createWindow(): void {
 		// Get the primary display's work area size (screen size minus taskbar/dock)
 		const primaryDisplay = screen.getPrimaryDisplay()
-		const { width, height } = primaryDisplay.workAreaSize
+		const { height } = primaryDisplay.workAreaSize
 
 		// Create the browser window
 		const mainWindow = new BrowserWindow({
@@ -158,7 +179,7 @@ app.whenReady().then(() => {
 		if (!excelPath) {
 			throw new Error('No Excel file found in the selected folder')
 		}
-		return await parseMovieExcel(excelPath, moviesFolderPath)
+		return await parseMovieExcel(excelPath, moviesFolderPath || folderPath)
 	})
 	// IPC handler to open a folder in the file explorer
 	ipcMain.on('folder:open', (_, folderPath: string) => {

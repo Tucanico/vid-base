@@ -3,7 +3,7 @@ import { ParsedTag } from 'src/shared/types/metadata'
 import { VideoFile } from 'src/shared/types/video'
 import { Library } from '@shared/types/library'
 import { Movie, MovieArchive } from '@shared/types/movie'
-import DetailView from './components/DetailView'
+import VideoDetailView from './components/VideoDetailView'
 import MovieDetailView from './components/MovieDetailView'
 import VideoCard from './components/VideoCard'
 import MovieCard from './components/MovieCard'
@@ -85,7 +85,9 @@ function App(): React.ReactElement {
 				setMovieArchive(archive)
 			} catch (error) {
 				console.error('Loading error:', error)
-				alert('There was an error loading movies. Make sure there is an Excel file in the selected folder.')
+				alert(
+					'There was an error loading movies. Make sure there is an Excel file in the selected folder.'
+				)
 			} finally {
 				setLoading(false)
 			}
@@ -98,7 +100,7 @@ function App(): React.ReactElement {
 		if (folder) {
 			setCurrentFolder(folder)
 			setLoading(true)
-			
+
 			if (appMode === 'videos') {
 				setVideos([]) // Clear previous videos
 				try {
@@ -128,7 +130,9 @@ function App(): React.ReactElement {
 					setMovieArchive(archive)
 				} catch (error) {
 					console.error('Loading error:', error)
-					alert('There was an error loading movies. Make sure there is an Excel file in the selected folder.')
+					alert(
+						'There was an error loading movies. Make sure there is an Excel file in the selected folder.'
+					)
 				} finally {
 					setLoading(false)
 				}
@@ -427,7 +431,7 @@ function App(): React.ReactElement {
 	if (viewMode === 'detail') {
 		if (appMode === 'videos' && viewingVideo) {
 			return (
-				<DetailView
+				<VideoDetailView
 					video={viewingVideo}
 					library={library}
 					onBack={handleBackToList}
@@ -510,13 +514,19 @@ function App(): React.ReactElement {
 					onToggleMultiSelect={() => setIsMultiSelectMode(!isMultiSelectMode)}
 					openCategories={openCategories}
 					onToggleCategory={handleToggleCategory}
+					isMovieMode={appMode === 'movies'}
+					onMovieFilterTextChange={
+						appMode === 'movies' ? handleMovieFilterTextChange : undefined
+					}
 				/>
 
 				<main
 					style={{
 						flex: 1,
 						overflowY: 'auto',
-						padding: '20px'
+						overflowX: 'hidden',
+						padding: '20px',
+						boxSizing: 'border-box'
 					}}
 				>
 					{appMode === 'videos' ? (
@@ -564,14 +574,18 @@ function App(): React.ReactElement {
 								display: 'flex',
 								flexDirection: 'column',
 								gap: '12px',
-								maxWidth: '1200px',
 								width: '100%',
-								margin: '0 auto'
+								maxWidth: '100%',
+								boxSizing: 'border-box'
 							}}
 						>
 							{/* Render the list of movie cards */}
 							{filteredMovies.map((movie) => (
-								<MovieCard key={movie.id} movie={movie} onEdit={() => handleMovieClick(movie)} />
+								<MovieCard
+									key={movie.id}
+									movie={movie}
+									onEdit={() => handleMovieClick(movie)}
+								/>
 							))}
 
 							{/* Conditional messages for empty states */}
@@ -583,7 +597,8 @@ function App(): React.ReactElement {
 										marginTop: '40px'
 									}}
 								>
-									No movies loaded. Click the top-right button to select a folder with an Excel file.
+									No movies loaded. Click the top-right button to select a folder with an
+									Excel file.
 								</div>
 							)}
 							{!loading && movies.length > 0 && filteredMovies.length === 0 && (

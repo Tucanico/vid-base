@@ -5,7 +5,73 @@ import { Library } from '@shared/types/library'
 import InfoRow from './InfoRow'
 import { sanitizeFileName } from '../utils/sanitizeFileName'
 
-/** --- COMPONENT: DetailView ---
+// Component to render clickable values
+function ClickableValue({
+	value,
+	onClick
+}: {
+	value: string
+	onClick: () => void
+}): React.ReactElement {
+	return (
+		<span
+			onClick={onClick}
+			style={{
+				color: 'var(--color-primary)',
+				cursor: 'pointer'
+			}}
+			onMouseEnter={(e) => {
+				e.currentTarget.style.color = 'var(--color-primary-dark)'
+			}}
+			onMouseLeave={(e) => {
+				e.currentTarget.style.color = 'var(--color-primary)'
+			}}
+		>
+			{value}
+		</span>
+	)
+}
+
+// Component to render multiple clickable values
+function ClickableValues({
+	values,
+	label
+}: {
+	values: Array<{ value: string; onClick: () => void }>
+	label: string
+}): React.ReactElement | null {
+	if (values.length === 0) return null
+	return (
+		<div
+			style={{
+				display: 'flex',
+				justifyContent: 'space-between',
+				padding: '8px 0',
+				borderBottom: '1px solid var(--color-background-mute)'
+			}}
+		>
+			<span style={{ fontWeight: 500, color: 'var(--color-text)' }}>{label}</span>
+			<span
+				style={{
+					color: 'var(--color-text-soft)',
+					display: 'flex',
+					flexWrap: 'wrap',
+					gap: '0',
+					alignItems: 'center'
+				}}
+			>
+				{values.map((item, index) => (
+					<span key={index} style={{ display: 'inline-flex', alignItems: 'center' }}>
+						<ClickableValue value={item.value} onClick={item.onClick} />
+						{index < values.length - 1 && <span style={{ marginRight: '4px' }}>,</span>}
+					</span>
+				))}
+			</span>
+		</div>
+	)
+}
+
+/** --- COMPONENT: VideoDetailView ---
  *  Full-screen detail view for viewing and editing a video's tags
  *  @param video The VideoFile object being viewed
  *  @param library The Library object containing categories and tags for autocomplete
@@ -14,7 +80,7 @@ import { sanitizeFileName } from '../utils/sanitizeFileName'
  *  @param onDelete A function to call when the user deletes the video
  *  @param onFilterClick A function to call when a filterable name is clicked (category, value)
  */
-function DetailView({
+function VideoDetailView({
 	video,
 	library,
 	onBack,
@@ -217,7 +283,9 @@ function DetailView({
 
 	// Handles the "Delete Video" button click
 	const handleDeleteClick = async (): Promise<void> => {
-		const confirmed = window.confirm(`Are you sure you want to delete "${video.fileName}"? This action cannot be undone.`)
+		const confirmed = window.confirm(
+			`Are you sure you want to delete "${video.fileName}"? This action cannot be undone.`
+		)
 		if (confirmed) {
 			setIsDeleting(true)
 			await onDelete(video)
@@ -253,62 +321,15 @@ function DetailView({
 		return `${size.toFixed(unitIndex === 0 ? 0 : 2)} ${units[unitIndex]}`
 	}
 
-	// Format duration to HH:MM:SS format
+	// Format duration to "1h26m" format
 	const formatDuration = (seconds?: number): string | undefined => {
 		if (!seconds) return undefined
 		const hours = Math.floor(seconds / 3600)
 		const minutes = Math.floor((seconds % 3600) / 60)
-		const secs = Math.floor(seconds % 60)
 		if (hours > 0) {
-			return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+			return `${hours}h${minutes}m`
 		}
-		return `${minutes}:${secs.toString().padStart(2, '0')}`
-	}
-
-	// Component to render clickable values
-	const ClickableValue = ({ value, onClick }: { value: string; onClick: () => void }): React.ReactElement => (
-		<span
-			onClick={onClick}
-			style={{
-				color: 'var(--color-primary)',
-				cursor: 'pointer',
-				textDecoration: 'underline',
-				marginRight: '8px'
-			}}
-			onMouseEnter={(e) => {
-				e.currentTarget.style.color = 'var(--color-primary-dark)'
-			}}
-			onMouseLeave={(e) => {
-				e.currentTarget.style.color = 'var(--color-primary)'
-			}}
-		>
-			{value}
-		</span>
-	)
-
-	// Component to render multiple clickable values
-	const ClickableValues = ({ values, label }: { values: Array<{ value: string; onClick: () => void }>; label: string }): React.ReactElement | null => {
-		if (values.length === 0) return null
-		return (
-			<div
-				style={{
-					display: 'flex',
-					justifyContent: 'space-between',
-					padding: '8px 0',
-					borderBottom: '1px solid var(--color-background-mute)'
-				}}
-			>
-				<span style={{ fontWeight: 500, color: 'var(--color-text)' }}>{label}</span>
-				<span style={{ color: 'var(--color-text-soft)', display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-					{values.map((item, index) => (
-						<React.Fragment key={index}>
-							<ClickableValue value={item.value} onClick={item.onClick} />
-							{index < values.length - 1 && <span>,</span>}
-						</React.Fragment>
-					))}
-				</span>
-			</div>
-		)
+		return `${minutes}m`
 	}
 
 	return (
@@ -485,12 +506,16 @@ function DetailView({
 								<InfoRow label="Size" value={formatFileSize(video.fileSize)} />
 							</>
 						)}
-						{video.mediaType === 'image' && <InfoRow label="Size" value={formatFileSize(video.fileSize)} />}
+						{video.mediaType === 'image' && (
+							<InfoRow label="Size" value={formatFileSize(video.fileSize)} />
+						)}
 					</div>
 
 					{/* Tag Editor */}
 					<div>
-						<h4 style={{ marginTop: 0, marginBottom: '10px', color: 'var(--color-text)' }}>Tags</h4>
+						<h4 style={{ marginTop: 0, marginBottom: '10px', color: 'var(--color-text)' }}>
+							Tags
+						</h4>
 						<div
 							style={{
 								display: 'flex',
@@ -508,8 +533,14 @@ function DetailView({
 								<span
 									key={i}
 									style={{
-										background: t.type === 'kv' ? 'var(--color-primary-light)' : 'var(--color-background-mute)',
-										color: t.type === 'kv' ? 'var(--color-primary-dark)' : 'var(--color-text)',
+										background:
+											t.type === 'kv'
+												? 'var(--color-primary-light)'
+												: 'var(--color-background-mute)',
+										color:
+											t.type === 'kv'
+												? 'var(--color-primary-dark)'
+												: 'var(--color-text)',
 										padding: '5px 12px',
 										borderRadius: '16px',
 										fontSize: '0.8rem',
@@ -543,10 +574,15 @@ function DetailView({
 								</span>
 							))}
 							{tags.length === 0 && (
-								<span style={{ color: 'var(--color-text-mute)', fontStyle: 'italic' }}>No tags</span>
+								<span style={{ color: 'var(--color-text-mute)', fontStyle: 'italic' }}>
+									No tags
+								</span>
 							)}
 						</div>
-						<form onSubmit={handleAddTag} style={{ display: 'flex', gap: '10px', position: 'relative' }}>
+						<form
+							onSubmit={handleAddTag}
+							style={{ display: 'flex', gap: '10px', position: 'relative' }}
+						>
 							<div style={{ flex: 1, position: 'relative' }}>
 								<input
 									ref={inputRef}
@@ -554,7 +590,11 @@ function DetailView({
 									value={inputValue}
 									onChange={handleInputChange}
 									onKeyDown={handleKeyDown}
-									onFocus={() => setShowSuggestions(inputValue.trim().length > 0 && suggestions.length > 0)}
+									onFocus={() =>
+										setShowSuggestions(
+											inputValue.trim().length > 0 && suggestions.length > 0
+										)
+									}
 									placeholder="Ex: holidays or category:nature"
 									style={{
 										width: '100%',
@@ -593,7 +633,10 @@ function DetailView({
 													width: '100%',
 													padding: '10px 12px',
 													textAlign: 'left',
-													background: index === selectedIndex ? 'var(--color-primary-light)' : 'transparent',
+													background:
+														index === selectedIndex
+															? 'var(--color-primary-light)'
+															: 'transparent',
 													border: 'none',
 													cursor: 'pointer',
 													color: 'var(--color-text)',
@@ -657,7 +700,9 @@ function DetailView({
 							style={{
 								flex: 1,
 								padding: '12px 24px',
-								background: isSaving ? 'var(--color-text-mute)' : 'var(--color-primary-dark)',
+								background: isSaving
+									? 'var(--color-text-mute)'
+									: 'var(--color-primary-dark)',
 								color: 'white',
 								border: 'none',
 								borderRadius: '6px',
@@ -674,5 +719,4 @@ function DetailView({
 	)
 }
 
-export default DetailView
-
+export default VideoDetailView

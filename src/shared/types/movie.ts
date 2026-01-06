@@ -13,6 +13,8 @@ export interface Movie {
 	genres: string[] // Genres (from GENERE, split from comma-separated string)
 	type?: string // Type (from TIPO, e.g., Film)
 	check?: string // Check column
+	duration?: number // Duration in seconds (from DURATA)
+	size?: number // Size in bytes (from DIMENSIONI, or calculated from folder)
 	notes?: string // Notes (from NOTE)
 	folderPath?: string // Path to the folder containing the movie
 }
@@ -25,4 +27,3 @@ export interface MovieArchive {
 	categories: Record<string, string[]> // All unique values per category for filtering
 	moviesFolderPath: string // Path to the folder containing movie folders
 }
-

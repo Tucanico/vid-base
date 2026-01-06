@@ -135,16 +135,20 @@ export async function scanDirectory(dirPath: string): Promise<VideoFile[]> {
 			try {
 				const stats = await fs.stat(fullPath)
 				fileSize = stats.size
-			} catch (err) {
+			} catch {
 				// If stat fails, try to get from metadata
 				if (meta.FileSize) {
-					fileSize = typeof meta.FileSize === 'number' ? meta.FileSize : parseInt(String(meta.FileSize), 10)
+					fileSize =
+						typeof meta.FileSize === 'number'
+							? meta.FileSize
+							: parseInt(String(meta.FileSize), 10)
 				}
 			}
 
 			// Get duration from metadata (for videos)
 			if (mediaType === 'video' && meta.Duration) {
-				const durationValue = typeof meta.Duration === 'number' ? meta.Duration : parseFloat(String(meta.Duration))
+				const durationValue =
+					typeof meta.Duration === 'number' ? meta.Duration : parseFloat(String(meta.Duration))
 				if (!isNaN(durationValue)) {
 					duration = durationValue
 				}
@@ -205,7 +209,7 @@ export async function scanDirectoryWithLibrary(
 			// File exists in library.json - use its metadata
 			// For backward compatibility, if mediaType is missing, detect it
 			const entryMediaType = existingEntry.mediaType || mediaType
-			
+
 			// For videos, check if thumbnail exists, if not generate it
 			// For images, no thumbnail needed (use image itself)
 			let thumbPath = existingEntry.thumbnailPath
@@ -219,7 +223,7 @@ export async function scanDirectoryWithLibrary(
 			try {
 				const stats = await fs.stat(fullPath)
 				fileSize = stats.size
-			} catch (err) {
+			} catch {
 				// If stat fails, keep existing fileSize
 			}
 
@@ -273,16 +277,22 @@ export async function scanDirectoryWithLibrary(
 				try {
 					const stats = await fs.stat(fullPath)
 					fileSize = stats.size
-				} catch (err) {
+				} catch {
 					// If stat fails, try to get from metadata
 					if (meta.FileSize) {
-						fileSize = typeof meta.FileSize === 'number' ? meta.FileSize : parseInt(String(meta.FileSize), 10)
+						fileSize =
+							typeof meta.FileSize === 'number'
+								? meta.FileSize
+								: parseInt(String(meta.FileSize), 10)
 					}
 				}
 
 				// Get duration from metadata (for videos)
 				if (mediaType === 'video' && meta.Duration) {
-					const durationValue = typeof meta.Duration === 'number' ? meta.Duration : parseFloat(String(meta.Duration))
+					const durationValue =
+						typeof meta.Duration === 'number'
+							? meta.Duration
+							: parseFloat(String(meta.Duration))
 					if (!isNaN(durationValue)) {
 						duration = durationValue
 					}

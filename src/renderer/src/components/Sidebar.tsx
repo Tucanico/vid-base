@@ -46,8 +46,12 @@ function Sidebar({
 				flexShrink: 0,
 				borderRight: '1px solid var(--color-background-mute)',
 				padding: '20px',
+				paddingRight: '12px', // Reserve space for scrollbar
 				overflowY: 'auto',
-				background: 'var(--color-background-soft)'
+				overflowX: 'hidden',
+				background: 'var(--color-background-soft)',
+				boxSizing: 'border-box',
+				scrollbarGutter: 'stable' // Reserve space for scrollbar (modern browsers)
 			}}
 		>
 			<div
@@ -99,7 +103,6 @@ function Sidebar({
 			{Object.entries(filterOptions.categories).map(([categoryName, values]) => {
 				const activeValues = activeFilters[categoryName] || []
 				const isOpen = openCategories?.has(categoryName) ?? false
-				const currentValue = activeValues[0] || ''
 				return (
 					<FilterSection
 						key={categoryName}

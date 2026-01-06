@@ -17,6 +17,7 @@ function MovieCard({ movie, onEdit }: { movie: Movie; onEdit: () => void }): Rea
 			onClick={handleClick}
 			style={{
 				width: '100%',
+				maxWidth: '100%',
 				padding: '15px 20px',
 				border: '1px solid var(--color-background-mute)',
 				backgroundColor: 'var(--color-background-soft)',
@@ -25,7 +26,8 @@ function MovieCard({ movie, onEdit }: { movie: Movie; onEdit: () => void }): Rea
 				alignItems: 'center',
 				gap: '20px',
 				transition: 'all 0.2s ease-in-out',
-				cursor: 'pointer'
+				cursor: 'pointer',
+				boxSizing: 'border-box'
 			}}
 			onMouseEnter={(e) => {
 				e.currentTarget.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.1)'
@@ -91,4 +93,3 @@ function MovieCard({ movie, onEdit }: { movie: Movie; onEdit: () => void }): Rea
 }
 
 export default MovieCard
-
