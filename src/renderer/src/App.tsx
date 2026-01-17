@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect, useRef } from 'react'
 import { ParsedTag } from 'src/shared/types/metadata'
 import { VideoFile } from 'src/shared/types/video'
 import { Library } from '@shared/types/library'
@@ -25,6 +25,10 @@ function App(): React.ReactElement {
 	const [appMode, setAppMode] = useState<AppMode>(null)
 	// State for the current view mode (list or detail)
 	const [viewMode, setViewMode] = useState<ViewMode>('list')
+	// Scroll state for returning to list view
+	const listScrollRef = useRef<HTMLDivElement>(null)
+	const lastListScrollTopRef = useRef(0)
+	const [shouldRestoreScroll, setShouldRestoreScroll] = useState(false)
 	// State for the list of all video files in the current folder
 	const [videos, setVideos] = useState<VideoFile[]>([])
 	// State for the list of all movies
@@ -151,8 +155,8 @@ function App(): React.ReactElement {
 	}
 
 	// Handles saving updated tags for a video
-	const saveTags = async (newTags: ParsedTag[]): Promise<void> => {
-		if (!viewingVideo || !currentFolder) return
+	const saveTags = async (newTags: ParsedTag[]): Promise<boolean> => {
+		if (!viewingVideo || !currentFolder) return false
 
 		try {
 			// 1. Tell the main process to write the new tags to the file's metadata
@@ -169,9 +173,11 @@ function App(): React.ReactElement {
 			if (updatedLibrary) {
 				setLibrary(updatedLibrary)
 			}
+			return true
 		} catch (error) {
 			console.error('Error saving tags:', error)
 			alert('Error: unable to save tags.')
+			return false
 		}
 	}
 
@@ -221,6 +227,7 @@ function App(): React.ReactElement {
 		}
 		
 		// Normal click - open detail view
+		lastListScrollTopRef.current = listScrollRef.current?.scrollTop ?? 0
 		setViewingVideo(video)
 		setViewingMovie(null)
 		setViewMode('detail')
@@ -321,6 +328,7 @@ function App(): React.ReactElement {
 	// Handles opening a movie in detail view
 	const handleMovieClick = (movie: Movie): void => {
 		console.log('Opening movie:', movie.title)
+		lastListScrollTopRef.current = listScrollRef.current?.scrollTop ?? 0
 		setViewingMovie(movie)
 		setViewingVideo(null)
 		setViewMode('detail')
@@ -328,10 +336,21 @@ function App(): React.ReactElement {
 
 	// Handles going back to list view
 	const handleBackToList = (): void => {
+		setShouldRestoreScroll(true)
 		setViewMode('list')
 		setViewingVideo(null)
 		setViewingMovie(null)
 	}
+
+	useEffect(() => {
+		if (viewMode !== 'list' || !shouldRestoreScroll) return
+		const target = listScrollRef.current
+		if (!target) return
+		requestAnimationFrame(() => {
+			target.scrollTop = lastListScrollTopRef.current
+			setShouldRestoreScroll(false)
+		})
+	}, [viewMode, shouldRestoreScroll])
 
 	// Handles clicking on a filterable name (model, production, etc.)
 	const handleFilterClick = (category: string, value: string): void => {
@@ -868,6 +887,7 @@ function App(): React.ReactElement {
 				/>
 
 				<main
+					ref={listScrollRef}
 					style={{
 						flex: 1,
 						overflowY: 'auto',

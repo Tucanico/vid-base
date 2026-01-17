@@ -91,7 +91,7 @@ function VideoDetailView({
 	video: VideoFile
 	library: Library | null
 	onBack: () => void
-	onSave: (tags: ParsedTag[]) => void
+	onSave: (tags: ParsedTag[]) => Promise<boolean>
 	onDelete: (video: VideoFile) => void
 	onFilterClick: (category: string, value: string) => void
 }): React.ReactElement {
@@ -192,6 +192,29 @@ function VideoDetailView({
 		inputRef.current?.focus()
 	}
 
+	const buildTagFromValue = (rawValue: string): ParsedTag => {
+		const trimmed = rawValue.trim()
+		if (trimmed.includes(':')) {
+			const [key, ...val] = trimmed.split(':')
+			return {
+				type: 'kv',
+				key: key.trim().toLowerCase(),
+				value: val.join(':').trim(),
+				original: trimmed
+			}
+		}
+		return { type: 'simple', value: trimmed, original: trimmed }
+	}
+
+	const addTagFromValue = (rawValue: string): void => {
+		if (!rawValue.trim()) return
+		const newTag = buildTagFromValue(rawValue)
+		setTags([...tags, newTag])
+		setInputValue('')
+		setShowSuggestions(false)
+		setSelectedIndex(0)
+	}
+
 	// Handle keyboard navigation in suggestions
 	const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>): void => {
 		if (!showSuggestions || suggestions.length === 0) {
@@ -213,7 +236,7 @@ function VideoDetailView({
 			case 'Enter':
 				e.preventDefault()
 				if (suggestions[selectedIndex]) {
-					selectSuggestion(suggestions[selectedIndex])
+					addTagFromValue(suggestions[selectedIndex].value)
 				} else {
 					handleAddTag(e)
 				}
@@ -227,25 +250,7 @@ function VideoDetailView({
 	// Handles the submission of the "Add Tag" form
 	const handleAddTag = (e: React.FormEvent | React.KeyboardEvent): void => {
 		e.preventDefault()
-		if (!inputValue.trim()) return
-
-		// Automatically parses "key:value" strings into key-value tags
-		let newTag: ParsedTag
-		if (inputValue.includes(':')) {
-			const [key, ...val] = inputValue.split(':')
-			newTag = {
-				type: 'kv',
-				key: key.trim().toLowerCase(),
-				value: val.join(':').trim(),
-				original: inputValue
-			}
-		} else {
-			newTag = { type: 'simple', value: inputValue.trim(), original: inputValue }
-		}
-
-		setTags([...tags, newTag])
-		setInputValue('') // Clear the input field
-		setShowSuggestions(false)
+		addTagFromValue(inputValue)
 	}
 
 	// Close suggestions when clicking outside
@@ -277,8 +282,11 @@ function VideoDetailView({
 	// Handles the "Save Changes" button click
 	const handleSaveClick = async (): Promise<void> => {
 		setIsSaving(true)
-		await onSave(tags)
+		const success = await onSave(tags)
 		setIsSaving(false)
+		if (success) {
+			onBack()
+		}
 	}
 
 	// Handles the "Delete Video" button click
