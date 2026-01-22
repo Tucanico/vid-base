@@ -151,7 +151,7 @@ app.whenReady().then(() => {
 	// IPC handler to update the tags of a video file
 	ipcMain.handle(
 		'videos:updateTags',
-		async (_, filePath, tags) => await updateVideoTags(filePath, tags)
+		async (_, filePath, tags, favourited) => await updateVideoTags(filePath, tags, favourited)
 	)
 	// IPC handler to delete a video file and its thumbnail
 	ipcMain.handle(

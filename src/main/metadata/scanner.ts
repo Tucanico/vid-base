@@ -14,13 +14,25 @@ import { ourExiftool } from './utils'
  */
 
 export function parseTags(rawString: string): ParsedTag[] {
-	if (!rawString) return []
+	return parseTagsWithFavorite(rawString).tags
+}
 
-	return rawString
+export function parseTagsWithFavorite(rawString: string): {
+	tags: ParsedTag[]
+	favourited: boolean
+} {
+	if (!rawString) return { tags: [], favourited: false }
+
+	let favourited = false
+	const tags = rawString
 		.split(/[;,]/)
 		.map((segment) => {
 			const clean = segment.trim()
 			if (!clean) return null
+			if (clean.toLowerCase() === 'fav') {
+				favourited = true
+				return null
+			}
 
 			// If the segment contains a colon, treat it as a key-value pair
 			if (clean.includes(':')) {
@@ -31,16 +43,25 @@ export function parseTags(rawString: string): ParsedTag[] {
 					value: rest.join(':').trim(),
 					original: clean
 				} as ParsedTag
-			} else {
-				// Otherwise, treat it as a simple tag
-				return {
-					type: 'simple',
-					value: clean,
-					original: clean
-				} as ParsedTag
 			}
+			// Otherwise, treat it as a simple tag
+			return {
+				type: 'simple',
+				value: clean,
+				original: clean
+			} as ParsedTag
 		})
-		.filter(Boolean) as ParsedTag[] // Filter out any null entries
+		.filter(Boolean) as ParsedTag[]
+
+	return { tags, favourited }
+}
+
+function buildRawTagString(tags: ParsedTag[], favourited: boolean): string {
+	const parts = tags.map((t) => (t.type === 'kv' ? `${t.key}:${t.value}` : t.value))
+	if (favourited) {
+		parts.push('fav')
+	}
+	return parts.join('; ')
 }
 
 /** Recursively walks a directory and returns a flat list of all file paths
@@ -154,6 +175,7 @@ export async function scanDirectory(dirPath: string): Promise<VideoFile[]> {
 				}
 			}
 
+			const { tags, favourited } = parseTagsWithFavorite(rawString)
 			// Create a new VideoFile object with the extracted data
 			results.push({
 				id: uuidv4(),
@@ -162,7 +184,8 @@ export async function scanDirectory(dirPath: string): Promise<VideoFile[]> {
 				mediaType: mediaType,
 				thumbnailPath: thumbPath,
 				rawTags: rawString,
-				tags: parseTags(rawString),
+				tags,
+				favourited,
 				fileSize: fileSize,
 				duration: duration
 			})
@@ -209,6 +232,15 @@ export async function scanDirectoryWithLibrary(
 			// File exists in library.json - use its metadata
 			// For backward compatibility, if mediaType is missing, detect it
 			const entryMediaType = existingEntry.mediaType || mediaType
+			const favourited =
+				typeof existingEntry.favourited === 'boolean'
+					? existingEntry.favourited
+					: existingEntry.tags.some(
+						(tag) => tag.type === 'simple' && tag.value.toLowerCase() === 'fav'
+					)
+			const cleanedTags = existingEntry.tags.filter(
+				(tag) => !(tag.type === 'simple' && tag.value.toLowerCase() === 'fav')
+			)
 
 			// For videos, check if thumbnail exists, if not generate it
 			// For images, no thumbnail needed (use image itself)
@@ -232,7 +264,10 @@ export async function scanDirectoryWithLibrary(
 				...existingEntry,
 				mediaType: entryMediaType,
 				thumbnailPath: thumbPath,
-				fileSize: fileSize
+				fileSize: fileSize,
+				tags: cleanedTags,
+				favourited,
+				rawTags: buildRawTagString(cleanedTags, favourited)
 			})
 		} else {
 			// New file - scan it normally
@@ -298,6 +333,7 @@ export async function scanDirectoryWithLibrary(
 					}
 				}
 
+				const { tags, favourited } = parseTagsWithFavorite(rawString)
 				// Create a new VideoFile object with the extracted data
 				results.push({
 					id: uuidv4(),
@@ -306,7 +342,8 @@ export async function scanDirectoryWithLibrary(
 					mediaType: mediaType,
 					thumbnailPath: thumbPath,
 					rawTags: rawString,
-					tags: parseTags(rawString),
+					tags,
+					favourited,
 					fileSize: fileSize,
 					duration: duration
 				})

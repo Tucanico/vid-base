@@ -12,6 +12,7 @@ export interface VideoFile {
 	mediaType: MediaType // Whether this is a video or image
 	thumbnailPath?: string // The absolute path to the generated thumbnail image (for videos). Optional, as it might not exist yet
 	tags: ParsedTag[] // An array of structured ParsedTag objects for easy use in the UI
+	favourited: boolean // Whether the file is marked as a favorite
 	rawTags: string // The original, unprocessed string of tags read from the file's metadata
 	fileSize?: number // File size in bytes
 	duration?: number // Duration in seconds (for videos)

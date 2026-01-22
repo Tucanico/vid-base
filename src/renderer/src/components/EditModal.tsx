@@ -22,7 +22,7 @@ function EditModal({
 	video: VideoFile
 	library: Library | null
 	onClose: () => void
-	onSave: (tags: ParsedTag[]) => void
+	onSave: (tags: ParsedTag[], favourited: boolean) => void
 	onDelete: (video: VideoFile) => void
 }): React.ReactElement {
 	// State to manage the tags being edited
@@ -158,6 +158,12 @@ function EditModal({
 	const handleAddTag = (e: React.FormEvent | React.KeyboardEvent): void => {
 		e.preventDefault()
 		if (!inputValue.trim()) return
+		if (inputValue.trim().toLowerCase() === 'fav') {
+			onSave(tags, true)
+			setInputValue('')
+			setShowSuggestions(false)
+			return
+		}
 
 		// Automatically parses "key:value" strings into key-value tags
 		let newTag: ParsedTag
@@ -220,7 +226,7 @@ function EditModal({
 	// Handles the "Save Changes" button click
 	const handleSaveClick = async (): Promise<void> => {
 		setIsSaving(true)
-		await onSave(tags)
+		await onSave(tags, video.favourited)
 		setIsSaving(false)
 		onClose()
 	}

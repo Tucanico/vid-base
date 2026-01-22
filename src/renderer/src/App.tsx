@@ -161,18 +161,55 @@ function App(): React.ReactElement {
 		}
 	}
 
+	const stripFavoriteTag = (tags: ParsedTag[]): { cleanedTags: ParsedTag[]; hasFav: boolean } => {
+		let hasFav = false
+		const cleanedTags = tags.filter((tag) => {
+			if (tag.type === 'simple' && tag.value.toLowerCase() === 'fav') {
+				hasFav = true
+				return false
+			}
+			return true
+		})
+		return { cleanedTags, hasFav }
+	}
+
+	const buildRawTagString = (tags: ParsedTag[], favourited: boolean): string => {
+		const parts = tags.map((t) => (t.type === 'kv' ? `${t.key}:${t.value}` : t.value))
+		if (favourited) {
+			parts.push('fav')
+		}
+		return parts.join('; ')
+	}
+
 	// Handles saving updated tags for a video
-	const saveTags = async (newTags: ParsedTag[]): Promise<boolean> => {
+	const saveTags = async (newTags: ParsedTag[], favouritedOverride?: boolean): Promise<boolean> => {
 		if (!viewingVideo || !currentFolder) return false
 
 		try {
+			const { cleanedTags, hasFav } = stripFavoriteTag(newTags)
+			const favourited =
+				typeof favouritedOverride === 'boolean'
+					? favouritedOverride
+					: hasFav || viewingVideo.favourited
+
 			// 1. Tell the main process to write the new tags to the file's metadata
-			await window.api.updateTags(viewingVideo.filePath, newTags)
+			await window.api.updateTags(viewingVideo.filePath, cleanedTags, favourited)
 			// 2. Update the local state to reflect the change immediately
 			const updatedList = videos.map((v) =>
-				v.id === viewingVideo.id ? { ...v, tags: newTags } : v
+				v.id === viewingVideo.id
+					? {
+							...v,
+							tags: cleanedTags,
+							favourited,
+							rawTags: buildRawTagString(cleanedTags, favourited)
+						}
+					: v
 			)
 			setVideos(updatedList)
+			const updatedViewing = updatedList.find((v) => v.id === viewingVideo.id)
+			if (updatedViewing) {
+				setViewingVideo(updatedViewing)
+			}
 			// 3. Save the updated list to the 'library.json' cache (will update categories/tags)
 			await window.api.saveLibrary(currentFolder, updatedList)
 			// 4. Reload library to get updated categories and tags
@@ -190,19 +227,17 @@ function App(): React.ReactElement {
 
 	const toggleFavorite = async (video: VideoFile): Promise<void> => {
 		if (!currentFolder) return
-		const hasFav = video.tags.some(
-			(t) => t.type === 'simple' && t.value.toLowerCase() === 'fav'
-		)
-		const updatedTags = hasFav
-			? video.tags.filter((t) => !(t.type === 'simple' && t.value.toLowerCase() === 'fav'))
-			: [...video.tags, { type: 'simple', value: 'fav', original: 'fav' }]
-
-		const updatedVideo = { ...video, tags: updatedTags }
+		const favourited = !video.favourited
+		const updatedVideo = {
+			...video,
+			favourited,
+			rawTags: buildRawTagString(video.tags, favourited)
+		}
 		const updatedList = videos.map((v) => (v.id === video.id ? updatedVideo : v))
 		setVideos(updatedList)
 
 		try {
-			await window.api.updateTags(video.filePath, updatedTags)
+			await window.api.updateTags(video.filePath, video.tags, favourited)
 			await window.api.saveLibrary(currentFolder, updatedList)
 			const updatedLibrary = await window.api.loadLibrary(currentFolder)
 			if (updatedLibrary) {
@@ -212,8 +247,8 @@ function App(): React.ReactElement {
 				setViewingVideo(updatedVideo)
 			}
 		} catch (error) {
-			console.error('Error updating favorite tag:', error)
-			alert('Error: unable to update favorite tag.')
+			console.error('Error updating favorite status:', error)
+			alert('Error: unable to update favorite.')
 		}
 	}
 
@@ -329,14 +364,23 @@ function App(): React.ReactElement {
 					}
 				}
 
-				return { ...video, tags: newTags }
+				return {
+					...video,
+					tags: newTags,
+					rawTags: buildRawTagString(newTags, video.favourited),
+					favourited: video.favourited
+				}
 			})
 
 			// Update file metadata for all selected videos
 			for (const video of selectedVideos) {
 				const updatedVideo = updatedList.find((v) => v.id === video.id)
 				if (updatedVideo) {
-					await window.api.updateTags(video.filePath, updatedVideo.tags)
+					await window.api.updateTags(
+						video.filePath,
+						updatedVideo.tags,
+						updatedVideo.favourited
+					)
 				}
 			}
 
@@ -449,6 +493,39 @@ function App(): React.ReactElement {
 		})
 	}
 
+	const buildFilterOptionsFromVideos = (list: VideoFile[]): {
+		categories: Record<string, string[]>
+		simpleTags: string[]
+	} => {
+		const categorySets: Record<string, Set<string>> = {}
+		const simpleTagSet = new Set<string>()
+
+		for (const video of list) {
+			for (const tag of video.tags) {
+				if (tag.type === 'kv') {
+					const key = tag.key.toLowerCase()
+					if (!categorySets[key]) {
+						categorySets[key] = new Set()
+					}
+					categorySets[key].add(tag.value)
+				} else if (tag.type === 'simple') {
+					if (tag.value.toLowerCase() === 'fav') return
+					simpleTagSet.add(tag.value)
+				}
+			}
+		}
+
+		const categories: Record<string, string[]> = {}
+		Object.entries(categorySets).forEach(([key, values]) => {
+			categories[key] = Array.from(values).sort()
+		})
+
+		return {
+			categories,
+			simpleTags: Array.from(simpleTagSet).sort()
+		}
+	}
+
 	// useMemo to calculate all available filter options from the library
 	// This uses the categories and tags from library.json (for videos) or movieArchive (for movies)
 	const filterOptions = useMemo(() => {
@@ -457,6 +534,10 @@ function App(): React.ReactElement {
 				categories: movieArchive.categories,
 				simpleTags: []
 			}
+		}
+		if (appMode === 'videos' && videoListViewMode === 'favorites') {
+			const favoriteVideos = videos.filter((video) => video.favourited)
+			return buildFilterOptionsFromVideos(favoriteVideos)
 		}
 		if (!library) {
 			return {
@@ -468,7 +549,7 @@ function App(): React.ReactElement {
 			categories: library.categories,
 			simpleTags: library.tags
 		}
-	}, [library, movieArchive, appMode])
+	}, [library, movieArchive, appMode, videoListViewMode, videos])
 
 	// Handles changes to the active filter (single select mode - only one filter total)
 	const handleFilterChange = (category: string, value: string | undefined): void => {
@@ -589,9 +670,7 @@ function App(): React.ReactElement {
 		}
 
 		if (videoListViewMode === 'favorites') {
-			result = result.filter((video) =>
-				video.tags.some((t) => t.type === 'simple' && t.value.toLowerCase() === 'fav')
-			)
+			result = result.filter((video) => video.favourited)
 		}
 		
 		// Apply filters

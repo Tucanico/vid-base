@@ -117,6 +117,12 @@ function BatchEditModal({
 		e.preventDefault()
 		if (!inputValue.trim()) return
 
+		if (inputValue.trim().toLowerCase() === 'fav') {
+			setInputValue('')
+			setShowSuggestions(false)
+			return
+		}
+
 		const tag = parseTagString(inputValue)
 		if (!tag) return
 

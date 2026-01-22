@@ -91,12 +91,13 @@ function VideoDetailView({
 	video: VideoFile
 	library: Library | null
 	onBack: () => void
-	onSave: (tags: ParsedTag[]) => Promise<boolean>
+	onSave: (tags: ParsedTag[], favourited: boolean) => Promise<boolean>
 	onDelete: (video: VideoFile) => void
 	onFilterClick: (category: string, value: string) => void
 }): React.ReactElement {
 	// State to manage the tags being edited
 	const [tags, setTags] = useState<ParsedTag[]>(video.tags)
+	const [isFavorited, setIsFavorited] = useState<boolean>(video.favourited)
 	// State for the new tag input field
 	const [inputValue, setInputValue] = useState('')
 	// State to track the saving process
@@ -108,6 +109,11 @@ function VideoDetailView({
 	const [selectedIndex, setSelectedIndex] = useState(0)
 	const inputRef = useRef<HTMLInputElement>(null)
 	const suggestionsRef = useRef<HTMLDivElement>(null)
+
+	useEffect(() => {
+		setTags(video.tags)
+		setIsFavorited(video.favourited)
+	}, [video])
 
 	// Generate autocomplete suggestions based on input value
 	const suggestions = useMemo(() => {
@@ -208,6 +214,14 @@ function VideoDetailView({
 
 	const addTagFromValue = (rawValue: string): void => {
 		if (!rawValue.trim()) return
+		if (rawValue.trim().toLowerCase() === 'fav') {
+			setIsFavorited(true)
+			void onSave(tags, true)
+			setInputValue('')
+			setShowSuggestions(false)
+			setSelectedIndex(0)
+			return
+		}
 		const newTag = buildTagFromValue(rawValue)
 		setTags([...tags, newTag])
 		setInputValue('')
@@ -282,7 +296,7 @@ function VideoDetailView({
 	// Handles the "Save Changes" button click
 	const handleSaveClick = async (): Promise<void> => {
 		setIsSaving(true)
-		const success = await onSave(tags)
+		const success = await onSave(tags, isFavorited)
 		setIsSaving(false)
 		if (success) {
 			onBack()
@@ -315,25 +329,12 @@ function VideoDetailView({
 	const modelValues = getCategoryValues('model')
 	const channelValues = getCategoryValues('channel')
 	const productionValues = getCategoryValues('production')
-	const isFavorited = tags.some((t) => t.type === 'simple' && t.value.toLowerCase() === 'fav')
-	const visibleTags = tags.filter(
-		(t) => !(t.type === 'simple' && t.value.toLowerCase() === 'fav')
-	)
+	const visibleTags = tags
 
 	const toggleFavoriteTag = async (): Promise<void> => {
-		let nextTags: ParsedTag[] = []
-		setTags((prev) => {
-			const hasFav = prev.some(
-				(t) => t.type === 'simple' && t.value.toLowerCase() === 'fav'
-			)
-			nextTags = hasFav
-				? prev.filter((t) => !(t.type === 'simple' && t.value.toLowerCase() === 'fav'))
-				: [...prev, { type: 'simple', value: 'fav', original: 'fav' }]
-			return nextTags
-		})
-		if (nextTags.length > 0) {
-			await onSave(nextTags)
-		}
+		const nextFavorited = !isFavorited
+		setIsFavorited(nextFavorited)
+		await onSave(tags, nextFavorited)
 	}
 
 	// Format file size to human-readable format
@@ -355,12 +356,12 @@ function VideoDetailView({
 		const hours = Math.floor(seconds / 3600)
 		const minutes = Math.floor((seconds % 3600) / 60)
 		const secs = Math.floor(seconds % 60)
-		
+
 		const parts: string[] = []
 		if (hours > 0) parts.push(`${hours}h`)
 		if (minutes > 0) parts.push(`${minutes}m`)
 		if (secs > 0 || parts.length === 0) parts.push(`${secs}s`)
-		
+
 		return parts.join('')
 	}
 

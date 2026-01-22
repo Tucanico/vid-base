@@ -20,8 +20,8 @@ const api = {
 	// Sends a one-way message to the 'video:open' handler to open a file
 	openVideo: (path: string): void => ipcRenderer.send('video:open', path),
 	// Invokes the 'videos:updateTags' handler to update metadata for a file
-	updateTags: (filePath: string, tags: ParsedTag[]): Promise<void> =>
-		ipcRenderer.invoke('videos:updateTags', filePath, tags),
+	updateTags: (filePath: string, tags: ParsedTag[], favourited: boolean): Promise<void> =>
+		ipcRenderer.invoke('videos:updateTags', filePath, tags, favourited),
 	// Invokes the 'db:load' handler to load the library from a file
 	loadLibrary: (folderPath: string): Promise<Library | null> =>
 		ipcRenderer.invoke('db:load', folderPath),

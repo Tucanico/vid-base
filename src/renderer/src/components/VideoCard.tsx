@@ -28,9 +28,7 @@ function VideoCard({
 	const channelTag = video.tags.find((t) => t.type === 'kv' && t.key === 'channel')
 	const modelTag = video.tags.find((t) => t.type === 'kv' && t.key === 'model')
 	const secondaryTag = channelTag || modelTag
-	const isFavorited = video.tags.some(
-		(t) => t.type === 'simple' && t.value.toLowerCase() === 'fav'
-	)
+	const isFavorited = video.favourited
 
 	// Use ref to track click timeout
 	const clickTimeoutRef = React.useRef<NodeJS.Timeout | null>(null)
