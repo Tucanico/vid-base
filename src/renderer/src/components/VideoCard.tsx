@@ -13,19 +13,24 @@ function VideoCard({
 	onEdit,
 	isSelected = false,
 	onSelect,
-	onSelectToggle
+	onSelectToggle,
+	onToggleFavorite
 }: {
 	video: VideoFile
 	onEdit: (event?: React.MouseEvent) => void
 	isSelected?: boolean
 	onSelect?: (isSelected: boolean) => void
 	onSelectToggle?: () => void
+	onToggleFavorite?: () => void
 }): React.ReactElement {
 	// Find specific tags to highlight on the card
 	const categoryTag = video.tags.find((t) => t.type === 'kv' && t.key === 'category')
 	const channelTag = video.tags.find((t) => t.type === 'kv' && t.key === 'channel')
 	const modelTag = video.tags.find((t) => t.type === 'kv' && t.key === 'model')
 	const secondaryTag = channelTag || modelTag
+	const isFavorited = video.tags.some(
+		(t) => t.type === 'simple' && t.value.toLowerCase() === 'fav'
+	)
 
 	// Use ref to track click timeout
 	const clickTimeoutRef = React.useRef<NodeJS.Timeout | null>(null)
@@ -147,6 +152,44 @@ function VideoCard({
 						<span style={{ color: 'white', fontSize: '12px', fontWeight: 'bold' }}>✓</span>
 					)}
 				</div>
+			)}
+
+			{/* Favorite Star */}
+			{onToggleFavorite && (
+				<button
+					onClick={(e) => {
+						e.stopPropagation()
+						onToggleFavorite()
+					}}
+					style={{
+						position: 'absolute',
+						top: '12px',
+						right: '12px',
+						zIndex: 10,
+						width: '15px',
+						height: '15px',
+						padding: 0,
+						border: 'none',
+						borderRadius: '0',
+						backgroundColor: 'transparent',
+						color: isFavorited ? '#f5c542' : 'white',
+						display: 'flex',
+						alignItems: 'center',
+						justifyContent: 'center',
+						cursor: 'pointer',
+						boxShadow: 'none',
+						fontSize: '28px',
+						transform: 'translate(4px, -4px)',
+						lineHeight: 1,
+						textShadow: isFavorited
+							? '0 1px 2px rgba(0,0,0,0.8)'
+							: '0 1px 2px rgba(0,0,0,0.9)'
+					}}
+					aria-label={isFavorited ? 'Unfavorite' : 'Favorite'}
+					title={isFavorited ? 'Unfavorite' : 'Favorite'}
+				>
+					★
+				</button>
 			)}
 
 			{/* Thumbnail or Image */}

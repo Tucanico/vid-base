@@ -225,25 +225,25 @@ function VideoDetailView({
 		}
 
 		switch (e.key) {
-			case 'ArrowDown':
-				e.preventDefault()
-				setSelectedIndex((prev) => (prev < suggestions.length - 1 ? prev + 1 : prev))
-				break
-			case 'ArrowUp':
-				e.preventDefault()
-				setSelectedIndex((prev) => (prev > 0 ? prev - 1 : 0))
-				break
-			case 'Enter':
-				e.preventDefault()
-				if (suggestions[selectedIndex]) {
-					addTagFromValue(suggestions[selectedIndex].value)
-				} else {
-					handleAddTag(e)
-				}
-				break
-			case 'Escape':
-				setShowSuggestions(false)
-				break
+		case 'ArrowDown':
+			e.preventDefault()
+			setSelectedIndex((prev) => (prev < suggestions.length - 1 ? prev + 1 : prev))
+			break
+		case 'ArrowUp':
+			e.preventDefault()
+			setSelectedIndex((prev) => (prev > 0 ? prev - 1 : 0))
+			break
+		case 'Enter':
+			e.preventDefault()
+			if (suggestions[selectedIndex]) {
+				addTagFromValue(suggestions[selectedIndex].value)
+			} else {
+				handleAddTag(e)
+			}
+			break
+		case 'Escape':
+			setShowSuggestions(false)
+			break
 		}
 	}
 
@@ -315,6 +315,26 @@ function VideoDetailView({
 	const modelValues = getCategoryValues('model')
 	const channelValues = getCategoryValues('channel')
 	const productionValues = getCategoryValues('production')
+	const isFavorited = tags.some((t) => t.type === 'simple' && t.value.toLowerCase() === 'fav')
+	const visibleTags = tags.filter(
+		(t) => !(t.type === 'simple' && t.value.toLowerCase() === 'fav')
+	)
+
+	const toggleFavoriteTag = async (): Promise<void> => {
+		let nextTags: ParsedTag[] = []
+		setTags((prev) => {
+			const hasFav = prev.some(
+				(t) => t.type === 'simple' && t.value.toLowerCase() === 'fav'
+			)
+			nextTags = hasFav
+				? prev.filter((t) => !(t.type === 'simple' && t.value.toLowerCase() === 'fav'))
+				: [...prev, { type: 'simple', value: 'fav', original: 'fav' }]
+			return nextTags
+		})
+		if (nextTags.length > 0) {
+			await onSave(nextTags)
+		}
+	}
 
 	// Format file size to human-readable format
 	const formatFileSize = (bytes?: number): string | undefined => {
@@ -416,9 +436,41 @@ function VideoDetailView({
 							aspectRatio: '16/9',
 							backgroundColor: 'var(--color-background-mute)',
 							borderRadius: '8px',
-							overflow: 'hidden'
+							overflow: 'hidden',
+							position: 'relative'
 						}}
 					>
+						<button
+							onClick={toggleFavoriteTag}
+							style={{
+								position: 'absolute',
+								top: '15px',
+								right: '15px',
+								zIndex: 2,
+								width: '25px',
+								height: '25px',
+								padding: 0,
+								border: 'none',
+								borderRadius: '0',
+								backgroundColor: 'transparent',
+								color: isFavorited ? '#f5c542' : 'white',
+								display: 'flex',
+								alignItems: 'center',
+								justifyContent: 'center',
+								cursor: 'pointer',
+								boxShadow: 'none',
+								fontSize: '40px',
+								transform: 'translate(4px, -4px)',
+								lineHeight: 1,
+								textShadow: isFavorited
+									? '0 1px 2px rgba(0,0,0,0.8)'
+									: '0 1px 2px rgba(0,0,0,0.9)'
+							}}
+							aria-label={isFavorited ? 'Unfavorite' : 'Favorite'}
+							title={isFavorited ? 'Unfavorite' : 'Favorite'}
+						>
+							★
+						</button>
 						{video.mediaType === 'image' ? (
 							<img
 								src={`media:///${video.filePath.replace(/\\/g, '/')}`}
@@ -541,7 +593,9 @@ function VideoDetailView({
 								border: '1px solid var(--color-background-mute)'
 							}}
 						>
-							{tags.map((t, i) => (
+							{visibleTags.map((t, i) => {
+								const tagIndex = tags.indexOf(t)
+								return (
 								<span
 									key={i}
 									style={{
@@ -570,7 +624,9 @@ function VideoDetailView({
 										t.value
 									)}
 									<button
-										onClick={() => removeTag(i)}
+										onClick={() => {
+											if (tagIndex >= 0) removeTag(tagIndex)
+										}}
 										style={{
 											marginLeft: '8px',
 											border: 'none',
@@ -584,8 +640,9 @@ function VideoDetailView({
 										×
 									</button>
 								</span>
-							))}
-							{tags.length === 0 && (
+								)
+							})}
+							{visibleTags.length === 0 && (
 								<span style={{ color: 'var(--color-text-mute)', fontStyle: 'italic' }}>
 									No tags
 								</span>

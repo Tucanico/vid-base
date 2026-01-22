@@ -14,7 +14,7 @@ import { ActiveFilters } from '@shared/types/filter'
 
 type AppMode = 'videos' | 'movies' | null
 type ViewMode = 'list' | 'detail'
-
+type VideoListViewMode = 'library' | 'home' | 'favorites'
 /** --- MAIN APP COMPONENT ---
  *  The root component of the application. It manages the global state,
  *  including the list of videos, loading status, and active filters
@@ -25,12 +25,14 @@ function App(): React.ReactElement {
 	const [appMode, setAppMode] = useState<AppMode>(null)
 	// State for the current view mode (list or detail)
 	const [viewMode, setViewMode] = useState<ViewMode>('list')
+	const [videoListViewMode, setVideoListViewMode] = useState<VideoListViewMode>('home')
 	// Scroll state for returning to list view
 	const listScrollRef = useRef<HTMLDivElement>(null)
 	const lastListScrollTopRef = useRef(0)
 	const [shouldRestoreScroll, setShouldRestoreScroll] = useState(false)
 	// State for the list of all video files in the current folder
 	const [videos, setVideos] = useState<VideoFile[]>([])
+	const [homeVideoIds, setHomeVideoIds] = useState<string[]>([])
 	// State for the list of all movies
 	const [movies, setMovies] = useState<Movie[]>([])
 	// State for movie archive (categories for filtering)
@@ -67,6 +69,7 @@ function App(): React.ReactElement {
 	const handleModeSelected = async (mode: 'videos' | 'movies', folder: string): Promise<void> => {
 		setAppMode(mode)
 		setCurrentFolder(folder)
+		setVideoListViewMode(mode === 'videos' ? 'home' : 'library')
 
 		if (mode === 'videos') {
 			// Load videos mode
@@ -76,6 +79,7 @@ function App(): React.ReactElement {
 				console.log('Scanning directory...')
 				const results = await window.api.scanVideos(folder)
 				setVideos(results)
+				setHomeVideoIds(pickRandomIds(results, 24))
 				// Load the updated library to get categories and tags
 				const updatedLibrary = await window.api.loadLibrary(folder)
 				if (updatedLibrary) {
@@ -114,6 +118,7 @@ function App(): React.ReactElement {
 		if (folder) {
 			setCurrentFolder(folder)
 			setLoading(true)
+			setVideoListViewMode('library')
 
 			if (appMode === 'videos') {
 				setVideos([]) // Clear previous videos
@@ -123,6 +128,8 @@ function App(): React.ReactElement {
 					console.log('Scanning directory...')
 					const results = await window.api.scanVideos(folder)
 					setVideos(results)
+					setHomeVideoIds(pickRandomIds(results, 24))
+					setVideoListViewMode('home')
 					// Load the updated library to get categories and tags
 					const updatedLibrary = await window.api.loadLibrary(folder)
 					if (updatedLibrary) {
@@ -178,6 +185,35 @@ function App(): React.ReactElement {
 			console.error('Error saving tags:', error)
 			alert('Error: unable to save tags.')
 			return false
+		}
+	}
+
+	const toggleFavorite = async (video: VideoFile): Promise<void> => {
+		if (!currentFolder) return
+		const hasFav = video.tags.some(
+			(t) => t.type === 'simple' && t.value.toLowerCase() === 'fav'
+		)
+		const updatedTags = hasFav
+			? video.tags.filter((t) => !(t.type === 'simple' && t.value.toLowerCase() === 'fav'))
+			: [...video.tags, { type: 'simple', value: 'fav', original: 'fav' }]
+
+		const updatedVideo = { ...video, tags: updatedTags }
+		const updatedList = videos.map((v) => (v.id === video.id ? updatedVideo : v))
+		setVideos(updatedList)
+
+		try {
+			await window.api.updateTags(video.filePath, updatedTags)
+			await window.api.saveLibrary(currentFolder, updatedList)
+			const updatedLibrary = await window.api.loadLibrary(currentFolder)
+			if (updatedLibrary) {
+				setLibrary(updatedLibrary)
+			}
+			if (viewingVideo && viewingVideo.id === video.id) {
+				setViewingVideo(updatedVideo)
+			}
+		} catch (error) {
+			console.error('Error updating favorite tag:', error)
+			alert('Error: unable to update favorite tag.')
 		}
 	}
 
@@ -352,6 +388,42 @@ function App(): React.ReactElement {
 		})
 	}, [viewMode, shouldRestoreScroll])
 
+	const pickRandomIds = (items: VideoFile[], count: number): string[] => {
+		const ids = items.map((item) => item.id)
+		for (let i = ids.length - 1; i > 0; i--) {
+			const j = Math.floor(Math.random() * (i + 1))
+			;[ids[i], ids[j]] = [ids[j], ids[i]]
+		}
+		return ids.slice(0, Math.min(count, ids.length))
+	}
+
+	const handleHomeView = (): void => {
+		setActiveFilters({ simpleTag: [] })
+		setOpenCategories(new Set())
+		setSearchQuery('')
+		setVideoListViewMode('home')
+		setViewMode('list')
+		setViewingVideo(null)
+		setViewingMovie(null)
+	}
+
+	const handleFavoritesView = (): void => {
+		setActiveFilters({ simpleTag: [] })
+		setOpenCategories(new Set())
+		setSearchQuery('')
+		setVideoListViewMode('favorites')
+		setViewMode('list')
+		setViewingVideo(null)
+		setViewingMovie(null)
+	}
+
+	const handleLibraryView = (): void => {
+		setVideoListViewMode('library')
+		setViewMode('list')
+		setViewingVideo(null)
+		setViewingMovie(null)
+	}
+
 	// Handles clicking on a filterable name (model, production, etc.)
 	const handleFilterClick = (category: string, value: string): void => {
 		// Set the filter and return to list view
@@ -503,8 +575,24 @@ function App(): React.ReactElement {
 	}
 
 	// useMemo to compute the list of videos to display based on filters, search, and sorting
+	const homeVideos = useMemo(() => {
+		if (homeVideoIds.length === 0) return []
+		const byId = new Map(videos.map((video) => [video.id, video]))
+		return homeVideoIds.map((id) => byId.get(id)).filter(Boolean) as VideoFile[]
+	}, [homeVideoIds, videos])
+
 	const filteredVideos = useMemo(() => {
 		let result = videos
+
+		if (videoListViewMode === 'home') {
+			return homeVideos
+		}
+
+		if (videoListViewMode === 'favorites') {
+			result = result.filter((video) =>
+				video.tags.some((t) => t.type === 'simple' && t.value.toLowerCase() === 'fav')
+			)
+		}
 		
 		// Apply filters
 		const hasActiveFilters = Object.values(activeFilters).some((arr) => arr.length > 0)
@@ -539,7 +627,15 @@ function App(): React.ReactElement {
 		result = sortVideos(result, sortField, sortDirection)
 		
 		return result
-	}, [videos, activeFilters, searchQuery, sortField, sortDirection])
+	}, [
+		videos,
+		activeFilters,
+		searchQuery,
+		sortField,
+		sortDirection,
+		videoListViewMode,
+		homeVideos
+	])
 
 	// Helper function to check if a movie matches the search query
 	const movieMatchesSearch = (movie: Movie, query: string): boolean => {
@@ -710,6 +806,7 @@ function App(): React.ReactElement {
 	}
 
 	// Show list view
+	const showSidebar = appMode === 'movies' || videoListViewMode !== 'home'
 	return (
 		<div
 			style={{
@@ -743,9 +840,65 @@ function App(): React.ReactElement {
 						alignItems: 'center'
 					}}
 				>
-					<h1 style={{ color: 'var(--color-text)', margin: 0, fontSize: '1.2rem' }}>VidBase</h1>
+					<div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+						<h1 style={{ color: 'var(--color-text)', margin: 0, fontSize: '1.2rem' }}>
+							VidBase
+						</h1>
+					</div>
 
 					<div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+						{appMode === 'videos' && (
+							<div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+								<button
+									onClick={handleHomeView}
+									style={{
+										padding: '8px 14px',
+										fontSize: '0.9rem',
+										backgroundColor: videoListViewMode === 'home'
+											? 'var(--color-primary)'
+											: 'var(--color-background)',
+										color: videoListViewMode === 'home' ? 'white' : 'var(--color-text)',
+										border: '1px solid var(--color-background-mute)',
+										borderRadius: '6px',
+										cursor: 'pointer'
+									}}
+								>
+									Home
+								</button>
+								<button
+									onClick={handleLibraryView}
+									style={{
+										padding: '8px 14px',
+										fontSize: '0.9rem',
+										backgroundColor: videoListViewMode === 'library'
+											? 'var(--color-primary)'
+											: 'var(--color-background)',
+										color: videoListViewMode === 'library' ? 'white' : 'var(--color-text)',
+										border: '1px solid var(--color-background-mute)',
+										borderRadius: '6px',
+										cursor: 'pointer'
+									}}
+								>
+									Library
+								</button>
+								<button
+									onClick={handleFavoritesView}
+									style={{
+										padding: '8px 14px',
+										fontSize: '0.9rem',
+										backgroundColor: videoListViewMode === 'favorites'
+											? 'var(--color-primary)'
+											: 'var(--color-background)',
+										color: videoListViewMode === 'favorites' ? 'white' : 'var(--color-text)',
+										border: '1px solid var(--color-background-mute)',
+										borderRadius: '6px',
+										cursor: 'pointer'
+									}}
+								>
+									★ Favourited
+								</button>
+							</div>
+						)}
 						{appMode === 'videos' && selectedVideoIds.size > 0 && (
 							<button
 								onClick={handleBatchEdit}
@@ -787,104 +940,108 @@ function App(): React.ReactElement {
 				</div>
 
 				{/* Bottom row: Search and Sort controls */}
-				<div
-					style={{
-						display: 'flex',
-						gap: '15px',
-						alignItems: 'center',
-						flexWrap: 'wrap'
-					}}
-				>
-					{/* Search input */}
-					<input
-						type="text"
-						placeholder="Search across all fields..."
-						value={searchQuery}
-						onChange={(e) => setSearchQuery(e.target.value)}
+				{!(appMode === 'videos' && videoListViewMode === 'home') && (
+					<div
 						style={{
-							flex: 1,
-							minWidth: '200px',
-							padding: '8px 12px',
-							fontSize: '0.9rem',
-							border: '1px solid var(--color-background-mute)',
-							borderRadius: '6px',
-							backgroundColor: 'var(--color-background)',
-							color: 'var(--color-text)',
-							outline: 'none'
-						}}
-					/>
-
-					{/* Sort field selector */}
-					<select
-						value={sortField}
-						onChange={(e) => setSortField(e.target.value)}
-						style={{
-							padding: '8px 12px',
-							fontSize: '0.9rem',
-							border: '1px solid var(--color-background-mute)',
-							borderRadius: '6px',
-							backgroundColor: 'var(--color-background)',
-							color: 'var(--color-text)',
-							outline: 'none',
-							cursor: 'pointer'
-						}}
-					>
-						{appMode === 'videos' ? (
-							<>
-								<option value="name">Name</option>
-								<option value="size">Size</option>
-								<option value="duration">Duration</option>
-							</>
-						) : (
-							<>
-								<option value="title">Title</option>
-								<option value="year">Year</option>
-								<option value="director">Director</option>
-								<option value="duration">Duration</option>
-								<option value="size">Size</option>
-							</>
-						)}
-					</select>
-
-					{/* Sort direction toggle */}
-					<button
-						onClick={() => setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')}
-						title={`Sort ${sortDirection === 'asc' ? 'Ascending' : 'Descending'}`}
-						style={{
-							padding: '8px 12px',
-							fontSize: '0.9rem',
-							border: '1px solid var(--color-background-mute)',
-							borderRadius: '6px',
-							backgroundColor: 'var(--color-background)',
-							color: 'var(--color-text)',
-							cursor: 'pointer',
 							display: 'flex',
+							gap: '15px',
 							alignItems: 'center',
-							gap: '5px'
+							flexWrap: 'wrap'
 						}}
 					>
-						{sortDirection === 'asc' ? '↑' : '↓'} {sortDirection === 'asc' ? 'Asc' : 'Desc'}
-					</button>
-				</div>
+						{/* Search input */}
+						<input
+							type="text"
+							placeholder="Search across all fields..."
+							value={searchQuery}
+							onChange={(e) => setSearchQuery(e.target.value)}
+							style={{
+								flex: 1,
+								minWidth: '200px',
+								padding: '8px 12px',
+								fontSize: '0.9rem',
+								border: '1px solid var(--color-background-mute)',
+								borderRadius: '6px',
+								backgroundColor: 'var(--color-background)',
+								color: 'var(--color-text)',
+								outline: 'none'
+							}}
+						/>
+
+						{/* Sort field selector */}
+						<select
+							value={sortField}
+							onChange={(e) => setSortField(e.target.value)}
+							style={{
+								padding: '8px 12px',
+								fontSize: '0.9rem',
+								border: '1px solid var(--color-background-mute)',
+								borderRadius: '6px',
+								backgroundColor: 'var(--color-background)',
+								color: 'var(--color-text)',
+								outline: 'none',
+								cursor: 'pointer'
+							}}
+						>
+							{appMode === 'videos' ? (
+								<>
+									<option value="name">Name</option>
+									<option value="size">Size</option>
+									<option value="duration">Duration</option>
+								</>
+							) : (
+								<>
+									<option value="title">Title</option>
+									<option value="year">Year</option>
+									<option value="director">Director</option>
+									<option value="duration">Duration</option>
+									<option value="size">Size</option>
+								</>
+							)}
+						</select>
+
+						{/* Sort direction toggle */}
+						<button
+							onClick={() => setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')}
+							title={`Sort ${sortDirection === 'asc' ? 'Ascending' : 'Descending'}`}
+							style={{
+								padding: '8px 12px',
+								fontSize: '0.9rem',
+								border: '1px solid var(--color-background-mute)',
+								borderRadius: '6px',
+								backgroundColor: 'var(--color-background)',
+								color: 'var(--color-text)',
+								cursor: 'pointer',
+								display: 'flex',
+								alignItems: 'center',
+								gap: '5px'
+							}}
+						>
+							{sortDirection === 'asc' ? '↑' : '↓'} {sortDirection === 'asc' ? 'Asc' : 'Desc'}
+						</button>
+					</div>
+				)}
 			</header>
 
 			{/* --- MAIN CONTENT --- */}
 			<div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-				<Sidebar
-					filterOptions={filterOptions}
-					activeFilters={activeFilters}
-					isMultiSelectMode={isMultiSelectMode}
-					onFilterChange={handleFilterChange}
-					onMultiSelectChange={handleMultiSelectChange}
-					onClearFilters={handleClearFilters}
-					onToggleMultiSelect={() => setIsMultiSelectMode(!isMultiSelectMode)}
-					openCategories={openCategories}
-					onToggleCategory={handleToggleCategory}
-					isMovieMode={appMode === 'movies'}
-					onMovieFilterTextChange={
-						appMode === 'movies' ? handleMovieFilterTextChange : undefined
-					}
-				/>
+				{showSidebar && (
+					<Sidebar
+						filterOptions={filterOptions}
+						activeFilters={activeFilters}
+						isMultiSelectMode={isMultiSelectMode}
+						onFilterChange={handleFilterChange}
+						onMultiSelectChange={handleMultiSelectChange}
+						onClearFilters={handleClearFilters}
+						onToggleMultiSelect={() => setIsMultiSelectMode(!isMultiSelectMode)}
+						openCategories={openCategories}
+						onToggleCategory={handleToggleCategory}
+						isMovieMode={appMode === 'movies'}
+						onMovieFilterTextChange={
+							appMode === 'movies' ? handleMovieFilterTextChange : undefined
+						}
+					/>
+				)}
 
 				<main
 					ref={listScrollRef}
@@ -897,15 +1054,16 @@ function App(): React.ReactElement {
 					}}
 				>
 					{appMode === 'videos' ? (
-						<div
-							style={{
-								display: 'flex',
-								flexDirection: 'row',
-								flexWrap: 'wrap',
-								justifyContent: 'center',
-								gap: '20px'
-							}}
-						>
+						<>
+							<div
+								style={{
+									display: 'flex',
+									flexDirection: 'row',
+									flexWrap: 'wrap',
+									justifyContent: 'center',
+									gap: '20px'
+								}}
+							>
 							{/* Render the grid of video cards */}
 							{filteredVideos.map((vid) => (
 								<VideoCard
@@ -915,6 +1073,7 @@ function App(): React.ReactElement {
 									isSelected={selectedVideoIds.has(vid.id)}
 									onSelect={(isSelected) => handleVideoSelect(vid.id, isSelected)}
 									onSelectToggle={() => handleVideoSelect(vid.id, !selectedVideoIds.has(vid.id))}
+									onToggleFavorite={() => toggleFavorite(vid)}
 								/>
 							))}
 
@@ -941,7 +1100,26 @@ function App(): React.ReactElement {
 									No videos match the selected filters.
 								</div>
 							)}
-						</div>
+							</div>
+							{videoListViewMode === 'home' && (
+								<div style={{ textAlign: 'center', marginTop: '22px' }}>
+									<button
+										onClick={handleLibraryView}
+										style={{
+											background: 'transparent',
+											border: 'none',
+											color: 'var(--color-primary)',
+											cursor: 'pointer',
+											fontSize: '1.1rem',
+											fontWeight: 700,
+											letterSpacing: '0.2px'
+										}}
+									>
+										Go to the library →
+									</button>
+								</div>
+							)}
+						</>
 					) : (
 						<div
 							style={{
