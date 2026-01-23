@@ -238,27 +238,29 @@ function VideoDetailView({
 			return
 		}
 
+		/* eslint-disable indent */
 		switch (e.key) {
-		case 'ArrowDown':
-			e.preventDefault()
-			setSelectedIndex((prev) => (prev < suggestions.length - 1 ? prev + 1 : prev))
-			break
-		case 'ArrowUp':
-			e.preventDefault()
-			setSelectedIndex((prev) => (prev > 0 ? prev - 1 : 0))
-			break
-		case 'Enter':
-			e.preventDefault()
-			if (suggestions[selectedIndex]) {
-				addTagFromValue(suggestions[selectedIndex].value)
-			} else {
-				handleAddTag(e)
-			}
-			break
-		case 'Escape':
-			setShowSuggestions(false)
-			break
+			case 'ArrowDown':
+				e.preventDefault()
+				setSelectedIndex((prev) => (prev < suggestions.length - 1 ? prev + 1 : prev))
+				break
+			case 'ArrowUp':
+				e.preventDefault()
+				setSelectedIndex((prev) => (prev > 0 ? prev - 1 : 0))
+				break
+			case 'Enter':
+				e.preventDefault()
+				if (suggestions[selectedIndex]) {
+					addTagFromValue(suggestions[selectedIndex].value)
+				} else {
+					handleAddTag(e)
+				}
+				break
+			case 'Escape':
+				setShowSuggestions(false)
+				break
 		}
+		/* eslint-enable indent */
 	}
 
 	// Handles the submission of the "Add Tag" form
@@ -597,50 +599,50 @@ function VideoDetailView({
 							{visibleTags.map((t, i) => {
 								const tagIndex = tags.indexOf(t)
 								return (
-								<span
-									key={i}
-									style={{
-										background:
-											t.type === 'kv'
-												? 'var(--color-primary-light)'
-												: 'var(--color-background-mute)',
-										color:
-											t.type === 'kv'
-												? 'var(--color-primary-dark)'
-												: 'var(--color-text)',
-										padding: '5px 12px',
-										borderRadius: '16px',
-										fontSize: '0.8rem',
-										fontWeight: 500,
-										display: 'flex',
-										alignItems: 'center',
-										height: 'fit-content'
-									}}
-								>
-									{t.type === 'kv' ? (
-										<span>
-											<strong style={{ opacity: 0.75 }}>{t.key}:</strong> {t.value}
-										</span>
-									) : (
-										t.value
-									)}
-									<button
-										onClick={() => {
-											if (tagIndex >= 0) removeTag(tagIndex)
-										}}
+									<span
+										key={i}
 										style={{
-											marginLeft: '8px',
-											border: 'none',
-											background: 'transparent',
-											cursor: 'pointer',
-											fontWeight: 'bold',
-											color: 'var(--color-text-mute)',
-											padding: '0 4px'
+											background:
+												t.type === 'kv'
+													? 'var(--color-primary-light)'
+													: 'var(--color-background-mute)',
+											color:
+												t.type === 'kv'
+													? 'var(--color-primary-dark)'
+													: 'var(--color-text)',
+											padding: '5px 12px',
+											borderRadius: '16px',
+											fontSize: '0.8rem',
+											fontWeight: 500,
+											display: 'flex',
+											alignItems: 'center',
+											height: 'fit-content'
 										}}
 									>
-										×
-									</button>
-								</span>
+										{t.type === 'kv' ? (
+											<span>
+												<strong style={{ opacity: 0.75 }}>{t.key}:</strong> {t.value}
+											</span>
+										) : (
+											t.value
+										)}
+										<button
+											onClick={() => {
+												if (tagIndex >= 0) removeTag(tagIndex)
+											}}
+											style={{
+												marginLeft: '8px',
+												border: 'none',
+												background: 'transparent',
+												cursor: 'pointer',
+												fontWeight: 'bold',
+												color: 'var(--color-text-mute)',
+												padding: '0 4px'
+											}}
+										>
+											×
+										</button>
+									</span>
 								)
 							})}
 							{visibleTags.length === 0 && (
