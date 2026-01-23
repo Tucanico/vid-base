@@ -25,12 +25,12 @@ import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { pathToFileURL } from 'url'
-import { scanDirectoryWithLibrary } from './metadata/scanner'
-import { updateVideoTags } from './metadata/updateTags'
+import { scanDirectoryWithLibrary } from './VideoMode/metadata/scanner'
+import { updateVideoTags } from './VideoMode/metadata/updateTags'
 import { closeExiftool } from './metadata/utils'
-import { loadLibrary, saveLibrary, removeVideoEntryFromLibrary } from './metadata/library'
-import { parseMovieExcel, findExcelFile } from './metadata/movieParser'
-import { cleanupOrphans } from './metadata/cleanup'
+import { loadLibrary, saveLibrary, removeVideoEntryFromLibrary } from './VideoMode/metadata/library'
+import { parseMovieExcel, findExcelFile } from './MovieMode/metadata/movieParser'
+import { cleanupOrphans } from './VideoMode/metadata/cleanup'
 
 // This method will be called when Electron has finished initialization and is ready to create browser windows
 // Some APIs can only be used after this event occurs

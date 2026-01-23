@@ -1,5 +1,5 @@
-import { ParsedTag } from '../../shared/types/metadata'
-import { ourExiftool } from './utils'
+import { ParsedTag } from '../../../shared/types/metadata'
+import { ourExiftool } from '../../metadata/utils'
 
 /** Updates the metadata tags of a video file using exiftool
  *  @param filePath The absolute path to the video file to update

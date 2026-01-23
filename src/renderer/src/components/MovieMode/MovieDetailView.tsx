@@ -1,127 +1,7 @@
 import React from 'react'
 import { Movie } from '@shared/types/movie'
-
-// Format duration to "1h26m" format
-function formatDuration(seconds: number): string {
-	const hours = Math.floor(seconds / 3600)
-	const minutes = Math.floor((seconds % 3600) / 60)
-	if (hours > 0) {
-		return `${hours}h${minutes}m`
-	}
-	return `${minutes}m`
-}
-
-// Format file size to human-readable format
-function formatFileSize(bytes: number): string {
-	const units = ['B', 'KB', 'MB', 'GB', 'TB']
-	let size = bytes
-	let unitIndex = 0
-	while (size >= 1024 && unitIndex < units.length - 1) {
-		size /= 1024
-		unitIndex++
-	}
-	return `${size.toFixed(unitIndex === 0 ? 0 : 2)} ${units[unitIndex]}`
-}
-
-// Component to render clickable values
-function ClickableValue({
-	value,
-	onClick
-}: {
-	value: string
-	onClick: () => void
-}): React.ReactElement {
-	return (
-		<span
-			onClick={onClick}
-			style={{
-				color: 'var(--color-primary)',
-				cursor: 'pointer'
-			}}
-			onMouseEnter={(e) => {
-				e.currentTarget.style.color = 'var(--color-primary-dark)'
-			}}
-			onMouseLeave={(e) => {
-				e.currentTarget.style.color = 'var(--color-primary)'
-			}}
-		>
-			{value}
-		</span>
-	)
-}
-
-// Component to render multiple clickable values
-function ClickableValues({
-	values,
-	label,
-	onFilterClick
-}: {
-	values: string[]
-	label: string
-	onFilterClick: (category: string, value: string) => void
-}): React.ReactElement | null {
-	if (values.length === 0) return null
-	// Format label for display (capitalize first letter, rest lowercase)
-	const displayLabel = label.charAt(0) + label.slice(1).toLowerCase()
-	return (
-		<div
-			style={{
-				display: 'flex',
-				justifyContent: 'space-between',
-				padding: '8px 0',
-				borderBottom: '1px solid var(--color-background-mute)'
-			}}
-		>
-			<span style={{ fontWeight: 500, color: 'var(--color-text)' }}>{displayLabel}</span>
-			<span
-				style={{
-					color: 'var(--color-text-soft)',
-					display: 'flex',
-					flexWrap: 'wrap',
-					gap: '0',
-					alignItems: 'center'
-				}}
-			>
-				{values.map((value, index) => (
-					<span key={index} style={{ display: 'inline-flex', alignItems: 'center' }}>
-						<ClickableValue value={value} onClick={() => onFilterClick(label, value)} />
-						{index < values.length - 1 && <span style={{ marginRight: '4px' }}>,</span>}
-					</span>
-				))}
-			</span>
-		</div>
-	)
-}
-
-// Component to render a single clickable value
-function ClickableSingleValue({
-	value,
-	label,
-	onFilterClick
-}: {
-	value: string
-	label: string
-	onFilterClick: (category: string, value: string) => void
-}): React.ReactElement | null {
-	if (!value) return null
-	// Format label for display (capitalize first letter, rest lowercase)
-	const displayLabel = label.charAt(0) + label.slice(1).toLowerCase()
-	return (
-		<div
-			style={{
-				display: 'flex',
-				justifyContent: 'space-between',
-				padding: '8px 0',
-				borderBottom: '1px solid var(--color-background-mute)'
-			}}
-		>
-			<span style={{ fontWeight: 500, color: 'var(--color-text)' }}>{displayLabel}</span>
-			<span style={{ color: 'var(--color-text-soft)' }}>
-				<ClickableValue value={value} onClick={() => onFilterClick(label, value)} />
-			</span>
-		</div>
-	)
-}
+import { ClickableFilterValues, ClickableSingleValue } from '../ClickableValues'
+import { formatDuration, formatFileSize } from '../../utils/formatters'
 
 /** --- COMPONENT: MovieDetailView ---
  *  Full-screen detail view for viewing movie information
@@ -280,12 +160,12 @@ function MovieDetailView({
 							label="LANGUAGE"
 							onFilterClick={onFilterClick}
 						/>
-						<ClickableValues
+						<ClickableFilterValues
 							values={movie.actors}
 							label="ACTORS"
 							onFilterClick={onFilterClick}
 						/>
-						<ClickableValues
+						<ClickableFilterValues
 							values={movie.genres}
 							label="GENRES"
 							onFilterClick={onFilterClick}
@@ -304,9 +184,7 @@ function MovieDetailView({
 									borderBottom: '1px solid var(--color-background-mute)'
 								}}
 							>
-								<span style={{ fontWeight: 500, color: 'var(--color-text)' }}>
-									Duration
-								</span>
+								<span style={{ fontWeight: 500, color: 'var(--color-text)' }}>Duration</span>
 								<span style={{ color: 'var(--color-text-soft)' }}>
 									{formatDuration(movie.duration)}
 								</span>

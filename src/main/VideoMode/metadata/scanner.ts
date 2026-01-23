@@ -2,10 +2,10 @@ import * as fs from 'fs/promises'
 import * as path from 'path'
 import * as fsSync from 'fs'
 import { v4 as uuidv4 } from 'uuid'
-import { ExiftoolTags, ParsedTag } from '../../shared/types/metadata'
-import { VideoFile, MediaType } from '../../shared/types/video'
+import { ExiftoolTags, ParsedTag } from '../../../shared/types/metadata'
+import { VideoFile, MediaType } from '../../../shared/types/video'
 import { generateThumbnail } from './thumbnails'
-import { ourExiftool } from './utils'
+import { ourExiftool } from '../../metadata/utils'
 
 /** Parses a raw string of tags into an array of structured ParsedTag objects
  *  (tags can be simple strings or key-value pairs, separated by commas or semicolons)

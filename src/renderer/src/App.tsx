@@ -3,13 +3,13 @@ import { ParsedTag } from 'src/shared/types/metadata'
 import { VideoFile } from 'src/shared/types/video'
 import { Library } from '@shared/types/library'
 import { Movie, MovieArchive } from '@shared/types/movie'
-import VideoDetailView from './components/VideoDetailView'
-import MovieDetailView from './components/MovieDetailView'
-import VideoCard from './components/VideoCard'
-import MovieCard from './components/MovieCard'
+import VideoDetailView from './components/VideoMode/VideoDetailView'
+import MovieDetailView from './components/MovieMode/MovieDetailView'
+import VideoCard from './components/VideoMode/VideoCard'
+import MovieCard from './components/MovieMode/MovieCard'
 import Sidebar from './components/Sidebar'
 import ModeSelection from './components/ModeSelection'
-import BatchEditModal from './components/BatchEditModal'
+import BatchEditModal from './components/VideoMode/BatchEditModal'
 import { ActiveFilters } from '@shared/types/filter'
 
 type AppMode = 'videos' | 'movies' | null
@@ -503,13 +503,16 @@ function App(): React.ReactElement {
 		for (const video of list) {
 			for (const tag of video.tags) {
 				if (tag.type === 'kv') {
-					const key = tag.key.toLowerCase()
+					const key = tag.key?.toLowerCase()
+					if (!key) {
+						continue
+					}
 					if (!categorySets[key]) {
 						categorySets[key] = new Set()
 					}
 					categorySets[key].add(tag.value)
 				} else if (tag.type === 'simple') {
-					if (tag.value.toLowerCase() === 'fav') return
+					if (tag.value.toLowerCase() === 'fav') continue
 					simpleTagSet.add(tag.value)
 				}
 			}

@@ -1,7 +1,7 @@
 import * as fs from 'fs/promises'
 import * as path from 'path'
 import { shell } from 'electron'
-import { VideoFile } from '../../shared/types/video'
+import { VideoFile } from '../../../shared/types/video'
 import { loadLibrary, saveLibrary } from './library'
 
 /** Scans the library and the filesystem to find and remove orphaned entries

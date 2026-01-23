@@ -1,8 +1,8 @@
 import * as fs from 'fs/promises'
 import * as path from 'path'
-import { VideoFile } from '../../shared/types/video'
-import { Library } from '../../shared/types/library'
-import { deleteFile } from './utils'
+import { VideoFile } from '../../../shared/types/video'
+import { Library } from '../../../shared/types/library'
+import { deleteFile } from '../../metadata/utils'
 
 // The name of the file used to store the video library metadata
 const LIBRARY_FILE = 'library.json'

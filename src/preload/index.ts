@@ -1,9 +1,8 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
-import { ParsedTag } from '../shared/types/metadata'
-import { VideoFile } from '../shared/types/video'
-import { Library } from '../shared/types/library'
-import { MovieArchive } from '../shared/types/movie'
+import { videoApi } from './VideoMode'
+import { movieApi } from './MovieMode'
+import { sharedApi } from './shared'
 
 // The preload script runs in a privileged environment with access to Node.js APIs
 // It acts as a secure bridge between the sandboxed renderer process (the web page)
@@ -13,29 +12,9 @@ import { MovieArchive } from '../shared/types/movie'
 // These functions provide a type-safe way to send messages to the main process
 // without exposing the entire ipcRenderer module
 const api = {
-	// Invokes the 'dialog:openDirectory' handler in the main process to show a folder selection dialog
-	selectFolder: (): Promise<string | null> => ipcRenderer.invoke('dialog:openDirectory'),
-	// Invokes the 'videos:scan' handler to scan a directory for videos
-	scanVideos: (path: string): Promise<VideoFile[]> => ipcRenderer.invoke('videos:scan', path),
-	// Sends a one-way message to the 'video:open' handler to open a file
-	openVideo: (path: string): void => ipcRenderer.send('video:open', path),
-	// Invokes the 'videos:updateTags' handler to update metadata for a file
-	updateTags: (filePath: string, tags: ParsedTag[], favourited: boolean): Promise<void> =>
-		ipcRenderer.invoke('videos:updateTags', filePath, tags, favourited),
-	// Invokes the 'db:load' handler to load the library from a file
-	loadLibrary: (folderPath: string): Promise<Library | null> =>
-		ipcRenderer.invoke('db:load', folderPath),
-	// Invokes the 'db:save' handler to save the library to a file
-	saveLibrary: (folderPath: string, videos: VideoFile[]): Promise<void> =>
-		ipcRenderer.invoke('db:save', folderPath, videos),
-	// Invokes the 'video:delete' handler to delete a video file, its thumbnail, and library entry
-	deleteVideo: (filePath: string, thumbnailPath: string, videoId: string): Promise<boolean> =>
-		ipcRenderer.invoke('video:delete', filePath, thumbnailPath, videoId),
-	// Invokes the 'movies:load' handler to load movies from an Excel file
-	loadMovies: (folderPath: string, moviesFolderPath?: string): Promise<MovieArchive> =>
-		ipcRenderer.invoke('movies:load', folderPath, moviesFolderPath),
-	// Sends a one-way message to the 'folder:open' handler to open a folder in the file explorer
-	openFolder: (folderPath: string): void => ipcRenderer.send('folder:open', folderPath)
+	...sharedApi,
+	...videoApi,
+	...movieApi
 }
 
 // Use the contextBridge to securely expose the APIs to the renderer process

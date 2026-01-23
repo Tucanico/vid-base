@@ -3,7 +3,7 @@ import * as path from 'path'
 import * as XLSX from 'xlsx'
 import ExcelJS from 'exceljs'
 import { v4 as uuidv4 } from 'uuid'
-import { Movie, MovieArchive } from '../../shared/types/movie'
+import { Movie, MovieArchive } from '../../../shared/types/movie'
 
 /**
  * Parses a comma-separated string into an array, trimming whitespace

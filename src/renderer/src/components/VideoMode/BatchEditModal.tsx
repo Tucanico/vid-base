@@ -106,10 +106,15 @@ function BatchEditModal({
 			const [key, ...valueParts] = trimmed.split(':')
 			const value = valueParts.join(':').trim()
 			if (key && value) {
-				return { type: 'kv', key: key.trim().toLowerCase(), value: value.trim() }
+				return {
+					type: 'kv',
+					key: key.trim().toLowerCase(),
+					value: value.trim(),
+					original: trimmed
+				}
 			}
 		}
-		return { type: 'simple', value: trimmed }
+		return { type: 'simple', value: trimmed, original: trimmed }
 	}
 
 	// Handle adding a tag
@@ -276,6 +281,7 @@ function BatchEditModal({
 				document.removeEventListener('mousedown', handleClickOutside)
 			}
 		}
+		return undefined
 	}, [showSuggestions])
 
 	// Focus input when modal opens

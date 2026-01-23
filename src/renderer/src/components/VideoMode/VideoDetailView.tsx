@@ -2,74 +2,10 @@ import React, { useState, useMemo, useRef, useEffect } from 'react'
 import { ParsedTag } from 'src/shared/types/metadata'
 import { VideoFile } from 'src/shared/types/video'
 import { Library } from '@shared/types/library'
-import InfoRow from './InfoRow'
-import { sanitizeFileName } from '../utils/sanitizeFileName'
-
-// Component to render clickable values
-function ClickableValue({
-	value,
-	onClick
-}: {
-	value: string
-	onClick: () => void
-}): React.ReactElement {
-	return (
-		<span
-			onClick={onClick}
-			style={{
-				color: 'var(--color-primary)',
-				cursor: 'pointer'
-			}}
-			onMouseEnter={(e) => {
-				e.currentTarget.style.color = 'var(--color-primary-dark)'
-			}}
-			onMouseLeave={(e) => {
-				e.currentTarget.style.color = 'var(--color-primary)'
-			}}
-		>
-			{value}
-		</span>
-	)
-}
-
-// Component to render multiple clickable values
-function ClickableValues({
-	values,
-	label
-}: {
-	values: Array<{ value: string; onClick: () => void }>
-	label: string
-}): React.ReactElement | null {
-	if (values.length === 0) return null
-	return (
-		<div
-			style={{
-				display: 'flex',
-				justifyContent: 'space-between',
-				padding: '8px 0',
-				borderBottom: '1px solid var(--color-background-mute)'
-			}}
-		>
-			<span style={{ fontWeight: 500, color: 'var(--color-text)' }}>{label}</span>
-			<span
-				style={{
-					color: 'var(--color-text-soft)',
-					display: 'flex',
-					flexWrap: 'wrap',
-					gap: '0',
-					alignItems: 'center'
-				}}
-			>
-				{values.map((item, index) => (
-					<span key={index} style={{ display: 'inline-flex', alignItems: 'center' }}>
-						<ClickableValue value={item.value} onClick={item.onClick} />
-						{index < values.length - 1 && <span style={{ marginRight: '4px' }}>,</span>}
-					</span>
-				))}
-			</span>
-		</div>
-	)
-}
+import InfoRow from '../InfoRow'
+import { ClickableValues } from '../ClickableValues'
+import { sanitizeFileName } from '../../utils/sanitizeFileName'
+import { formatDuration, formatFileSize } from '../../utils/formatters'
 
 /** --- COMPONENT: VideoDetailView ---
  *  Full-screen detail view for viewing and editing a video's tags
@@ -288,6 +224,7 @@ function VideoDetailView({
 				document.removeEventListener('mousedown', handleClickOutside)
 			}
 		}
+		return undefined
 	}, [showSuggestions])
 
 	// Removes a tag from the state
@@ -337,34 +274,6 @@ function VideoDetailView({
 		const nextFavorited = !isFavorited
 		setIsFavorited(nextFavorited)
 		await onSave(tags, nextFavorited)
-	}
-
-	// Format file size to human-readable format
-	const formatFileSize = (bytes?: number): string | undefined => {
-		if (!bytes) return undefined
-		const units = ['B', 'KB', 'MB', 'GB', 'TB']
-		let size = bytes
-		let unitIndex = 0
-		while (size >= 1024 && unitIndex < units.length - 1) {
-			size /= 1024
-			unitIndex++
-		}
-		return `${size.toFixed(unitIndex === 0 ? 0 : 2)} ${units[unitIndex]}`
-	}
-
-	// Format duration to "1h26m30s" format
-	const formatDuration = (seconds?: number): string | undefined => {
-		if (!seconds) return undefined
-		const hours = Math.floor(seconds / 3600)
-		const minutes = Math.floor((seconds % 3600) / 60)
-		const secs = Math.floor(seconds % 60)
-
-		const parts: string[] = []
-		if (hours > 0) parts.push(`${hours}h`)
-		if (minutes > 0) parts.push(`${minutes}m`)
-		if (secs > 0 || parts.length === 0) parts.push(`${secs}s`)
-
-		return parts.join('')
 	}
 
 	return (
@@ -569,7 +478,7 @@ function VideoDetailView({
 						<ClickableValues values={productionValues} label="Production" />
 						{video.mediaType === 'video' && (
 							<>
-								<InfoRow label="Duration" value={formatDuration(video.duration)} />
+								<InfoRow label="Duration" value={formatDuration(video.duration, true)} />
 								<InfoRow label="Size" value={formatFileSize(video.fileSize)} />
 							</>
 						)}

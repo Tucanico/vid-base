@@ -2,8 +2,9 @@ import React, { useState, useMemo, useRef, useEffect } from 'react'
 import { ParsedTag } from 'src/shared/types/metadata'
 import { VideoFile } from 'src/shared/types/video'
 import { Library } from '@shared/types/library'
-import InfoRow from './InfoRow'
-import { sanitizeFileName } from '../utils/sanitizeFileName'
+import InfoRow from '../InfoRow'
+import { sanitizeFileName } from '../../utils/sanitizeFileName'
+import { formatDuration, formatFileSize } from '../../utils/formatters'
 
 /** --- COMPONENT: EditModal ---
  *  The modal component for viewing details and editing a video's tags
@@ -203,6 +204,7 @@ function EditModal({
 				document.removeEventListener('mousedown', handleClickOutside)
 			}
 		}
+		return undefined
 	}, [showSuggestions])
 
 	// Disable background scrolling when modal is open
@@ -255,34 +257,6 @@ function EditModal({
 	const modelValue = getCategoryValues('model')
 	const channelValue = getCategoryValues('channel')
 	const productionValue = getCategoryValues('production')
-
-	// Format file size to human-readable format
-	const formatFileSize = (bytes?: number): string | undefined => {
-		if (!bytes) return undefined
-		const units = ['B', 'KB', 'MB', 'GB', 'TB']
-		let size = bytes
-		let unitIndex = 0
-		while (size >= 1024 && unitIndex < units.length - 1) {
-			size /= 1024
-			unitIndex++
-		}
-		return `${size.toFixed(unitIndex === 0 ? 0 : 2)} ${units[unitIndex]}`
-	}
-
-	// Format duration to "1h26m30s" format
-	const formatDuration = (seconds?: number): string | undefined => {
-		if (!seconds) return undefined
-		const hours = Math.floor(seconds / 3600)
-		const minutes = Math.floor((seconds % 3600) / 60)
-		const secs = Math.floor(seconds % 60)
-		
-		const parts: string[] = []
-		if (hours > 0) parts.push(`${hours}h`)
-		if (minutes > 0) parts.push(`${minutes}m`)
-		if (secs > 0 || parts.length === 0) parts.push(`${secs}s`)
-		
-		return parts.join('')
-	}
 
 	return (
 		<div
@@ -393,7 +367,7 @@ function EditModal({
 					<InfoRow label="Production" value={productionValue} />
 					{video.mediaType === 'video' && (
 						<>
-							<InfoRow label="Duration" value={formatDuration(video.duration)} />
+							<InfoRow label="Duration" value={formatDuration(video.duration, true)} />
 							<InfoRow label="Size" value={formatFileSize(video.fileSize)} />
 						</>
 					)}
@@ -480,9 +454,7 @@ function EditModal({
 								onChange={handleInputChange}
 								onKeyDown={handleKeyDown}
 								onFocus={() =>
-									setShowSuggestions(
-										inputValue.trim().length > 0 && suggestions.length > 0
-									)
+									setShowSuggestions(inputValue.trim().length > 0 && suggestions.length > 0)
 								}
 								placeholder="Ex: holidays or category:nature"
 								style={{
