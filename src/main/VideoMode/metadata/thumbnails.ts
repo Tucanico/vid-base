@@ -2,7 +2,7 @@ import * as path from 'path'
 import * as fs from 'fs/promises'
 import * as fsSync from 'fs'
 import { exec } from 'child_process'
-import ffmpeg from 'fluent-ffmpeg'
+import ffmpeg, { FfprobeData } from 'fluent-ffmpeg'
 import ffmpegPath from 'ffmpeg-static'
 import { path as ffprobePath } from 'ffprobe-static'
 
@@ -10,7 +10,6 @@ import { path as ffprobePath } from 'ffprobe-static'
 // This logic adjusts the path to point to the correct location
 if (ffmpegPath) {
 	const fixedFfmpegPath = ffmpegPath.replace('app.asar', 'app.asar.unpacked')
-	console.log('FFmpeg Path:', fixedFfmpegPath)
 	ffmpeg.setFfmpegPath(fixedFfmpegPath)
 } else {
 	console.error('ERROR: ffmpeg-static not found!')
@@ -19,7 +18,6 @@ if (ffmpegPath) {
 // Same path adjustment for ffprobe
 if (ffprobePath) {
 	const fixedFfprobePath = ffprobePath.replace('app.asar', 'app.asar.unpacked')
-	console.log('FFprobe Path:', fixedFfprobePath)
 	ffmpeg.setFfprobePath(fixedFfprobePath)
 } else {
 	console.error('ERROR: ffprobe-static not found! Run "npm install ffprobe-static"')
@@ -58,7 +56,7 @@ export async function generateThumbnail(videoPath: string): Promise<string | und
 
 	return new Promise((resolve) => {
 		// 1. Get video duration using ffprobe
-		ffmpeg.ffprobe(videoPath, (err: Error, metadata: ffmpeg.FfprobeData) => {
+		ffmpeg.ffprobe(videoPath, (err: Error, metadata: FfprobeData) => {
 			if (err || !metadata.format?.duration) {
 				console.error('❌ ffprobe failed:', err)
 				resolve(undefined)
@@ -78,7 +76,7 @@ export async function generateThumbnail(videoPath: string): Promise<string | und
 				])
 				.output(thumbPath) // Save the frame to the thumbnail path
 				.on('end', () => resolve(thumbPath)) // Resolve the promise on success
-				.on('error', (err) => {
+				.on('error', (err: Error) => {
 					console.error(`❌ FFmpeg error on ${fileName}:`, err.message)
 					resolve(undefined) // Resolve with undefined on error
 				})
