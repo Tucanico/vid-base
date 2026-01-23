@@ -6,6 +6,14 @@ import { Library } from '../../shared/types/library'
 export const videoApi = {
 	// Invokes the 'videos:scan' handler to scan a directory for videos
 	scanVideos: (path: string): Promise<VideoFile[]> => ipcRenderer.invoke('videos:scan', path),
+	// Subscribes to scan progress updates
+	onScanProgress: (callback: (progress: { processed: number; total: number; percent: number }) => void) => {
+		const listener = (_event: Electron.IpcRendererEvent, progress: { processed: number; total: number; percent: number }) => {
+			callback(progress)
+		}
+		ipcRenderer.on('videos:scanProgress', listener)
+		return () => ipcRenderer.removeListener('videos:scanProgress', listener)
+	},
 	// Sends a one-way message to the 'video:open' handler to open a file
 	openVideo: (path: string): void => ipcRenderer.send('video:open', path),
 	// Invokes the 'videos:updateTags' handler to update metadata for a file
