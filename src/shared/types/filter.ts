@@ -1,6 +1,4 @@
-// Define the types for filter categories
-export type FilterCategory = 'category' | 'model' | 'channel' | 'production' | 'simpleTag'
-export type ActiveFilter = {
-	category: FilterCategory
-	value: string
+// ActiveFilters is now dynamic - it can have any category name as a key
+export type ActiveFilters = Record<string, string[]> & {
+	simpleTag: string[] // Simple tags are always available
 }

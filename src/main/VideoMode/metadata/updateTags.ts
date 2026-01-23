@@ -1,14 +1,18 @@
-import { ParsedTag } from '../../shared/types/metadata'
-import { ourExiftool } from './utils'
+import { ParsedTag } from '../../../shared/types/metadata'
+import { ourExiftool } from '../../metadata/utils'
 
 /** Updates the metadata tags of a video file using exiftool
  *  @param filePath The absolute path to the video file to update
  *  @param tags An array of ParsedTag objects representing the tags to write
  *  @returns A promise that resolves when the tags have been written, or rejects on error
  */
-export async function updateVideoTags(filePath: string, tags: ParsedTag[]): Promise<void> {
+export async function updateVideoTags(
+	filePath: string,
+	tags: ParsedTag[],
+	favourited: boolean
+): Promise<void> {
 	// 1. Reconstruct the "raw" string (e.g., "holidays; category:nature") for simple string-based fields
-	const tagString = tags
+	const tagString = [...tags, ...(favourited ? [{ type: 'simple', value: 'fav' } as ParsedTag] : [])]
 		.map((t) => {
 			if (t.type === 'kv' && t.key) {
 				return `${t.key}:${t.value}`
@@ -18,7 +22,9 @@ export async function updateVideoTags(filePath: string, tags: ParsedTag[]): Prom
 		.join('; ')
 
 	// 2. Reconstruct a simple list of strings for metadata fields that support arrays
-	const tagList = tags.map((t) => (t.type === 'kv' ? `${t.key}:${t.value}` : t.value))
+	const tagList = [...tags, ...(favourited ? [{ type: 'simple', value: 'fav' } as ParsedTag] : [])].map(
+		(t) => (t.type === 'kv' ? `${t.key}:${t.value}` : t.value)
+	)
 
 	try {
 		console.log(`Writing tags to ${filePath}:`, tagString)

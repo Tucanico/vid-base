@@ -19,5 +19,7 @@ export interface ExiftoolTags {
 	Keywords?: string | string[]
 	Subject?: string | string[]
 	Description?: string | string[]
+	FileSize?: number | string
+	Duration?: number | string
 	// Add other potential tag fields here if they need to be read
 }

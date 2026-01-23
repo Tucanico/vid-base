@@ -1,7 +1,7 @@
 {
-	"name": "video-catalog",
+	"name": "vidbase",
 	"version": "1.0.0",
-	"description": "An Electron application with React and TypeScript",
+	"description": "VidBase - Video and Image Catalog",
 	"main": "./out/main/index.js",
 	"author": "example.com",
 	"homepage": "https://electron-vite.org",
@@ -24,11 +24,15 @@
 		"@electron-toolkit/preload": "^3.0.2",
 		"@electron-toolkit/utils": "^4.0.0",
 		"chokidar": "^5.0.0",
+		"core-util-is": "^1.0.3",
+		"dotenv": "^17.2.3",
+		"exceljs": "^4.4.0",
 		"exiftool-vendored": "^34.2.0",
 		"ffmpeg-static": "^5.3.0",
 		"ffprobe-static": "^3.1.0",
 		"fluent-ffmpeg": "^2.1.3",
-		"uuid": "^13.0.0"
+		"uuid": "^13.0.0",
+		"xlsx": "^0.18.5"
 	},
 	"devDependencies": {
 		"@electron-toolkit/eslint-config-prettier": "^3.0.0",
