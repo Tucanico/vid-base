@@ -132,7 +132,7 @@ app.whenReady().then(() => {
 	})
 	// IPC handler to scan a directory for new videos
 	// Uses library.json metadata when available, but always scans for new files
-	ipcMain.handle('videos:scan', async (_, folderPath) => {
+	ipcMain.handle('videos:scan', async (event, folderPath) => {
 		// Load existing library if it exists
 		const existingLibrary = await loadLibrary(folderPath)
 		// Run cleanup FIRST (before saving new library, so it can detect orphaned entries)
@@ -140,7 +140,11 @@ app.whenReady().then(() => {
 		// Scan directory using smart scan (uses library metadata when available)
 		const videos = await scanDirectoryWithLibrary(
 			folderPath,
-			existingLibrary ? existingLibrary.files : null
+			existingLibrary ? existingLibrary.files : null,
+			(processed, total) => {
+				const percent = total > 0 ? Math.round((processed / total) * 100) : 0
+				event.sender.send('videos:scanProgress', { processed, total, percent })
+			}
 		)
 		// Save library with updated categories and tags
 		await saveLibrary(folderPath, videos, existingLibrary)

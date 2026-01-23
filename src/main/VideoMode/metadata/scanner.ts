@@ -203,10 +203,17 @@ export async function scanDirectory(dirPath: string): Promise<VideoFile[]> {
  */
 export async function scanDirectoryWithLibrary(
 	dirPath: string,
-	existingFiles: VideoFile[] | null = null
+	existingFiles: VideoFile[] | null = null,
+	onProgress?: (processed: number, total: number) => void
 ): Promise<VideoFile[]> {
 	const allFilePaths = await getFilesRecursively(dirPath)
 	const results: VideoFile[] = []
+	const total = allFilePaths.length
+	let processed = 0
+
+	if (onProgress) {
+		onProgress(processed, total)
+	}
 
 	// Create a map of existing library entries by filePath for quick lookup
 	const libraryMap = new Map<string, VideoFile>()
@@ -350,6 +357,11 @@ export async function scanDirectoryWithLibrary(
 			} catch (err) {
 				console.error(`Error reading ${file}:`, err)
 			}
+		}
+
+		processed += 1
+		if (onProgress) {
+			onProgress(processed, total)
 		}
 	}
 	return results

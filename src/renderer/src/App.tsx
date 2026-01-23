@@ -15,6 +15,7 @@ import { ActiveFilters } from '@shared/types/filter'
 type AppMode = 'videos' | 'movies' | null
 type ViewMode = 'list' | 'detail'
 type VideoListViewMode = 'library' | 'home' | 'favorites'
+type ScanProgress = { processed: number; total: number; percent: number }
 /** --- MAIN APP COMPONENT ---
  *  The root component of the application. It manages the global state,
  *  including the list of videos, loading status, and active filters
@@ -39,6 +40,12 @@ function App(): React.ReactElement {
 	const [movieArchive, setMovieArchive] = useState<MovieArchive | null>(null)
 	// State to indicate when a scan or load operation is in progress
 	const [loading, setLoading] = useState(false)
+	// State for scan progress
+	const [scanProgress, setScanProgress] = useState<ScanProgress>({
+		processed: 0,
+		total: 0,
+		percent: 0
+	})
 	// State to hold the video file currently being viewed in detail
 	const [viewingVideo, setViewingVideo] = useState<VideoFile | null>(null)
 	// State to hold the movie currently being viewed in detail
@@ -74,6 +81,7 @@ function App(): React.ReactElement {
 		if (mode === 'videos') {
 			// Load videos mode
 			setLoading(true)
+			setScanProgress({ processed: 0, total: 0, percent: 0 })
 			setVideos([]) // Clear previous videos
 			try {
 				console.log('Scanning directory...')
@@ -90,10 +98,12 @@ function App(): React.ReactElement {
 				alert('There was an error during loading.')
 			} finally {
 				setLoading(false)
+				setScanProgress({ processed: 0, total: 0, percent: 0 })
 			}
 		} else if (mode === 'movies') {
 			// Load movies mode (from Excel file)
 			setLoading(true)
+			setScanProgress({ processed: 0, total: 0, percent: 0 })
 			setMovies([]) // Clear previous movies
 			try {
 				console.log('Loading movies from Excel...')
@@ -108,6 +118,7 @@ function App(): React.ReactElement {
 				)
 			} finally {
 				setLoading(false)
+				setScanProgress({ processed: 0, total: 0, percent: 0 })
 			}
 		}
 	}
@@ -118,6 +129,7 @@ function App(): React.ReactElement {
 		if (folder) {
 			setCurrentFolder(folder)
 			setLoading(true)
+			setScanProgress({ processed: 0, total: 0, percent: 0 })
 			setVideoListViewMode('library')
 
 			if (appMode === 'videos') {
@@ -140,6 +152,7 @@ function App(): React.ReactElement {
 					alert('There was an error during loading.')
 				} finally {
 					setLoading(false)
+					setScanProgress({ processed: 0, total: 0, percent: 0 })
 				}
 			} else if (appMode === 'movies') {
 				setMovies([]) // Clear previous movies
@@ -156,6 +169,7 @@ function App(): React.ReactElement {
 					)
 				} finally {
 					setLoading(false)
+					setScanProgress({ processed: 0, total: 0, percent: 0 })
 				}
 			}
 		}
@@ -431,6 +445,17 @@ function App(): React.ReactElement {
 			setShouldRestoreScroll(false)
 		})
 	}, [viewMode, shouldRestoreScroll])
+
+	useEffect(() => {
+		if (!window.api.onScanProgress) return undefined
+		return window.api.onScanProgress((progress) => {
+			setScanProgress({
+				processed: progress.processed,
+				total: progress.total,
+				percent: progress.total > 0 ? progress.percent : 0
+			})
+		})
+	}, [])
 
 	const pickRandomIds = (items: VideoFile[], count: number): string[] => {
 		const ids = items.map((item) => item.id)
@@ -862,6 +887,40 @@ function App(): React.ReactElement {
 		return <ModeSelection onModeSelected={handleModeSelected} />
 	}
 
+	if (loading) {
+		const isDeterminate = scanProgress.total > 0
+		return (
+			<div
+				style={{
+					height: '100vh',
+					display: 'flex',
+					alignItems: 'center',
+					justifyContent: 'center',
+					backgroundColor: 'var(--color-background)',
+					fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+				}}
+			>
+				<div className="scan-loader">
+					<div className="scan-loader__spinner" aria-label="Scanning" />
+					<div className="scan-loader__label">Scanning folder...</div>
+					<div
+						className="scan-loader__bar"
+						role="progressbar"
+						aria-valuemin={isDeterminate ? 0 : undefined}
+						aria-valuemax={isDeterminate ? 100 : undefined}
+						aria-valuenow={isDeterminate ? scanProgress.percent : undefined}
+						aria-valuetext="Scanning"
+					>
+						<div
+							className={`scan-loader__bar-fill${isDeterminate ? ' scan-loader__bar-fill--determinate' : ''}`}
+							style={isDeterminate ? { width: `${scanProgress.percent}%` } : undefined}
+						/>
+					</div>
+				</div>
+			</div>
+		)
+	}
+
 	// Show detail view if in detail mode
 	if (viewMode === 'detail') {
 		if (appMode === 'videos' && viewingVideo) {
@@ -929,7 +988,7 @@ function App(): React.ReactElement {
 					</div>
 
 					<div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-						{appMode === 'videos' && (
+						{appMode === 'videos' && !loading && (
 							<div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
 								<button
 									onClick={handleHomeView}
@@ -981,7 +1040,7 @@ function App(): React.ReactElement {
 								</button>
 							</div>
 						)}
-						{appMode === 'videos' && selectedVideoIds.size > 0 && (
+						{appMode === 'videos' && selectedVideoIds.size > 0 && !loading && (
 							<button
 								onClick={handleBatchEdit}
 								style={{
@@ -1012,17 +1071,13 @@ function App(): React.ReactElement {
 								transition: 'background 0.2s'
 							}}
 						>
-							{loading
-								? 'Scanning...'
-								: appMode === 'videos'
-									? '📂 Select Video Folder'
-									: '📂 Select Movies Folder'}
+							{appMode === 'videos' ? '📂 Select Video Folder' : '📂 Select Movies Folder'}
 						</button>
 					</div>
 				</div>
 
 				{/* Bottom row: Search and Sort controls */}
-				{!(appMode === 'videos' && videoListViewMode === 'home') && (
+				{!loading && !(appMode === 'videos' && videoListViewMode === 'home') && (
 					<div
 						style={{
 							display: 'flex',
@@ -1135,7 +1190,14 @@ function App(): React.ReactElement {
 						boxSizing: 'border-box'
 					}}
 				>
-					{appMode === 'videos' ? (
+					{loading ? (
+						<div className="scan-loader">
+							<div className="scan-loader__spinner" aria-label="Scanning" />
+							<div className="scan-loader__bar" role="progressbar" aria-valuetext="Scanning">
+								<div className="scan-loader__bar-fill" />
+							</div>
+						</div>
+					) : appMode === 'videos' ? (
 						<>
 							<div
 								style={{
