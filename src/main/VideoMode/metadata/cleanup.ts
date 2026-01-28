@@ -148,7 +148,7 @@ export async function cleanupOrphans(folderPath: string): Promise<void> {
 				}
 			}
 		}
-		
+
 		if (orphanedThumbnailNames.length > 0) {
 			console.log(`Removed ${orphanedThumbnailNames.length} orphaned thumbnail(s):`)
 			for (const name of orphanedThumbnailNames) {

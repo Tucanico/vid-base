@@ -164,13 +164,19 @@ function BatchEditModal({
 
 	// Handle removing a tag from "to add" list
 	const handleRemoveFromAdd = (tagToRemove: ParsedTag): void => {
-		setTagsToAdd(tagsToAdd.filter((t) => {
-			if (tagToRemove.type === 'kv') {
-				return !(t.type === 'kv' && t.key === tagToRemove.key && t.value === tagToRemove.value)
-			} else {
-				return !(t.type === 'simple' && t.value === tagToRemove.value)
-			}
-		}))
+		setTagsToAdd(
+			tagsToAdd.filter((t) => {
+				if (tagToRemove.type === 'kv') {
+					return !(
+						t.type === 'kv' &&
+						t.key === tagToRemove.key &&
+						t.value === tagToRemove.value
+					)
+				} else {
+					return !(t.type === 'simple' && t.value === tagToRemove.value)
+				}
+			})
+		)
 	}
 
 	// Handle adding a tag to "to remove" list
@@ -190,13 +196,19 @@ function BatchEditModal({
 
 	// Handle removing a tag from "to remove" list
 	const handleRemoveFromRemove = (tagToRemove: ParsedTag): void => {
-		setTagsToRemove(tagsToRemove.filter((t) => {
-			if (tagToRemove.type === 'kv') {
-				return !(t.type === 'kv' && t.key === tagToRemove.key && t.value === tagToRemove.value)
-			} else {
-				return !(t.type === 'simple' && t.value === tagToRemove.value)
-			}
-		}))
+		setTagsToRemove(
+			tagsToRemove.filter((t) => {
+				if (tagToRemove.type === 'kv') {
+					return !(
+						t.type === 'kv' &&
+						t.key === tagToRemove.key &&
+						t.value === tagToRemove.value
+					)
+				} else {
+					return !(t.type === 'simple' && t.value === tagToRemove.value)
+				}
+			})
+		)
 	}
 
 	// Get all unique tags from selected videos
@@ -432,7 +444,13 @@ function BatchEditModal({
 						</div>
 						<form
 							onSubmit={handleAddTag}
-							style={{ display: 'flex', gap: '10px', position: 'relative', width: '100%', boxSizing: 'border-box' }}
+							style={{
+								display: 'flex',
+								gap: '10px',
+								position: 'relative',
+								width: '100%',
+								boxSizing: 'border-box'
+							}}
 						>
 							<div style={{ flex: 1, position: 'relative' }}>
 								<input
@@ -567,7 +585,8 @@ function BatchEditModal({
 										>
 											{tag.type === 'kv' ? (
 												<span>
-													<strong style={{ opacity: 0.75 }}>{tag.key}:</strong> {tag.value}
+													<strong style={{ opacity: 0.75 }}>{tag.key}:</strong>{' '}
+													{tag.value}
 												</span>
 											) : (
 												tag.value
@@ -618,7 +637,8 @@ function BatchEditModal({
 									>
 										{tag.type === 'kv' ? (
 											<span>
-												<strong style={{ opacity: 0.75 }}>{tag.key}:</strong> {tag.value}
+												<strong style={{ opacity: 0.75 }}>{tag.key}:</strong>{' '}
+												{tag.value}
 											</span>
 										) : (
 											tag.value

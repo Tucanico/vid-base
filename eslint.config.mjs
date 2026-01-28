@@ -27,8 +27,8 @@ export default defineConfig(
 		rules: {
 			...eslintPluginReactHooks.configs.recommended.rules,
 			...eslintPluginReactRefresh.configs.vite.rules,
-			// enforce tabs
-			indent: ['error', 'tab'],
+			// avoid indent conflicts with Prettier
+			indent: 'off',
 			// optionally, you can disable prettier's indent rule to avoid conflicts
 			'prettier/prettier': [
 				'error',

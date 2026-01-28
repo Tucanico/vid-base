@@ -657,11 +657,19 @@ function App(): React.ReactElement {
 	const filterOptions = useMemo(() => {
 		if (appMode === 'movies' && movieArchive) {
 			const isTypeView = movieTypeView !== 'all'
-			const { TITLE, NOTES, Check, CHECK, ...baseCategories } = movieArchive.categories
+			const baseCategories = { ...movieArchive.categories }
+			delete baseCategories.TITLE
+			delete baseCategories.NOTES
+			delete baseCategories.Check
+			delete baseCategories.CHECK
 			const categories = isTypeView
 				? (() => {
-						const { LQ, TYPE, DURATION, ...filtered } = baseCategories
-						return movieTypeView === 'serie' ? filtered : { ...filtered, DURATION }
+						const filtered = { ...baseCategories }
+						const duration = filtered.DURATION
+						delete filtered.LQ
+						delete filtered.TYPE
+						delete filtered.DURATION
+						return movieTypeView === 'serie' ? filtered : { ...filtered, DURATION: duration }
 					})()
 				: baseCategories
 			return {
@@ -1649,4 +1657,3 @@ function App(): React.ReactElement {
 }
 
 export default App
-

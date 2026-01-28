@@ -276,4 +276,3 @@ function MovieDetailView({
 }
 
 export default MovieDetailView
-

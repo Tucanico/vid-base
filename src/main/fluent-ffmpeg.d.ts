@@ -34,4 +34,3 @@ declare module 'fluent-ffmpeg' {
 	const ffmpeg: Ffmpeg
 	export default ffmpeg
 }
-

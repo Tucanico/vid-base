@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports, @typescript-eslint/explicit-function-return-type */
 const fs = require('fs')
 const path = require('path')
 
@@ -118,4 +119,3 @@ function main() {
 }
 
 main()
-

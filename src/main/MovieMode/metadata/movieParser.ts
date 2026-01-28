@@ -860,7 +860,6 @@ async function searchMovieFoldersRecursively(
 				}
 
 				// Try to match this folder with an unmatched movie
-				let matched = false
 				for (const movie of movies) {
 					if (matchedMovies.has(movie.id)) continue // Skip already matched movies
 
@@ -878,7 +877,6 @@ async function searchMovieFoldersRecursively(
 							}
 						}
 						matchedMovies.add(movie.id)
-						matched = true
 						break // Found a match, stop searching
 					}
 				}
@@ -1230,7 +1228,7 @@ async function findUnmatchedMovieFolders(
 export async function findExcelFile(dirPath: string): Promise<string | null> {
 	try {
 		const files = await fs.readdir(dirPath)
-		const isExcel = (file: string) =>
+		const isExcel = (file: string): boolean =>
 			file.toLowerCase().endsWith('.xlsx') || file.toLowerCase().endsWith('.xls')
 		const preferredNames = ['archivio', 'da vedere']
 		const excelFiles = files.filter((file) => isExcel(file))
@@ -1335,4 +1333,3 @@ export async function createMovieArchivioFromFolders(
 	await workbook.xlsx.writeFile(filePath)
 	return filePath
 }
-
