@@ -71,12 +71,34 @@ function App(): React.ReactElement {
 	const [selectedVideoIds, setSelectedVideoIds] = useState<Set<string>>(new Set())
 	// State for batch edit modal
 	const [showBatchEditModal, setShowBatchEditModal] = useState(false)
+	// State for movie view tabs
+	const [movieTypeView, setMovieTypeView] = useState<'all' | 'film' | 'serie' | 'docu'>('film')
+	// State for movie duration/size range filters
+	const [movieDurationRange, setMovieDurationRange] = useState<{
+		min: number
+		max: number
+		selectedMin: number
+		selectedMax: number
+	} | null>(null)
+	const [movieSizeRange, setMovieSizeRange] = useState<{
+		min: number
+		max: number
+		selectedMin: number
+		selectedMax: number
+	} | null>(null)
 
 	// Handles mode selection from the initial screen
 	const handleModeSelected = async (mode: 'videos' | 'movies', folder: string): Promise<void> => {
 		setAppMode(mode)
 		setCurrentFolder(folder)
 		setVideoListViewMode(mode === 'videos' ? 'home' : 'library')
+		if (mode === 'movies') {
+			setMovieTypeView('film')
+			setMovieDurationRange(null)
+			setMovieSizeRange(null)
+			setActiveFilters({ simpleTag: [], TYPE: ['film'] })
+			setOpenCategories(new Set())
+		}
 
 		if (mode === 'videos') {
 			// Load videos mode
@@ -114,7 +136,7 @@ function App(): React.ReactElement {
 			} catch (error) {
 				console.error('Loading error:', error)
 				alert(
-					'There was an error loading movies. Make sure there is an Excel file in the selected folder.'
+					'There was an error loading movies. If no Excel file exists, set TMDB_API_KEY so VidBase can create one.'
 				)
 			} finally {
 				setLoading(false)
@@ -155,6 +177,11 @@ function App(): React.ReactElement {
 					setScanProgress({ processed: 0, total: 0, percent: 0 })
 				}
 			} else if (appMode === 'movies') {
+				setMovieTypeView('film')
+				setMovieDurationRange(null)
+				setMovieSizeRange(null)
+				setActiveFilters({ simpleTag: [], TYPE: ['film'] })
+				setOpenCategories(new Set())
 				setMovies([]) // Clear previous movies
 				try {
 					console.log('Loading movies from Excel...')
@@ -165,7 +192,7 @@ function App(): React.ReactElement {
 				} catch (error) {
 					console.error('Loading error:', error)
 					alert(
-						'There was an error loading movies. Make sure there is an Excel file in the selected folder.'
+						'There was an error loading movies. If no Excel file exists, set TMDB_API_KEY so VidBase can create one.'
 					)
 				} finally {
 					setLoading(false)
@@ -196,7 +223,10 @@ function App(): React.ReactElement {
 	}
 
 	// Handles saving updated tags for a video
-	const saveTags = async (newTags: ParsedTag[], favouritedOverride?: boolean): Promise<boolean> => {
+	const saveTags = async (
+		newTags: ParsedTag[],
+		favouritedOverride?: boolean
+	): Promise<boolean> => {
 		if (!viewingVideo || !currentFolder) return false
 
 		try {
@@ -310,7 +340,7 @@ function App(): React.ReactElement {
 			})
 			return
 		}
-		
+
 		// Normal click - open detail view
 		lastListScrollTopRef.current = listScrollRef.current?.scrollTop ?? 0
 		setViewingVideo(video)
@@ -338,11 +368,14 @@ function App(): React.ReactElement {
 	}
 
 	// Handles batch save (applies tags to all selected videos)
-	const handleBatchSave = async (tagsToAdd: ParsedTag[], tagsToRemove: ParsedTag[]): Promise<void> => {
+	const handleBatchSave = async (
+		tagsToAdd: ParsedTag[],
+		tagsToRemove: ParsedTag[]
+	): Promise<void> => {
 		if (selectedVideoIds.size === 0 || !currentFolder) return
 
 		const selectedVideos = videos.filter((v) => selectedVideoIds.has(v.id))
-		
+
 		try {
 			// Update local state with new tags for all selected videos
 			const updatedList = videos.map((video) => {
@@ -357,10 +390,17 @@ function App(): React.ReactElement {
 				for (const tagToRemove of tagsToRemove) {
 					if (tagToRemove.type === 'kv') {
 						newTags = newTags.filter(
-							(t) => !(t.type === 'kv' && t.key === tagToRemove.key && t.value === tagToRemove.value)
+							(t) =>
+								!(
+									t.type === 'kv' &&
+									t.key === tagToRemove.key &&
+									t.value === tagToRemove.value
+								)
 						)
 					} else {
-						newTags = newTags.filter((t) => !(t.type === 'simple' && t.value === tagToRemove.value))
+						newTags = newTags.filter(
+							(t) => !(t.type === 'simple' && t.value === tagToRemove.value)
+						)
 					}
 				}
 
@@ -493,6 +533,24 @@ function App(): React.ReactElement {
 		setViewingMovie(null)
 	}
 
+	const handleMovieTypeView = (type: 'all' | 'film' | 'serie' | 'docu'): void => {
+		setMovieTypeView(type)
+		setMovieDurationRange(null)
+		setMovieSizeRange(null)
+		if (type === 'all') {
+			setActiveFilters({ simpleTag: [] })
+			setOpenCategories(new Set())
+		} else {
+			const newFilters: ActiveFilters = { simpleTag: [] }
+			newFilters.TYPE = [type]
+			setActiveFilters(newFilters)
+			setOpenCategories(new Set(['TYPE']))
+		}
+		setViewMode('list')
+		setViewingMovie(null)
+		setViewingVideo(null)
+	}
+
 	// Handles clicking on a filterable name (model, production, etc.)
 	const handleFilterClick = (category: string, value: string): void => {
 		// Set the filter and return to list view
@@ -507,6 +565,44 @@ function App(): React.ReactElement {
 
 	// Handles toggling a filter category open/closed
 	const handleToggleCategory = (category: string): void => {
+		const isOpening = !openCategories.has(category)
+		const upperCategory = category.toUpperCase()
+		if (appMode === 'movies' && (upperCategory === 'DURATION' || upperCategory === 'SIZE')) {
+			if (isOpening) {
+				if (
+					upperCategory === 'DURATION' &&
+					movieRangeStats.durationMin !== undefined &&
+					movieRangeStats.durationMax !== undefined
+				) {
+					setMovieDurationRange({
+						min: movieRangeStats.durationMin,
+						max: movieRangeStats.durationMax,
+						selectedMin: movieRangeStats.durationMin,
+						selectedMax: movieRangeStats.durationMax
+					})
+				}
+				if (
+					upperCategory === 'SIZE' &&
+					movieRangeStats.sizeMin !== undefined &&
+					movieRangeStats.sizeMax !== undefined
+				) {
+					setMovieSizeRange({
+						min: movieRangeStats.sizeMin,
+						max: movieRangeStats.sizeMax,
+						selectedMin: movieRangeStats.sizeMin,
+						selectedMax: movieRangeStats.sizeMax
+					})
+				}
+			} else {
+				if (upperCategory === 'DURATION') {
+					setMovieDurationRange(null)
+				}
+				if (upperCategory === 'SIZE') {
+					setMovieSizeRange(null)
+				}
+			}
+		}
+
 		setOpenCategories((prev) => {
 			const newSet = new Set(prev)
 			if (newSet.has(category)) {
@@ -518,7 +614,9 @@ function App(): React.ReactElement {
 		})
 	}
 
-	const buildFilterOptionsFromVideos = (list: VideoFile[]): {
+	const buildFilterOptionsFromVideos = (
+		list: VideoFile[]
+	): {
 		categories: Record<string, string[]>
 		simpleTags: string[]
 	} => {
@@ -558,8 +656,16 @@ function App(): React.ReactElement {
 	// This uses the categories and tags from library.json (for videos) or movieArchive (for movies)
 	const filterOptions = useMemo(() => {
 		if (appMode === 'movies' && movieArchive) {
+			const isTypeView = movieTypeView !== 'all'
+			const { TITLE, NOTES, Check, CHECK, ...baseCategories } = movieArchive.categories
+			const categories = isTypeView
+				? (() => {
+						const { LQ, TYPE, DURATION, ...filtered } = baseCategories
+						return movieTypeView === 'serie' ? filtered : { ...filtered, DURATION }
+					})()
+				: baseCategories
 			return {
-				categories: movieArchive.categories,
+				categories,
 				simpleTags: []
 			}
 		}
@@ -577,7 +683,105 @@ function App(): React.ReactElement {
 			categories: library.categories,
 			simpleTags: library.tags
 		}
-	}, [library, movieArchive, appMode, videoListViewMode, videos])
+	}, [library, movieArchive, appMode, videoListViewMode, videos, movieTypeView])
+
+	const applyMovieFilters = (
+		list: Movie[],
+		filters: ActiveFilters,
+		ignoredCategories: Set<string>
+	): Movie[] => {
+		if (
+			Object.entries(filters).every(
+				([key, values]) => key === 'simpleTag' || values.length === 0
+			)
+		) {
+			return list
+		}
+
+		return list.filter((movie) => {
+			for (const [category, filterValues] of Object.entries(filters)) {
+				if (category === 'simpleTag') continue
+				if (ignoredCategories.has(category.toUpperCase())) continue
+				if (filterValues.length === 0) continue
+
+				const filterValue = filterValues[0].toLowerCase()
+				let categoryMatches = false
+
+				switch (category.toUpperCase()) {
+					case 'TITLE':
+						categoryMatches = movie.title.toLowerCase().includes(filterValue)
+						break
+					case 'DIRECTOR':
+						categoryMatches = movie.director.toLowerCase().includes(filterValue)
+						break
+					case 'YEAR':
+						categoryMatches = movie.year?.toString().includes(filterValue) ?? false
+						break
+					case 'LANGUAGE':
+						categoryMatches = movie.language?.toLowerCase().includes(filterValue) ?? false
+						break
+					case 'ACTORS':
+						categoryMatches = movie.actors.some((actor) =>
+							actor.toLowerCase().includes(filterValue)
+						)
+						break
+					case 'GENRES':
+						categoryMatches = movie.genres.some((genre) =>
+							genre.toLowerCase().includes(filterValue)
+						)
+						break
+					case 'TYPE':
+						categoryMatches = movie.type?.toLowerCase().includes(filterValue) ?? false
+						break
+					case 'LQ':
+						categoryMatches = movie.lq?.toLowerCase().includes(filterValue) ?? false
+						break
+					case 'NOTES':
+						categoryMatches = movie.notes?.toLowerCase().includes(filterValue) ?? false
+						break
+					case 'CHECK':
+						categoryMatches = movie.check?.toLowerCase().includes(filterValue) ?? false
+						break
+					default:
+						categoryMatches = false
+				}
+
+				if (!categoryMatches) return false
+			}
+			return true
+		})
+	}
+
+	const movieRangeBase = useMemo(() => {
+		if (appMode !== 'movies') return []
+		let result = movies
+		if (movieTypeView !== 'all') {
+			result = result.filter(
+				(movie) => movie.type?.toLowerCase().includes(movieTypeView) ?? false
+			)
+		}
+		result = applyMovieFilters(result, activeFilters, new Set(['TYPE', 'DURATION', 'SIZE']))
+		if (searchQuery.trim()) {
+			result = result.filter((movie) => movieMatchesSearch(movie, searchQuery))
+		}
+		return result
+	}, [appMode, movies, movieTypeView, activeFilters, searchQuery])
+
+	const movieRangeStats = useMemo(() => {
+		const durationValues = movieRangeBase
+			.map((movie) => movie.durationSeconds)
+			.filter((value): value is number => typeof value === 'number')
+		const sizeValues = movieRangeBase
+			.map((movie) => movie.sizeBytes)
+			.filter((value): value is number => typeof value === 'number')
+
+		return {
+			durationMin: durationValues.length ? Math.min(...durationValues) : undefined,
+			durationMax: durationValues.length ? Math.max(...durationValues) : undefined,
+			sizeMin: sizeValues.length ? Math.min(...sizeValues) : undefined,
+			sizeMax: sizeValues.length ? Math.max(...sizeValues) : undefined
+		}
+	}, [movieRangeBase])
 
 	// Handles changes to the active filter (single select mode - only one filter total)
 	const handleFilterChange = (category: string, value: string | undefined): void => {
@@ -631,32 +835,68 @@ function App(): React.ReactElement {
 
 	// Clears any active filter
 	const handleClearFilters = (): void => {
+		if (appMode === 'movies' && movieTypeView !== 'all') {
+			setActiveFilters({ simpleTag: [], TYPE: [movieTypeView] })
+			setMovieDurationRange((prev) =>
+				prev ? { ...prev, selectedMin: prev.min, selectedMax: prev.max } : prev
+			)
+			setMovieSizeRange((prev) =>
+				prev ? { ...prev, selectedMin: prev.min, selectedMax: prev.max } : prev
+			)
+			return
+		}
 		setActiveFilters({ simpleTag: [] })
+	}
+
+	const handleMovieDurationRangeChange = (min: number, max: number): void => {
+		setMovieDurationRange((prev) => {
+			if (!prev) return prev
+			return {
+				...prev,
+				selectedMin: min,
+				selectedMax: max
+			}
+		})
+	}
+
+	const handleMovieSizeRangeChange = (min: number, max: number): void => {
+		setMovieSizeRange((prev) => {
+			if (!prev) return prev
+			return {
+				...prev,
+				selectedMin: min,
+				selectedMax: max
+			}
+		})
 	}
 
 	// Helper function to check if a video matches the search query
 	const videoMatchesSearch = (video: VideoFile, query: string): boolean => {
 		if (!query.trim()) return true
 		const lowerQuery = query.toLowerCase()
-		
+
 		// Search in file name
 		if (video.fileName.toLowerCase().includes(lowerQuery)) return true
-		
+
 		// Search in all tags (both kv and simple)
 		for (const tag of video.tags) {
 			if (tag.value.toLowerCase().includes(lowerQuery)) return true
 			if (tag.key && tag.key.toLowerCase().includes(lowerQuery)) return true
 		}
-		
+
 		return false
 	}
 
 	// Helper function to sort videos
-	const sortVideos = (videos: VideoFile[], field: string, direction: 'asc' | 'desc'): VideoFile[] => {
+	const sortVideos = (
+		videos: VideoFile[],
+		field: string,
+		direction: 'asc' | 'desc'
+	): VideoFile[] => {
 		const sorted = [...videos].sort((a, b) => {
 			let aValue: string | number | undefined
 			let bValue: string | number | undefined
-			
+
 			switch (field) {
 				case 'name':
 					aValue = a.fileName.toLowerCase()
@@ -674,12 +914,12 @@ function App(): React.ReactElement {
 					aValue = a.fileName.toLowerCase()
 					bValue = b.fileName.toLowerCase()
 			}
-			
+
 			if (aValue < bValue) return direction === 'asc' ? -1 : 1
 			if (aValue > bValue) return direction === 'asc' ? 1 : -1
 			return 0
 		})
-		
+
 		return sorted
 	}
 
@@ -700,14 +940,14 @@ function App(): React.ReactElement {
 		if (videoListViewMode === 'favorites') {
 			result = result.filter((video) => video.favourited)
 		}
-		
+
 		// Apply filters
 		const hasActiveFilters = Object.values(activeFilters).some((arr) => arr.length > 0)
 		if (hasActiveFilters) {
 			result = result.filter((video) => {
 				for (const [category, values] of Object.entries(activeFilters)) {
 					if (values.length === 0) continue
-					
+
 					let categoryMatches = false
 					if (category === 'simpleTag') {
 						categoryMatches = video.tags.some(
@@ -718,37 +958,29 @@ function App(): React.ReactElement {
 							(t) => t.type === 'kv' && t.key === category && values.includes(t.value)
 						)
 					}
-					
+
 					if (!categoryMatches) return false
 				}
 				return true
 			})
 		}
-		
+
 		// Apply search
 		if (searchQuery.trim()) {
 			result = result.filter((video) => videoMatchesSearch(video, searchQuery))
 		}
-		
+
 		// Apply sorting
 		result = sortVideos(result, sortField, sortDirection)
-		
+
 		return result
-	}, [
-		videos,
-		activeFilters,
-		searchQuery,
-		sortField,
-		sortDirection,
-		videoListViewMode,
-		homeVideos
-	])
+	}, [videos, activeFilters, searchQuery, sortField, sortDirection, videoListViewMode, homeVideos])
 
 	// Helper function to check if a movie matches the search query
-	const movieMatchesSearch = (movie: Movie, query: string): boolean => {
+	function movieMatchesSearch(movie: Movie, query: string): boolean {
 		if (!query.trim()) return true
 		const lowerQuery = query.toLowerCase()
-		
+
 		// Search across all movie fields
 		if (movie.title.toLowerCase().includes(lowerQuery)) return true
 		if (movie.director.toLowerCase().includes(lowerQuery)) return true
@@ -758,11 +990,11 @@ function App(): React.ReactElement {
 		if (movie.notes?.toLowerCase().includes(lowerQuery)) return true
 		if (movie.lq?.toLowerCase().includes(lowerQuery)) return true
 		if (movie.check?.toLowerCase().includes(lowerQuery)) return true
-		
+
 		// Search in arrays
 		if (movie.actors.some((actor) => actor.toLowerCase().includes(lowerQuery))) return true
 		if (movie.genres.some((genre) => genre.toLowerCase().includes(lowerQuery))) return true
-		
+
 		return false
 	}
 
@@ -771,7 +1003,7 @@ function App(): React.ReactElement {
 		const sorted = [...movies].sort((a, b) => {
 			let aValue: string | number | undefined
 			let bValue: string | number | undefined
-			
+
 			switch (field) {
 				case 'title':
 					aValue = a.title.toLowerCase()
@@ -786,23 +1018,23 @@ function App(): React.ReactElement {
 					bValue = b.director.toLowerCase()
 					break
 				case 'duration':
-					aValue = a.duration ?? 0
-					bValue = b.duration ?? 0
+					aValue = a.durationSeconds ?? 0
+					bValue = b.durationSeconds ?? 0
 					break
 				case 'size':
-					aValue = a.size ?? 0
-					bValue = b.size ?? 0
+					aValue = a.sizeBytes ?? 0
+					bValue = b.sizeBytes ?? 0
 					break
 				default:
 					aValue = a.title.toLowerCase()
 					bValue = b.title.toLowerCase()
 			}
-			
+
 			if (aValue < bValue) return direction === 'asc' ? -1 : 1
 			if (aValue > bValue) return direction === 'asc' ? 1 : -1
 			return 0
 		})
-		
+
 		return sorted
 	}
 
@@ -812,75 +1044,60 @@ function App(): React.ReactElement {
 
 		let result = movies
 
+		if (movieTypeView !== 'all') {
+			result = result.filter(
+				(movie) => movie.type?.toLowerCase().includes(movieTypeView) ?? false
+			)
+		}
+
 		// Apply filters
 		const hasActiveFilters = Object.entries(activeFilters).some(
 			([key, values]) => key !== 'simpleTag' && values.length > 0
 		)
 		if (hasActiveFilters) {
-			result = result.filter((movie) => {
-				for (const [category, filterValues] of Object.entries(activeFilters)) {
-					if (category === 'simpleTag') continue
-					if (filterValues.length === 0) continue
-
-					const filterValue = filterValues[0].toLowerCase()
-
-					let categoryMatches = false
-
-					switch (category.toUpperCase()) {
-						case 'TITLE':
-							categoryMatches = movie.title.toLowerCase().includes(filterValue)
-							break
-						case 'DIRECTOR':
-							categoryMatches = movie.director.toLowerCase().includes(filterValue)
-							break
-						case 'YEAR':
-							categoryMatches = movie.year?.toString().includes(filterValue) ?? false
-							break
-						case 'LANGUAGE':
-							categoryMatches = movie.language?.toLowerCase().includes(filterValue) ?? false
-							break
-						case 'ACTORS':
-							categoryMatches = movie.actors.some((actor) =>
-								actor.toLowerCase().includes(filterValue)
-							)
-							break
-						case 'GENRES':
-							categoryMatches = movie.genres.some((genre) =>
-								genre.toLowerCase().includes(filterValue)
-							)
-							break
-						case 'TYPE':
-							categoryMatches = movie.type?.toLowerCase().includes(filterValue) ?? false
-							break
-						case 'LQ':
-							categoryMatches = movie.lq?.toLowerCase().includes(filterValue) ?? false
-							break
-						case 'NOTES':
-							categoryMatches = movie.notes?.toLowerCase().includes(filterValue) ?? false
-							break
-						case 'CHECK':
-							categoryMatches = movie.check?.toLowerCase().includes(filterValue) ?? false
-							break
-						default:
-							categoryMatches = false
-					}
-
-					if (!categoryMatches) return false
-				}
-				return true
-			})
+			result = applyMovieFilters(result, activeFilters, new Set(['TYPE', 'DURATION', 'SIZE']))
 		}
-		
+
 		// Apply search
 		if (searchQuery.trim()) {
 			result = result.filter((movie) => movieMatchesSearch(movie, searchQuery))
 		}
-		
+
 		// Apply sorting
 		result = sortMovies(result, sortField, sortDirection)
-		
+
+		if (movieDurationRange) {
+			result = result.filter(
+				(movie) =>
+					typeof movie.durationSeconds !== 'number' ||
+					(movie.durationSeconds >= movieDurationRange.selectedMin &&
+						movie.durationSeconds <= movieDurationRange.selectedMax)
+			)
+		}
+
+		if (movieSizeRange) {
+			result = result.filter(
+				(movie) =>
+					typeof movie.sizeBytes !== 'number' ||
+					(movie.sizeBytes >= movieSizeRange.selectedMin &&
+						movie.sizeBytes <= movieSizeRange.selectedMax)
+			)
+		}
+
 		return result
-	}, [movies, activeFilters, appMode, searchQuery, sortField, sortDirection])
+	}, [
+		movies,
+		activeFilters,
+		appMode,
+		searchQuery,
+		sortField,
+		sortDirection,
+		movieTypeView,
+		movieDurationRange,
+		movieSizeRange
+	])
+
+	const activeMovieType = movieTypeView
 
 	// Show mode selection screen if no mode is selected
 	if (!appMode) {
@@ -995,9 +1212,10 @@ function App(): React.ReactElement {
 									style={{
 										padding: '8px 14px',
 										fontSize: '0.9rem',
-										backgroundColor: videoListViewMode === 'home'
-											? 'var(--color-primary)'
-											: 'var(--color-background)',
+										backgroundColor:
+											videoListViewMode === 'home'
+												? 'var(--color-primary)'
+												: 'var(--color-background)',
 										color: videoListViewMode === 'home' ? 'white' : 'var(--color-text)',
 										border: '1px solid var(--color-background-mute)',
 										borderRadius: '6px',
@@ -1011,10 +1229,12 @@ function App(): React.ReactElement {
 									style={{
 										padding: '8px 14px',
 										fontSize: '0.9rem',
-										backgroundColor: videoListViewMode === 'library'
-											? 'var(--color-primary)'
-											: 'var(--color-background)',
-										color: videoListViewMode === 'library' ? 'white' : 'var(--color-text)',
+										backgroundColor:
+											videoListViewMode === 'library'
+												? 'var(--color-primary)'
+												: 'var(--color-background)',
+										color:
+											videoListViewMode === 'library' ? 'white' : 'var(--color-text)',
 										border: '1px solid var(--color-background-mute)',
 										borderRadius: '6px',
 										cursor: 'pointer'
@@ -1027,16 +1247,94 @@ function App(): React.ReactElement {
 									style={{
 										padding: '8px 14px',
 										fontSize: '0.9rem',
-										backgroundColor: videoListViewMode === 'favorites'
-											? 'var(--color-primary)'
-											: 'var(--color-background)',
-										color: videoListViewMode === 'favorites' ? 'white' : 'var(--color-text)',
+										backgroundColor:
+											videoListViewMode === 'favorites'
+												? 'var(--color-primary)'
+												: 'var(--color-background)',
+										color:
+											videoListViewMode === 'favorites' ? 'white' : 'var(--color-text)',
 										border: '1px solid var(--color-background-mute)',
 										borderRadius: '6px',
 										cursor: 'pointer'
 									}}
 								>
 									★ Favourited
+								</button>
+							</div>
+						)}
+						{appMode === 'movies' && !loading && (
+							<div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+								<button
+									onClick={() => handleMovieTypeView('all')}
+									disabled={loading}
+									style={{
+										padding: '8px 14px',
+										fontSize: '0.9rem',
+										backgroundColor:
+											activeMovieType === 'all'
+												? 'var(--color-primary)'
+												: 'var(--color-background)',
+										color: activeMovieType === 'all' ? 'white' : 'var(--color-text)',
+										border: '1px solid var(--color-background-mute)',
+										borderRadius: '6px',
+										cursor: loading ? 'not-allowed' : 'pointer'
+									}}
+								>
+									All
+								</button>
+								<button
+									onClick={() => handleMovieTypeView('film')}
+									disabled={loading}
+									style={{
+										padding: '8px 14px',
+										fontSize: '0.9rem',
+										backgroundColor:
+											activeMovieType === 'film'
+												? 'var(--color-primary)'
+												: 'var(--color-background)',
+										color: activeMovieType === 'film' ? 'white' : 'var(--color-text)',
+										border: '1px solid var(--color-background-mute)',
+										borderRadius: '6px',
+										cursor: loading ? 'not-allowed' : 'pointer'
+									}}
+								>
+									Film
+								</button>
+								<button
+									onClick={() => handleMovieTypeView('serie')}
+									disabled={loading}
+									style={{
+										padding: '8px 14px',
+										fontSize: '0.9rem',
+										backgroundColor:
+											activeMovieType === 'serie'
+												? 'var(--color-primary)'
+												: 'var(--color-background)',
+										color: activeMovieType === 'serie' ? 'white' : 'var(--color-text)',
+										border: '1px solid var(--color-background-mute)',
+										borderRadius: '6px',
+										cursor: loading ? 'not-allowed' : 'pointer'
+									}}
+								>
+									Serie TV
+								</button>
+								<button
+									onClick={() => handleMovieTypeView('docu')}
+									disabled={loading}
+									style={{
+										padding: '8px 14px',
+										fontSize: '0.9rem',
+										backgroundColor:
+											activeMovieType === 'docu'
+												? 'var(--color-primary)'
+												: 'var(--color-background)',
+										color: activeMovieType === 'docu' ? 'white' : 'var(--color-text)',
+										border: '1px solid var(--color-background-mute)',
+										borderRadius: '6px',
+										cursor: loading ? 'not-allowed' : 'pointer'
+									}}
+								>
+									Documentario
 								</button>
 							</div>
 						)}
@@ -1154,7 +1452,8 @@ function App(): React.ReactElement {
 								gap: '5px'
 							}}
 						>
-							{sortDirection === 'asc' ? '↑' : '↓'} {sortDirection === 'asc' ? 'Asc' : 'Desc'}
+							{sortDirection === 'asc' ? '↑' : '↓'}{' '}
+							{sortDirection === 'asc' ? 'Asc' : 'Desc'}
 						</button>
 					</div>
 				)}
@@ -1176,6 +1475,24 @@ function App(): React.ReactElement {
 						isMovieMode={appMode === 'movies'}
 						onMovieFilterTextChange={
 							appMode === 'movies' ? handleMovieFilterTextChange : undefined
+						}
+						movieRangeFilters={
+							appMode === 'movies'
+								? {
+										duration: movieDurationRange
+											? {
+													...movieDurationRange,
+													onChange: handleMovieDurationRangeChange
+												}
+											: undefined,
+										size: movieSizeRange
+											? {
+													...movieSizeRange,
+													onChange: handleMovieSizeRangeChange
+												}
+											: undefined
+									}
+								: undefined
 						}
 					/>
 				)}
@@ -1208,42 +1525,44 @@ function App(): React.ReactElement {
 									gap: '20px'
 								}}
 							>
-							{/* Render the grid of video cards */}
-							{filteredVideos.map((vid) => (
-								<VideoCard
-									key={vid.id}
-									video={vid}
-									onEdit={(e) => handleVideoClick(vid, e)}
-									isSelected={selectedVideoIds.has(vid.id)}
-									onSelect={(isSelected) => handleVideoSelect(vid.id, isSelected)}
-									onSelectToggle={() => handleVideoSelect(vid.id, !selectedVideoIds.has(vid.id))}
-									onToggleFavorite={() => toggleFavorite(vid)}
-								/>
-							))}
+								{/* Render the grid of video cards */}
+								{filteredVideos.map((vid) => (
+									<VideoCard
+										key={vid.id}
+										video={vid}
+										onEdit={(e) => handleVideoClick(vid, e)}
+										isSelected={selectedVideoIds.has(vid.id)}
+										onSelect={(isSelected) => handleVideoSelect(vid.id, isSelected)}
+										onSelectToggle={() =>
+											handleVideoSelect(vid.id, !selectedVideoIds.has(vid.id))
+										}
+										onToggleFavorite={() => toggleFavorite(vid)}
+									/>
+								))}
 
-							{/* Conditional messages for empty states */}
-							{!loading && videos.length === 0 && (
-								<div
-									style={{
-										textAlign: 'center',
-										color: 'var(--color-text-mute)',
-										marginTop: '40px'
-									}}
-								>
-									No videos loaded. Click the top-right button to start.
-								</div>
-							)}
-							{!loading && videos.length > 0 && filteredVideos.length === 0 && (
-								<div
-									style={{
-										textAlign: 'center',
-										color: 'var(--color-text-mute)',
-										marginTop: '40px'
-									}}
-								>
-									No videos match the selected filters.
-								</div>
-							)}
+								{/* Conditional messages for empty states */}
+								{!loading && videos.length === 0 && (
+									<div
+										style={{
+											textAlign: 'center',
+											color: 'var(--color-text-mute)',
+											marginTop: '40px'
+										}}
+									>
+										No videos loaded. Click the top-right button to start.
+									</div>
+								)}
+								{!loading && videos.length > 0 && filteredVideos.length === 0 && (
+									<div
+										style={{
+											textAlign: 'center',
+											color: 'var(--color-text-mute)',
+											marginTop: '40px'
+										}}
+									>
+										No videos match the selected filters.
+									</div>
+								)}
 							</div>
 							{videoListViewMode === 'home' && (
 								<div style={{ textAlign: 'center', marginTop: '22px' }}>
@@ -1330,3 +1649,4 @@ function App(): React.ReactElement {
 }
 
 export default App
+

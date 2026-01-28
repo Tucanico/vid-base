@@ -79,44 +79,49 @@ function FilterSection({
 						cursor: 'pointer',
 						display: 'flex',
 						justifyContent: 'space-between',
-						alignItems: 'center'
+						alignItems: 'center',
+						gap: '8px'
 					}}
 				>
 					<span>{title}</span>
-					<span>{isOpen ? '−' : '+'}</span>
+					<span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+						{isTextInput && (
+							<button
+								onClick={(e) => {
+									e.stopPropagation()
+									setShowValuesModal(!showValuesModal)
+								}}
+								title={
+									showValuesModal
+										? `Hide ${title.toLowerCase()} values`
+										: `Show all ${title.toLowerCase()} values`
+								}
+								style={{
+									background: showValuesModal
+										? 'var(--color-primary-light)'
+										: 'transparent',
+									border: '1px solid var(--color-background-mute)',
+									borderRadius: '4px',
+									padding: '4px 8px',
+									cursor: 'pointer',
+									fontSize: '0.75rem',
+									color: showValuesModal
+										? 'var(--color-primary-dark)'
+										: 'var(--color-text-mute)',
+									minWidth: '24px',
+									height: '24px',
+									display: 'flex',
+									alignItems: 'center',
+									justifyContent: 'center',
+									flexShrink: 0
+								}}
+							>
+								ℹ
+							</button>
+						)}
+						<span>{isOpen ? '−' : '+'}</span>
+					</span>
 				</button>
-				{isTextInput && (
-					<button
-						onClick={(e) => {
-							e.stopPropagation()
-							setShowValuesModal(!showValuesModal)
-						}}
-						title={
-							showValuesModal
-								? `Hide ${title.toLowerCase()} values`
-								: `Show all ${title.toLowerCase()} values`
-						}
-						style={{
-							background: showValuesModal ? 'var(--color-primary-light)' : 'transparent',
-							border: '1px solid var(--color-background-mute)',
-							borderRadius: '4px',
-							padding: '4px 8px',
-							cursor: 'pointer',
-							fontSize: '0.75rem',
-							color: showValuesModal
-								? 'var(--color-primary-dark)'
-								: 'var(--color-text-mute)',
-							minWidth: '24px',
-							height: '24px',
-							display: 'flex',
-							alignItems: 'center',
-							justifyContent: 'center',
-							flexShrink: 0
-						}}
-					>
-						ℹ
-					</button>
-				)}
 			</div>
 			{isOpen && (
 				<div
@@ -219,3 +224,4 @@ function FilterSection({
 }
 
 export default FilterSection
+

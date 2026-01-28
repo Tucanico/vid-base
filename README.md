@@ -61,7 +61,8 @@ VidBase stores a cache in the selected folder:
 ### Movie Mode
 
 1. Click **Select Movies Folder**.
-2. The folder must contain a supported Excel file with movie metadata.
+2. If no Excel file is present, VidBase scans movie folders and creates `Archivio.xlsx`
+   using TMDb metadata (requires `TMDB_API_KEY`).
 3. VidBase loads movies and optional TMDb enrichment when an API key is present.
 
 #### TMDb API key (optional)

@@ -13,8 +13,10 @@ export interface Movie {
 	genres: string[] // Genres (from GENERE, split from comma-separated string)
 	type?: string // Type (from TIPO, e.g., Film)
 	check?: string // Check column
-	duration?: number // Duration in seconds (from DURATA)
-	size?: number // Size in bytes (from DIMENSIONI, or calculated from folder)
+	duration?: string // Duration formatted (e.g., "1h26m")
+	durationSeconds?: number // Duration in seconds (parsed from DURATA)
+	size?: string // Size formatted (e.g., "1.5 GB")
+	sizeBytes?: number // Size in bytes (parsed from DIMENSIONI or calculated)
 	notes?: string // Notes (from NOTE)
 	folderPath?: string // Path to the folder containing the movie
 }

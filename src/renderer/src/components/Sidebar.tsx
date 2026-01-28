@@ -1,4 +1,5 @@
 import React from 'react'
+import { formatDuration, formatFileSize } from '../utils/formatters'
 import FilterSection from './FilterSection'
 import { ActiveFilters } from '@shared/types/filter'
 
@@ -22,7 +23,8 @@ function Sidebar({
 	openCategories,
 	onToggleCategory,
 	isMovieMode = false,
-	onMovieFilterTextChange
+	onMovieFilterTextChange,
+	movieRangeFilters
 }: {
 	filterOptions: {
 		categories: Record<string, string[]>
@@ -38,7 +40,84 @@ function Sidebar({
 	onToggleCategory?: (category: string) => void
 	isMovieMode?: boolean
 	onMovieFilterTextChange?: (category: string, value: string) => void
+	movieRangeFilters?: {
+		duration?: {
+			min: number
+			max: number
+			selectedMin: number
+			selectedMax: number
+			onChange: (min: number, max: number) => void
+		}
+		size?: {
+			min: number
+			max: number
+			selectedMin: number
+			selectedMax: number
+			onChange: (min: number, max: number) => void
+		}
+	}
 }): React.ReactElement {
+	const renderRangeFilter = (
+		label: string,
+		min: number,
+		max: number,
+		selectedMin: number,
+		selectedMax: number,
+		step: number,
+		format: (value: number) => string | undefined,
+		onChange: (min: number, max: number) => void
+	): React.ReactElement => {
+		const displayMin = format(selectedMin) ?? ''
+		const displayMax = format(selectedMax) ?? ''
+		const isDisabled = min === max
+
+		return (
+			<div style={{ marginBottom: '12px' }}>
+				<div
+					style={{
+						display: 'flex',
+						alignItems: 'center',
+						justifyContent: 'space-between',
+						marginBottom: '6px'
+					}}
+				>
+					{label ? <span style={{ fontWeight: 600 }}>{label}</span> : <span />}
+					<span style={{ color: 'var(--color-text-mute)', fontSize: '0.85rem' }}>
+						{displayMin} – {displayMax}
+					</span>
+				</div>
+				<div style={{ position: 'relative', height: '36px' }}>
+					<input
+						type="range"
+						min={min}
+						max={max}
+						step={step}
+						value={selectedMin}
+						disabled={isDisabled}
+						style={{ position: 'absolute', left: 0, right: 0, top: 0, width: '100%' }}
+						onChange={(e) => {
+							const nextMin = Math.min(Number(e.target.value), selectedMax)
+							onChange(nextMin, selectedMax)
+						}}
+					/>
+					<input
+						type="range"
+						min={min}
+						max={max}
+						step={step}
+						value={selectedMax}
+						disabled={isDisabled}
+						style={{ position: 'absolute', left: 0, right: 0, top: 14, width: '100%' }}
+						onChange={(e) => {
+							const nextMax = Math.max(Number(e.target.value), selectedMin)
+							onChange(selectedMin, nextMax)
+						}}
+					/>
+				</div>
+			</div>
+		)
+	}
+
 	return (
 		<div
 			style={{
@@ -103,6 +182,102 @@ function Sidebar({
 			{Object.entries(filterOptions.categories).map(([categoryName, values]) => {
 				const activeValues = activeFilters[categoryName] || []
 				const isOpen = openCategories?.has(categoryName) ?? false
+				const upperCategory = categoryName.toUpperCase()
+
+				if (upperCategory === 'DURATION') {
+					return (
+						<div key={categoryName} style={{ marginBottom: '10px' }}>
+							<div
+								style={{
+									display: 'flex',
+									alignItems: 'center',
+									gap: '8px'
+								}}
+							>
+								<button
+									onClick={() => onToggleCategory?.(categoryName)}
+									style={{
+										flex: 1,
+										textAlign: 'left',
+										background: 'none',
+										border: 'none',
+										fontSize: '1rem',
+										fontWeight: 600,
+										padding: '10px 0',
+										cursor: 'pointer',
+										display: 'flex',
+										justifyContent: 'space-between',
+										alignItems: 'center'
+									}}
+								>
+									<span>DURATION</span>
+									<span>{isOpen ? '−' : '+'}</span>
+								</button>
+							</div>
+							{isOpen &&
+								movieRangeFilters?.duration &&
+								renderRangeFilter(
+									'',
+									movieRangeFilters.duration.min,
+									movieRangeFilters.duration.max,
+									movieRangeFilters.duration.selectedMin,
+									movieRangeFilters.duration.selectedMax,
+									60,
+									formatDuration,
+									movieRangeFilters.duration.onChange
+								)}
+						</div>
+					)
+				}
+
+				if (upperCategory === 'SIZE') {
+					return (
+						<div key={categoryName} style={{ marginBottom: '10px' }}>
+							<div
+								style={{
+									display: 'flex',
+									alignItems: 'center',
+									gap: '8px'
+								}}
+							>
+								<button
+									onClick={() => onToggleCategory?.(categoryName)}
+									style={{
+										flex: 1,
+										textAlign: 'left',
+										background: 'none',
+										border: 'none',
+										fontSize: '1rem',
+										fontWeight: 600,
+										padding: '10px 0',
+										cursor: 'pointer',
+										display: 'flex',
+										justifyContent: 'space-between',
+										alignItems: 'center'
+									}}
+								>
+									<span>SIZE</span>
+									<span>{isOpen ? '−' : '+'}</span>
+								</button>
+							</div>
+							{isOpen &&
+								movieRangeFilters?.size &&
+								renderRangeFilter(
+									'',
+									movieRangeFilters.size.min,
+									movieRangeFilters.size.max,
+									movieRangeFilters.size.selectedMin,
+									movieRangeFilters.size.selectedMax,
+									1024 * 1024,
+									formatFileSize,
+									movieRangeFilters.size.onChange
+								)}
+						</div>
+					)
+				}
+
+				const isTextInputAllowed =
+					isMovieMode && !['LANGUAGE', 'TYPE', 'LQ'].includes(upperCategory)
 				return (
 					<FilterSection
 						key={categoryName}
@@ -116,9 +291,9 @@ function Sidebar({
 						}
 						isOpen={isOpen}
 						onToggleOpen={onToggleCategory ? () => onToggleCategory(categoryName) : undefined}
-						isTextInput={isMovieMode}
+						isTextInput={isTextInputAllowed}
 						onTextInputChange={
-							isMovieMode && onMovieFilterTextChange
+							isTextInputAllowed && onMovieFilterTextChange
 								? (value) => onMovieFilterTextChange(categoryName, value)
 								: undefined
 						}
@@ -149,3 +324,4 @@ function Sidebar({
 }
 
 export default Sidebar
+

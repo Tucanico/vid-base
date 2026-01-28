@@ -18,6 +18,64 @@ function parseArrayField(value: string | undefined): string[] {
 }
 
 /**
+ * Parses duration values from Excel into seconds.
+ * Supports raw seconds or formatted strings like "1h26m", "45m", "30s".
+ */
+function parseDurationValue(value: unknown): number | undefined {
+	if (value === undefined || value === null || value === '') return undefined
+	if (typeof value === 'number') return value
+
+	const raw = String(value).trim().toLowerCase()
+	if (!raw) return undefined
+
+	const hasUnits = /[hms]/.test(raw)
+	const match = raw.match(
+		/^(?:(\d+(?:\.\d+)?)h)?\s*(?:(\d+(?:\.\d+)?)m)?\s*(?:(\d+(?:\.\d+)?)s)?$/
+	)
+
+	if (match && (match[1] || match[2] || match[3])) {
+		const hours = parseFloat(match[1] || '0')
+		const minutes = parseFloat(match[2] || '0')
+		const seconds = parseFloat(match[3] || '0')
+		return Math.round(hours * 3600 + minutes * 60 + seconds)
+	}
+
+	if (hasUnits) return undefined
+
+	const parsed = parseFloat(raw)
+	return isNaN(parsed) ? undefined : parsed
+}
+
+/**
+ * Parses size values from Excel into bytes.
+ * Supports raw bytes or formatted strings like "1.5 GB", "500 MB".
+ */
+function parseSizeValue(value: unknown): number | undefined {
+	if (value === undefined || value === null || value === '') return undefined
+	if (typeof value === 'number') return value
+
+	const raw = String(value).trim()
+	if (!raw) return undefined
+
+	const normalized = raw.replace(',', '.')
+	const unitMatch = normalized.match(/^([\d.]+)\s*([KMGT]?B)$/i)
+	if (unitMatch) {
+		const amount = parseFloat(unitMatch[1])
+		if (isNaN(amount)) return undefined
+		const unit = unitMatch[2].toUpperCase()
+		const powers: Record<string, number> = { B: 0, KB: 1, MB: 2, GB: 3, TB: 4 }
+		const power = powers[unit]
+		if (power === undefined) return undefined
+		return Math.round(amount * 1024 ** power)
+	}
+
+	if (/[a-z]/i.test(normalized)) return undefined
+
+	const parsed = parseFloat(normalized)
+	return isNaN(parsed) ? undefined : parsed
+}
+
+/**
  * Converts director name from "Surname, Name" format to "Name Surname" format
  */
 function formatDirectorName(director: string): string {
@@ -133,8 +191,8 @@ export async function parseMovieExcel(
 		// Convert to JSON with header row
 		const data = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' }) as unknown[][]
 
-		if (data.length < 2) {
-			throw new Error('Excel file must have at least a header row and one data row')
+		if (data.length < 1) {
+			throw new Error('Excel file must have at least a header row')
 		}
 
 		// First row is headers
@@ -211,33 +269,15 @@ export async function parseMovieExcel(
 			const attori = attoriIndex !== -1 ? parseArrayField(String(row[attoriIndex] || '')) : []
 			const genere = genereIndex !== -1 ? parseArrayField(String(row[genereIndex] || '')) : []
 
-			// Parse duration (in seconds)
-			let duration: number | undefined = undefined
-			if (durataIndex !== -1 && row[durataIndex]) {
-				const durataValue = row[durataIndex]
-				if (typeof durataValue === 'number') {
-					duration = durataValue
-				} else {
-					const parsed = parseFloat(String(durataValue))
-					if (!isNaN(parsed)) {
-						duration = parsed
-					}
-				}
-			}
+			// Parse duration (in seconds) and format for display/storage
+			const durationSeconds =
+				durataIndex !== -1 ? parseDurationValue(row[durataIndex]) : undefined
+			const durationFormatted =
+				durationSeconds !== undefined ? formatDuration(durationSeconds) : undefined
 
-			// Parse size (in bytes)
-			let size: number | undefined = undefined
-			if (dimensioniIndex !== -1 && row[dimensioniIndex]) {
-				const dimensioniValue = row[dimensioniIndex]
-				if (typeof dimensioniValue === 'number') {
-					size = dimensioniValue
-				} else {
-					const parsed = parseFloat(String(dimensioniValue))
-					if (!isNaN(parsed)) {
-						size = parsed
-					}
-				}
-			}
+			// Parse size (in bytes) and format for display/storage
+			const sizeBytes = dimensioniIndex !== -1 ? parseSizeValue(row[dimensioniIndex]) : undefined
+			const sizeFormatted = sizeBytes !== undefined ? formatFileSize(sizeBytes) : undefined
 
 			const movie: Movie = {
 				id: uuidv4(),
@@ -250,8 +290,10 @@ export async function parseMovieExcel(
 				genres: genere,
 				type: tipoIndex !== -1 ? String(row[tipoIndex] || '').trim() : undefined,
 				check: checkIndex !== -1 ? String(row[checkIndex] || '').trim() : undefined,
-				duration: duration,
-				size: size,
+				duration: durationFormatted,
+				durationSeconds: durationSeconds,
+				size: sizeFormatted,
+				sizeBytes: sizeBytes,
 				notes: noteIndex !== -1 ? String(row[noteIndex] || '').trim() : undefined
 			}
 
@@ -267,8 +309,8 @@ export async function parseMovieExcel(
 			movie.genres.forEach((genre) => categories.GENRES.add(genre))
 			if (movie.type) categories.TYPE.add(movie.type)
 			if (movie.check) categories.Check.add(movie.check)
-			if (movie.duration) categories.DURATION.add(String(movie.duration))
-			if (movie.size) categories.SIZE.add(String(movie.size))
+			if (movie.duration) categories.DURATION.add(movie.duration)
+			if (movie.size) categories.SIZE.add(movie.size)
 			if (movie.notes) categories.NOTES.add(movie.notes)
 		}
 
@@ -443,9 +485,7 @@ export async function parseMovieExcel(
 							await newWorkbook.xlsx.writeFile(newFilePath)
 
 							// Log success with movie titles
-							console.log(
-								`\nSuccessfully added ${newMoviesToAdd.length} new movie(s):`
-							)
+							console.log(`\nSuccessfully added ${newMoviesToAdd.length} new movie(s):`)
 							for (const movieData of newMoviesToAdd) {
 								const yearStr = movieData.year ? ` (${movieData.year})` : ''
 								console.log(`  ${movieData.title}${yearStr}`)
@@ -453,17 +493,28 @@ export async function parseMovieExcel(
 
 							// Add to current movies array and update categories
 							for (const movieData of newMoviesToAdd) {
+								const durationSeconds = movieData.duration
+								const sizeBytes = movieData.size
+								const durationFormatted =
+									durationSeconds !== undefined
+										? formatDuration(durationSeconds)
+										: undefined
+								const sizeFormatted =
+									sizeBytes !== undefined ? formatFileSize(sizeBytes) : undefined
+
 								const newMovie: Movie = {
 									id: uuidv4(),
 									title: movieData.title,
 									director: movieData.director, // Already in "FirstName LastName" format
 									year: movieData.year,
-									duration: movieData.duration,
+									duration: durationFormatted,
+									durationSeconds: durationSeconds,
 									language: movieData.language,
 									actors: movieData.actors,
 									genres: movieData.genres,
 									type: movieData.type,
-									size: movieData.size,
+									size: sizeFormatted,
+									sizeBytes: sizeBytes,
 									folderPath: movieData.folderPath
 								}
 
@@ -477,7 +528,8 @@ export async function parseMovieExcel(
 								newMovie.actors.forEach((actor) => categories.ACTORS.add(actor))
 								newMovie.genres.forEach((genre) => categories.GENRES.add(genre))
 								if (newMovie.type) categories.TYPE.add(newMovie.type)
-								if (newMovie.size) categories.SIZE.add(String(newMovie.size))
+								if (newMovie.duration) categories.DURATION.add(newMovie.duration)
+								if (newMovie.size) categories.SIZE.add(newMovie.size)
 							}
 						} catch (excelError) {
 							const errorMessage =
@@ -568,6 +620,13 @@ async function searchMovieFoldersRecursively(
 			if (entry.isDirectory()) {
 				const folderPath = path.join(currentPath, entry.name)
 
+				const hasVideo = await folderContainsVideo(folderPath, false)
+				if (!hasVideo) {
+					// No video files here, keep searching deeper
+					await searchMovieFoldersRecursively(folderPath, movies, matchedMovies, rootPath)
+					continue
+				}
+
 				// Try to match this folder with an unmatched movie
 				let matched = false
 				for (const movie of movies) {
@@ -576,9 +635,12 @@ async function searchMovieFoldersRecursively(
 					if (matchMovieToFolder(movie.title, entry.name)) {
 						movie.folderPath = folderPath
 						// Calculate folder size if not provided in Excel
-						if (!movie.size) {
+						if (!movie.sizeBytes) {
 							try {
-								movie.size = await calculateFolderSize(folderPath)
+								movie.sizeBytes = await calculateFolderSize(folderPath)
+								if (movie.sizeBytes) {
+									movie.size = formatFileSize(movie.sizeBytes)
+								}
 							} catch (error) {
 								console.warn(`Could not calculate size for folder ${folderPath}:`, error)
 							}
@@ -589,11 +651,9 @@ async function searchMovieFoldersRecursively(
 					}
 				}
 
-				// If this folder matched a movie, don't recurse into it
-				// Otherwise, continue searching recursively
-				if (!matched) {
-					await searchMovieFoldersRecursively(folderPath, movies, matchedMovies, rootPath)
-				}
+				// If this folder matched a movie, don't recurse into it.
+				// Folders with videos are treated as movie folders; only folders
+				// without videos are recursed into (handled above).
 			}
 		}
 	} catch (error) {
@@ -747,7 +807,9 @@ async function getMovieInfoFromTMDB(
 		const detailsResponse = await fetch(`${baseUrl}/movie/${movieId}?${detailsParams.toString()}`)
 
 		if (!detailsResponse.ok) {
-			console.error(`TMDb details failed: ${detailsResponse.status} ${detailsResponse.statusText}`)
+			console.error(
+				`TMDb details failed: ${detailsResponse.status} ${detailsResponse.statusText}`
+			)
 			return null
 		}
 
@@ -758,10 +820,14 @@ async function getMovieInfoFromTMDB(
 			api_key: apiKey,
 			language: 'en-US'
 		})
-		const creditsResponse = await fetch(`${baseUrl}/movie/${movieId}/credits?${creditsParams.toString()}`)
+		const creditsResponse = await fetch(
+			`${baseUrl}/movie/${movieId}/credits?${creditsParams.toString()}`
+		)
 
 		if (!creditsResponse.ok) {
-			console.error(`TMDb credits failed: ${creditsResponse.status} ${creditsResponse.statusText}`)
+			console.error(
+				`TMDb credits failed: ${creditsResponse.status} ${creditsResponse.statusText}`
+			)
 			return null
 		}
 
@@ -820,7 +886,10 @@ async function getMovieInfoFromTMDB(
  * @param folderPath Path to the folder to check
  * @returns true if folder contains at least one video file
  */
-async function folderContainsVideo(folderPath: string): Promise<boolean> {
+async function folderContainsVideo(
+	folderPath: string,
+	recursive: boolean = true
+): Promise<boolean> {
 	const videoExtensions = [
 		'.mp4',
 		'.mkv',
@@ -839,9 +908,10 @@ async function folderContainsVideo(folderPath: string): Promise<boolean> {
 
 		for (const entry of entries) {
 			if (entry.isDirectory()) {
+				if (!recursive) continue
 				// Recursively check subdirectories
 				const subFolderPath = path.join(folderPath, entry.name)
-				if (await folderContainsVideo(subFolderPath)) {
+				if (await folderContainsVideo(subFolderPath, true)) {
 					return true
 				}
 			} else if (entry.isFile()) {
@@ -897,7 +967,7 @@ async function findUnmatchedMovieFolders(
 
 					if (!matchesExisting) {
 						// Check if this folder contains at least one video file (definition of a movie folder)
-						const hasVideo = await folderContainsVideo(folderPath)
+						const hasVideo = await folderContainsVideo(folderPath, false)
 						if (hasVideo) {
 							// This is an unmatched movie folder - could be a new movie
 							unmatchedFolders.push({ folderPath, folderName: entry.name })
@@ -937,3 +1007,89 @@ export async function findExcelFile(dirPath: string): Promise<string | null> {
 		return null
 	}
 }
+
+/**
+ * Creates a new Archivio Excel file by scanning movie folders and enriching with TMDb.
+ * @param moviesFolderPath Path to the folder containing movie folders
+ * @param outputDir Optional output directory for the Excel file (defaults to moviesFolderPath)
+ * @returns A promise that resolves to the new Excel file path
+ */
+export async function createMovieArchivioFromFolders(
+	moviesFolderPath: string,
+	outputDir?: string
+): Promise<string> {
+	const tmdbApiKey = process.env.TMDB_API_KEY
+	if (!tmdbApiKey || tmdbApiKey.trim() === '') {
+		throw new Error('TMDB_API_KEY is required to create a new movie archive')
+	}
+
+	const targetDir = outputDir || moviesFolderPath
+	const filePath = path.join(targetDir, 'Archivio.xlsx')
+
+	const workbook = new ExcelJS.Workbook()
+	const worksheet = workbook.addWorksheet('Archivio')
+
+	const headers = [
+		'LQ',
+		'TITOLO',
+		'REGISTA',
+		'ANNO',
+		'LINGUA',
+		'ATTORI RILEVANTI',
+		'GENERE',
+		'TIPO',
+		'CHECK',
+		'DURATA',
+		'DIMENSIONI',
+		'NOTE'
+	]
+
+	worksheet.addRow(headers)
+
+	const movieFolders = await findUnmatchedMovieFolders(moviesFolderPath, [])
+
+	for (const { folderPath, folderName } of movieFolders) {
+		const cleanedTitle = removeFolderSuffixes(folderName)
+		const extractedYear = extractYearFromFolderName(folderName)
+		const movieInfo = await getMovieInfoFromTMDB(cleanedTitle, tmdbApiKey, extractedYear)
+
+		const director = movieInfo?.director?.trim() || 'Unknown'
+		const directorForExcel = director.includes(',')
+			? director
+			: (() => {
+					const nameParts = director.trim().split(/\s+/)
+					if (nameParts.length >= 2) {
+						const lastName = nameParts[nameParts.length - 1]
+						const firstName = nameParts.slice(0, -1).join(' ')
+						return `${lastName}, ${firstName}`
+					}
+					return director
+				})()
+
+		const language = extractLanguage(folderName, folderPath)
+		const size = await calculateFolderSize(folderPath)
+
+		const durationFormatted =
+			typeof movieInfo?.duration === 'number' ? formatDuration(movieInfo.duration) : ''
+		const sizeFormatted = typeof size === 'number' ? formatFileSize(size) : ''
+
+		worksheet.addRow([
+			'',
+			cleanedTitle,
+			directorForExcel,
+			movieInfo?.year ?? extractedYear ?? '',
+			language,
+			movieInfo?.actors?.join(', ') || '',
+			movieInfo?.genres?.join(', ') || '',
+			movieInfo?.type || 'Film',
+			'',
+			durationFormatted,
+			sizeFormatted,
+			''
+		])
+	}
+
+	await workbook.xlsx.writeFile(filePath)
+	return filePath
+}
+
