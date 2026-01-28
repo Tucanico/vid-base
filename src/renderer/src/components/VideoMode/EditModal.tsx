@@ -454,7 +454,9 @@ function EditModal({
 								onChange={handleInputChange}
 								onKeyDown={handleKeyDown}
 								onFocus={() =>
-									setShowSuggestions(inputValue.trim().length > 0 && suggestions.length > 0)
+									setShowSuggestions(
+										inputValue.trim().length > 0 && suggestions.length > 0
+									)
 								}
 								placeholder="Ex: holidays or category:nature"
 								style={{

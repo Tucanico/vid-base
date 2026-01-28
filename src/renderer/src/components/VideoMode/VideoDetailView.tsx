@@ -174,7 +174,6 @@ function VideoDetailView({
 			return
 		}
 
-		/* eslint-disable indent */
 		switch (e.key) {
 			case 'ArrowDown':
 				e.preventDefault()
@@ -196,7 +195,6 @@ function VideoDetailView({
 				setShowSuggestions(false)
 				break
 		}
-		/* eslint-enable indent */
 	}
 
 	// Handles the submission of the "Add Tag" form

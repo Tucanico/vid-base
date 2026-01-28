@@ -243,8 +243,8 @@ export async function scanDirectoryWithLibrary(
 				typeof existingEntry.favourited === 'boolean'
 					? existingEntry.favourited
 					: existingEntry.tags.some(
-						(tag) => tag.type === 'simple' && tag.value.toLowerCase() === 'fav'
-					)
+							(tag) => tag.type === 'simple' && tag.value.toLowerCase() === 'fav'
+						)
 			const cleanedTags = existingEntry.tags.filter(
 				(tag) => !(tag.type === 'simple' && tag.value.toLowerCase() === 'fav')
 			)

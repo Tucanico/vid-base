@@ -12,7 +12,10 @@ export async function updateVideoTags(
 	favourited: boolean
 ): Promise<void> {
 	// 1. Reconstruct the "raw" string (e.g., "holidays; category:nature") for simple string-based fields
-	const tagString = [...tags, ...(favourited ? [{ type: 'simple', value: 'fav' } as ParsedTag] : [])]
+	const tagString = [
+		...tags,
+		...(favourited ? [{ type: 'simple', value: 'fav' } as ParsedTag] : [])
+	]
 		.map((t) => {
 			if (t.type === 'kv' && t.key) {
 				return `${t.key}:${t.value}`
@@ -22,9 +25,10 @@ export async function updateVideoTags(
 		.join('; ')
 
 	// 2. Reconstruct a simple list of strings for metadata fields that support arrays
-	const tagList = [...tags, ...(favourited ? [{ type: 'simple', value: 'fav' } as ParsedTag] : [])].map(
-		(t) => (t.type === 'kv' ? `${t.key}:${t.value}` : t.value)
-	)
+	const tagList = [
+		...tags,
+		...(favourited ? [{ type: 'simple', value: 'fav' } as ParsedTag] : [])
+	].map((t) => (t.type === 'kv' ? `${t.key}:${t.value}` : t.value))
 
 	try {
 		console.log(`Writing tags to ${filePath}:`, tagString)
