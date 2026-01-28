@@ -1,7 +1,6 @@
 import React from 'react'
 import { Movie } from '@shared/types/movie'
 import { ClickableFilterValues, ClickableSingleValue } from '../ClickableValues'
-import { formatDuration, formatFileSize } from '../../utils/formatters'
 
 /** --- COMPONENT: MovieDetailView ---
  *  Full-screen detail view for viewing movie information
@@ -184,10 +183,10 @@ function MovieDetailView({
 									borderBottom: '1px solid var(--color-background-mute)'
 								}}
 							>
-								<span style={{ fontWeight: 500, color: 'var(--color-text)' }}>Duration</span>
-								<span style={{ color: 'var(--color-text-soft)' }}>
-									{formatDuration(movie.duration)}
+								<span style={{ fontWeight: 500, color: 'var(--color-text)' }}>
+									Duration
 								</span>
+								<span style={{ color: 'var(--color-text-soft)' }}>{movie.duration}</span>
 							</div>
 						)}
 						{movie.size && (
@@ -200,14 +199,12 @@ function MovieDetailView({
 								}}
 							>
 								<span style={{ fontWeight: 500, color: 'var(--color-text)' }}>Size</span>
-								<span style={{ color: 'var(--color-text-soft)' }}>
-									{formatFileSize(movie.size)}
-								</span>
+								<span style={{ color: 'var(--color-text-soft)' }}>{movie.size}</span>
 							</div>
 						)}
 
 						{/* Non-clickable fields */}
-						{movie.lq && (
+						{movie.lq && movie.lq.trim().toLowerCase() !== 'si' && (
 							<div
 								style={{
 									display: 'flex',
@@ -244,9 +241,31 @@ function MovieDetailView({
 								}}
 							>
 								<span style={{ fontWeight: 500, color: 'var(--color-text)' }}>Notes</span>
-								<span style={{ color: 'var(--color-text-soft)', whiteSpace: 'pre-wrap' }}>
+								<span
+									style={{
+										color: 'var(--color-text-soft)',
+										whiteSpace: 'pre-wrap',
+										textAlign: 'right',
+										alignSelf: 'flex-end'
+									}}
+								>
 									{movie.notes}
 								</span>
+							</div>
+						)}
+						{movie.lq?.trim().toLowerCase() === 'si' && (
+							<div
+								style={{
+									display: 'flex',
+									justifyContent: 'space-between',
+									padding: '8px 0',
+									borderBottom: '1px solid var(--color-background-mute)'
+								}}
+							>
+								<span style={{ fontWeight: 500, color: 'var(--color-text)' }}>
+									Low Quality
+								</span>
+								<span style={{ color: 'var(--color-text-soft)' }}>Yes</span>
 							</div>
 						)}
 					</div>
@@ -257,3 +276,4 @@ function MovieDetailView({
 }
 
 export default MovieDetailView
+
