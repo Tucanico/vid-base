@@ -192,11 +192,21 @@ export async function parseMovieExcel(
 		const data = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' }) as unknown[][]
 
 		if (data.length < 1) {
-			throw new Error('Excel file must have at least a header row')
+			throw new Error('Excel file must have at least a title or header row')
 		}
 
-		// First row is headers
-		const headers = data[0].map((h: unknown) => String(h).trim())
+		// Determine header row (support optional title row like "ARCHIVIO")
+		const row0 = data[0] || []
+		const row1 = data[1] || []
+		const row0Strings = row0.map((h: unknown) => String(h).trim().toUpperCase())
+		const row1Strings = row1.map((h: unknown) => String(h).trim().toUpperCase())
+
+		const headerCandidates = ['LQ', 'TITOLO', 'REGISTA', 'ANNO', 'LINGUA']
+		const row0HasHeaders = headerCandidates.some((h) => row0Strings.includes(h))
+		const row1HasHeaders = headerCandidates.some((h) => row1Strings.includes(h))
+
+		const headerRowIndex = row0HasHeaders ? 0 : row1HasHeaders ? 1 : 0
+		const headers = data[headerRowIndex].map((h: unknown) => String(h).trim())
 
 		// Find column indices
 		const lqIndex = headers.findIndex((h: string) => h.toUpperCase() === 'LQ')
@@ -211,7 +221,9 @@ export async function parseMovieExcel(
 		const tipoIndex = headers.findIndex((h: string) => h.toUpperCase() === 'TIPO')
 		const checkIndex = headers.findIndex((h: string) => h.toUpperCase() === 'CHECK')
 		const durataIndex = headers.findIndex((h: string) => h.toUpperCase() === 'DURATA')
-		const dimensioniIndex = headers.findIndex((h: string) => h.toUpperCase() === 'DIMENSIONI')
+		const dimensioniIndex = headers.findIndex((h: string) =>
+			['DIMENSIONI', 'DIMENSIONE'].includes(h.toUpperCase())
+		)
 		const noteIndex = headers.findIndex((h: string) => h.toUpperCase() === 'NOTE')
 
 		if (titoloIndex === -1 || registaIndex === -1) {
@@ -234,9 +246,11 @@ export async function parseMovieExcel(
 			SIZE: new Set(),
 			NOTES: new Set()
 		}
+		const movieExcelRowMap = new Map<string, number>()
+		const movieExcelFieldPresence = new Map<string, { hasDuration: boolean; hasSize: boolean }>()
 
 		// Process data rows (skip header row)
-		for (let i = 1; i < data.length; i++) {
+		for (let i = headerRowIndex + 1; i < data.length; i++) {
 			const row = data[i]
 
 			// Skip empty rows
@@ -269,6 +283,15 @@ export async function parseMovieExcel(
 			const attori = attoriIndex !== -1 ? parseArrayField(String(row[attoriIndex] || '')) : []
 			const genere = genereIndex !== -1 ? parseArrayField(String(row[genereIndex] || '')) : []
 
+			const hasDurationCell =
+				durataIndex !== -1 &&
+				row[durataIndex] !== undefined &&
+				String(row[durataIndex]).trim() !== ''
+			const hasSizeCell =
+				dimensioniIndex !== -1 &&
+				row[dimensioniIndex] !== undefined &&
+				String(row[dimensioniIndex]).trim() !== ''
+
 			// Parse duration (in seconds) and format for display/storage
 			const durationSeconds =
 				durataIndex !== -1 ? parseDurationValue(row[durataIndex]) : undefined
@@ -298,6 +321,11 @@ export async function parseMovieExcel(
 			}
 
 			movies.push(movie)
+			movieExcelRowMap.set(movie.id, i + 1)
+			movieExcelFieldPresence.set(movie.id, {
+				hasDuration: hasDurationCell,
+				hasSize: hasSizeCell
+			})
 
 			// Collect unique values for each category (using English names for consistency)
 			if (movie.lq) categories.LQ.add(movie.lq)
@@ -362,27 +390,25 @@ export async function parseMovieExcel(
 								extractedYear
 							)
 
-							if (movieInfo) {
-								// Extract language
-								const language = extractLanguage(folderName, folderPath)
+							// Extract language
+							const language = extractLanguage(folderName, folderPath)
 
-								// Calculate folder size
-								const size = await calculateFolderSize(folderPath)
+							// Calculate folder size
+							const size = await calculateFolderSize(folderPath)
 
-								// Collect the movie data (don't write to Excel yet)
-								newMoviesToAdd.push({
-									title: cleanedTitle,
-									director: movieInfo.director,
-									year: movieInfo.year,
-									duration: movieInfo.duration,
-									language: language,
-									actors: movieInfo.actors,
-									genres: movieInfo.genres,
-									type: movieInfo.type,
-									size: size,
-									folderPath: folderPath
-								})
-							}
+							// Collect the movie data (don't write to Excel yet)
+							newMoviesToAdd.push({
+								title: cleanedTitle,
+								director: movieInfo?.director || 'Unknown',
+								year: movieInfo?.year ?? extractedYear ?? undefined,
+								duration: movieInfo?.duration,
+								language: language,
+								actors: movieInfo?.actors || [],
+								genres: movieInfo?.genres || [],
+								type: movieInfo?.type || 'Film',
+								size: size,
+								folderPath: folderPath
+							})
 						} catch (error) {
 							const errorMessage = error instanceof Error ? error.message : String(error)
 							console.error(`Error processing new movie folder ${folderName}:`, errorMessage)
@@ -390,42 +416,185 @@ export async function parseMovieExcel(
 						}
 					}
 
-					// If we have new movies, create a new Excel file with only the new movies
-					if (newMoviesToAdd.length > 0) {
+					// Identify movies that no longer exist in folders
+					const rowsToDelete: number[] = []
+					const removedMovieIds = new Set<string>()
+					const removedMovieEntries: Array<{ title: string; year?: number }> = []
+					for (const movie of movies) {
+						const excelRow = movieExcelRowMap.get(movie.id)
+						if (!excelRow) continue
+						if (movie.folderPath) continue
+						rowsToDelete.push(excelRow)
+						removedMovieIds.add(movie.id)
+						removedMovieEntries.push({ title: movie.title, year: movie.year })
+					}
+
+					// Identify movies missing BOTH duration and size to backfill
+					const rowsToBackfill: Array<{
+						row: number
+						movie: Movie
+						durationFormatted: string
+						durationSeconds?: number
+						sizeFormatted: string
+						sizeBytes?: number
+					}> = []
+					if (tmdbApiKey && tmdbApiKey.trim() !== '') {
+						for (const movie of movies) {
+							const presence = movieExcelFieldPresence.get(movie.id)
+							if (!presence || presence.hasDuration || presence.hasSize) continue
+							if (!movie.folderPath) continue
+							const excelRow = movieExcelRowMap.get(movie.id)
+							if (!excelRow) continue
+
+							try {
+								const movieInfo = await getMovieInfoFromTMDB(
+									movie.title,
+									tmdbApiKey,
+									movie.year
+								)
+								const durationSeconds = movieInfo?.duration
+								const durationFormatted =
+									typeof durationSeconds === 'number'
+										? formatDuration(durationSeconds)
+										: ''
+								const sizeBytes = await calculateFolderSize(movie.folderPath)
+								const sizeFormatted =
+									typeof sizeBytes === 'number' ? formatFileSize(sizeBytes) : ''
+
+								if (durationFormatted && sizeFormatted) {
+									rowsToBackfill.push({
+										row: excelRow,
+										movie,
+										durationFormatted,
+										durationSeconds,
+										sizeFormatted,
+										sizeBytes
+									})
+								}
+							} catch (error) {
+								const errorMessage = error instanceof Error ? error.message : String(error)
+								console.error(
+									`Error backfilling duration/size for ${movie.title}:`,
+									errorMessage
+								)
+							}
+						}
+					}
+					if (rowsToBackfill.length > 0) {
+						console.log(
+							`\nDetected ${rowsToBackfill.length} movie(s) missing duration and size:`
+						)
+						for (const entry of rowsToBackfill) {
+							const yearStr = entry.movie.year ? ` (${entry.movie.year})` : ''
+							console.log(`  ${entry.movie.title}${yearStr}`)
+						}
+					}
+
+					// Apply Excel updates (additions and deletions) in one pass
+					if (
+						newMoviesToAdd.length > 0 ||
+						rowsToDelete.length > 0 ||
+						rowsToBackfill.length > 0
+					) {
 						try {
-							// Create a new workbook using ExcelJS for styling support
-							const newWorkbook = new ExcelJS.Workbook()
-							const newWorksheet = newWorkbook.addWorksheet('New Movies')
+							const workbook = new ExcelJS.Workbook()
+							await workbook.xlsx.readFile(filePath)
+							const worksheet = workbook.worksheets[0] || workbook.addWorksheet('Archivio')
 
-							// Define headers in English
-							const headers = [
-								'Title',
-								'Director',
-								'Year',
-								'Language',
-								'Relevant Actors',
-								'Genre(s)',
-								'Type',
-								'Duration',
-								'Size'
-							]
-
-							// Set header row
-							const headerRow = newWorksheet.addRow(headers)
-							headerRow.font = { name: 'Arial', size: 10 }
-							headerRow.fill = {
-								type: 'pattern',
-								pattern: 'solid',
-								fgColor: { argb: 'FFE0E0E0' }
+							// Find header row (supports optional title row)
+							let headerRowNumber = -1
+							const maxHeaderSearch = Math.min(10, worksheet.rowCount)
+							for (let i = 1; i <= maxHeaderSearch; i++) {
+								const rowValues = (worksheet.getRow(i).values || []) as unknown[]
+								const rowStrings = rowValues.map((v) =>
+									String(v ?? '')
+										.trim()
+										.toUpperCase()
+								)
+								if (rowStrings.includes('TITOLO') && rowStrings.includes('REGISTA')) {
+									headerRowNumber = i
+									break
+								}
 							}
 
-							// Define font style for all cells: Arial, size 10
-							const cellStyle = {
-								font: { name: 'Arial', size: 10 },
-								numFmt: '@' // Text format
+							if (headerRowNumber === -1) {
+								throw new Error('Could not find header row in Excel file')
 							}
 
-							// Add data rows
+							// Map column indices from header row
+							const headerRow = worksheet.getRow(headerRowNumber)
+							const headerValues = (headerRow.values || []) as unknown[]
+							const headerMap = new Map<string, number>()
+							headerValues.forEach((value, index) => {
+								if (index === 0) return
+								const key = String(value ?? '')
+									.trim()
+									.toUpperCase()
+								if (key) headerMap.set(key, index)
+							})
+
+							const getCol = (names: string[]): number | undefined => {
+								for (const name of names) {
+									const col = headerMap.get(name)
+									if (col !== undefined) return col
+								}
+								return undefined
+							}
+
+							const colLQ = getCol(['LQ'])
+							const colTitolo = getCol(['TITOLO'])
+							const colRegista = getCol(['REGISTA'])
+							const colAnno = getCol(['ANNO'])
+							const colLingua = getCol(['LINGUA'])
+							const colAttori = getCol(['ATTORI RILEVANTI', 'ATTORI'])
+							const colGenere = getCol(['GENERE'])
+							const colTipo = getCol(['TIPO'])
+							const colDurata = getCol(['DURATA'])
+							const colDimensione = getCol(['DIMENSIONE', 'DIMENSIONI'])
+							const colCheck = getCol(['CHECK'])
+							const colNote = getCol(['NOTE'])
+
+							if (!colTitolo || !colRegista) {
+								throw new Error('Excel file must have TITOLO and REGISTA columns')
+							}
+							if (rowsToBackfill.length > 0 && (!colDurata || !colDimensione)) {
+								throw new Error('Excel file must have DURATA and DIMENSIONE columns')
+							}
+
+							// Delete missing movies first (from bottom to top)
+							if (rowsToDelete.length > 0) {
+								rowsToDelete.sort((a, b) => b - a)
+								for (const rowNumber of rowsToDelete) {
+									worksheet.spliceRows(rowNumber, 1)
+								}
+							}
+
+							// Backfill duration and size for existing rows
+							if (rowsToBackfill.length > 0 && colDurata && colDimensione) {
+								for (const entry of rowsToBackfill) {
+									const row = worksheet.getRow(entry.row)
+									row.getCell(colDurata).value = entry.durationFormatted
+									row.getCell(colDimensione).value = entry.sizeFormatted
+								}
+							}
+
+							// Find the last row with actual data (ExcelJS rowCount can include empty styled rows)
+							const dataStartRow = headerRowNumber + 1
+							let lastDataRow = headerRowNumber
+							for (let i = worksheet.rowCount; i >= dataStartRow; i--) {
+								const rowValues = (worksheet.getRow(i).values || []) as unknown[]
+								const hasValue = rowValues.some((v, idx) => {
+									if (idx === 0) return false
+									if (v === null || v === undefined) return false
+									return String(v).trim() !== ''
+								})
+								if (hasValue) {
+									lastDataRow = i
+									break
+								}
+							}
+
+							// Add new movie rows
 							for (const movieData of newMoviesToAdd) {
 								// Convert director from "FirstName LastName" to "LastName, FirstName" for Excel
 								let directorForExcel = movieData.director
@@ -436,108 +605,171 @@ export async function parseMovieExcel(
 									directorForExcel = `${lastName}, ${firstName}`
 								}
 
-								// Create row with all fields as text
 								// Format duration and size
 								const durationFormatted = movieData.duration
 									? formatDuration(movieData.duration)
 									: ''
 								const sizeFormatted = movieData.size ? formatFileSize(movieData.size) : ''
 
-								const row = newWorksheet.addRow([
-									movieData.title || '',
-									directorForExcel || '',
-									movieData.year ? String(movieData.year) : '',
-									movieData.language || '',
-									movieData.actors.join(', ') || '',
-									movieData.genres.join(', ') || '',
-									movieData.type || '',
-									durationFormatted,
-									sizeFormatted
-								])
+								const rowValues: unknown[] = []
+								if (colLQ) rowValues[colLQ] = ''
+								if (colTitolo) rowValues[colTitolo] = movieData.title || ''
+								if (colRegista) rowValues[colRegista] = directorForExcel || ''
+								if (colAnno)
+									rowValues[colAnno] = movieData.year ? String(movieData.year) : ''
+								if (colLingua) rowValues[colLingua] = movieData.language || ''
+								if (colAttori) rowValues[colAttori] = movieData.actors.join(', ') || ''
+								if (colGenere) rowValues[colGenere] = movieData.genres.join(', ') || ''
+								if (colTipo) rowValues[colTipo] = movieData.type || ''
+								if (colDurata) rowValues[colDurata] = durationFormatted
+								if (colDimensione) rowValues[colDimensione] = sizeFormatted
+								if (colCheck) rowValues[colCheck] = ''
+								if (colNote) rowValues[colNote] = ''
 
-								// Apply styling to all cells in the row
+								const row = worksheet.insertRow(lastDataRow + 1, rowValues)
+								lastDataRow += 1
 								row.eachCell((cell) => {
-									cell.font = cellStyle.font
-									cell.numFmt = cellStyle.numFmt
+									cell.numFmt = '@'
 								})
 							}
 
-							// Set column widths
-							newWorksheet.columns = [
-								{ width: 30 }, // Title
-								{ width: 25 }, // Director
-								{ width: 6 }, // Year
-								{ width: 8 }, // Language
-								{ width: 40 }, // Relevant Actors
-								{ width: 25 }, // Genre(s)
-								{ width: 8 }, // Type
-								{ width: 10 }, // Duration
-								{ width: 15 } // Size
-							]
-
-							// Create new file path
-							const fileDir = path.dirname(filePath)
-							const fileExt = path.extname(filePath)
-							const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5) // Format: 2024-01-15T10-30-45
-							const newFilePath = path.join(fileDir, `NewMovies_${timestamp}${fileExt}`)
-
-							// Write the new workbook to file
-							await newWorkbook.xlsx.writeFile(newFilePath)
-
-							// Log success with movie titles
-							console.log(`\nSuccessfully added ${newMoviesToAdd.length} new movie(s):`)
-							for (const movieData of newMoviesToAdd) {
-								const yearStr = movieData.year ? ` (${movieData.year})` : ''
-								console.log(`  ${movieData.title}${yearStr}`)
+							const writeWithRetry = async (): Promise<void> => {
+								const delays = [0, 300, 600]
+								for (let attempt = 0; attempt < delays.length; attempt++) {
+									if (delays[attempt] > 0) {
+										await new Promise((resolve) => setTimeout(resolve, delays[attempt]))
+									}
+									try {
+										await workbook.xlsx.writeFile(filePath)
+										return
+									} catch (error) {
+										if (attempt === delays.length - 1) throw error
+									}
+								}
 							}
 
-							// Add to current movies array and update categories
-							for (const movieData of newMoviesToAdd) {
-								const durationSeconds = movieData.duration
-								const sizeBytes = movieData.size
-								const durationFormatted =
-									durationSeconds !== undefined
-										? formatDuration(durationSeconds)
-										: undefined
-								const sizeFormatted =
-									sizeBytes !== undefined ? formatFileSize(sizeBytes) : undefined
+							// Write updates back to the original file (with retry for transient locks)
+							await writeWithRetry()
 
-								const newMovie: Movie = {
-									id: uuidv4(),
-									title: movieData.title,
-									director: movieData.director, // Already in "FirstName LastName" format
-									year: movieData.year,
-									duration: durationFormatted,
-									durationSeconds: durationSeconds,
-									language: movieData.language,
-									actors: movieData.actors,
-									genres: movieData.genres,
-									type: movieData.type,
-									size: sizeFormatted,
-									sizeBytes: sizeBytes,
-									folderPath: movieData.folderPath
+							// Log success with movie titles
+							if (newMoviesToAdd.length > 0) {
+								console.log(`\nSuccessfully added ${newMoviesToAdd.length} new movie(s):`)
+								for (const movieData of newMoviesToAdd) {
+									const yearStr = movieData.year ? ` (${movieData.year})` : ''
+									console.log(`  ${movieData.title}${yearStr}`)
 								}
-
-								movies.push(newMovie)
-
-								// Update categories
-								categories.TITLE.add(newMovie.title)
-								categories.DIRECTOR.add(newMovie.director)
-								if (newMovie.year) categories.YEAR.add(String(newMovie.year))
-								if (newMovie.language) categories.LANGUAGE.add(newMovie.language)
-								newMovie.actors.forEach((actor) => categories.ACTORS.add(actor))
-								newMovie.genres.forEach((genre) => categories.GENRES.add(genre))
-								if (newMovie.type) categories.TYPE.add(newMovie.type)
-								if (newMovie.duration) categories.DURATION.add(newMovie.duration)
-								if (newMovie.size) categories.SIZE.add(newMovie.size)
+							}
+							if (rowsToDelete.length > 0) {
+								console.log(
+									`\nSuccessfully removed ${rowsToDelete.length} missing movie(s):`
+								)
+								for (const movieData of removedMovieEntries) {
+									const yearStr = movieData.year ? ` (${movieData.year})` : ''
+									console.log(`  ${movieData.title}${yearStr}`)
+								}
+							}
+							if (rowsToBackfill.length > 0) {
+								console.log(
+									`\nSuccessfully backfilled ${rowsToBackfill.length} movie(s) missing duration/size:`
+								)
+								for (const entry of rowsToBackfill) {
+									const yearStr = entry.movie.year ? ` (${entry.movie.year})` : ''
+									console.log(`  ${entry.movie.title}${yearStr}`)
+								}
 							}
 						} catch (excelError) {
 							const errorMessage =
 								excelError instanceof Error ? excelError.message : String(excelError)
-							console.error(`\n❌ Error writing movies to Excel:`, errorMessage)
+							console.error(`\n❌ Error updating Excel:`, errorMessage)
 							// Note: Movies are still added to the in-memory array so they appear in the UI
 							// but won't be persisted to Excel until next successful write
 						}
+					}
+
+					// Remove from in-memory list and rebuild categories
+					if (removedMovieIds.size > 0) {
+						for (let i = movies.length - 1; i >= 0; i--) {
+							if (removedMovieIds.has(movies[i].id)) {
+								movies.splice(i, 1)
+							}
+						}
+
+						categories.LQ.clear()
+						categories.TITLE.clear()
+						categories.DIRECTOR.clear()
+						categories.YEAR.clear()
+						categories.LANGUAGE.clear()
+						categories.ACTORS.clear()
+						categories.GENRES.clear()
+						categories.TYPE.clear()
+						categories.Check.clear()
+						categories.DURATION.clear()
+						categories.SIZE.clear()
+						categories.NOTES.clear()
+
+						for (const movie of movies) {
+							if (movie.lq) categories.LQ.add(movie.lq)
+							categories.TITLE.add(movie.title)
+							categories.DIRECTOR.add(movie.director)
+							if (movie.year) categories.YEAR.add(String(movie.year))
+							if (movie.language) categories.LANGUAGE.add(movie.language)
+							movie.actors.forEach((actor) => categories.ACTORS.add(actor))
+							movie.genres.forEach((genre) => categories.GENRES.add(genre))
+							if (movie.type) categories.TYPE.add(movie.type)
+							if (movie.check) categories.Check.add(movie.check)
+							if (movie.duration) categories.DURATION.add(movie.duration)
+							if (movie.size) categories.SIZE.add(movie.size)
+							if (movie.notes) categories.NOTES.add(movie.notes)
+						}
+					}
+
+					// Add to current movies array and update categories
+					for (const movieData of newMoviesToAdd) {
+						const durationSeconds = movieData.duration
+						const sizeBytes = movieData.size
+						const durationFormatted =
+							durationSeconds !== undefined ? formatDuration(durationSeconds) : undefined
+						const sizeFormatted =
+							sizeBytes !== undefined ? formatFileSize(sizeBytes) : undefined
+
+						const newMovie: Movie = {
+							id: uuidv4(),
+							title: movieData.title,
+							director: movieData.director, // Already in "FirstName LastName" format
+							year: movieData.year,
+							duration: durationFormatted,
+							durationSeconds: durationSeconds,
+							language: movieData.language,
+							actors: movieData.actors,
+							genres: movieData.genres,
+							type: movieData.type,
+							size: sizeFormatted,
+							sizeBytes: sizeBytes,
+							folderPath: movieData.folderPath
+						}
+
+						movies.push(newMovie)
+
+						// Update categories
+						categories.TITLE.add(newMovie.title)
+						categories.DIRECTOR.add(newMovie.director)
+						if (newMovie.year) categories.YEAR.add(String(newMovie.year))
+						if (newMovie.language) categories.LANGUAGE.add(newMovie.language)
+						newMovie.actors.forEach((actor) => categories.ACTORS.add(actor))
+						newMovie.genres.forEach((genre) => categories.GENRES.add(genre))
+						if (newMovie.type) categories.TYPE.add(newMovie.type)
+						if (newMovie.duration) categories.DURATION.add(newMovie.duration)
+						if (newMovie.size) categories.SIZE.add(newMovie.size)
+					}
+
+					// Update in-memory data for backfilled movies
+					for (const entry of rowsToBackfill) {
+						entry.movie.duration = entry.durationFormatted
+						entry.movie.durationSeconds = entry.durationSeconds
+						entry.movie.size = entry.sizeFormatted
+						entry.movie.sizeBytes = entry.sizeBytes
+						if (entry.movie.duration) categories.DURATION.add(entry.movie.duration)
+						if (entry.movie.size) categories.SIZE.add(entry.movie.size)
 					}
 				}
 			} catch (error) {
@@ -998,10 +1230,19 @@ async function findUnmatchedMovieFolders(
 export async function findExcelFile(dirPath: string): Promise<string | null> {
 	try {
 		const files = await fs.readdir(dirPath)
-		const excelFile = files.find(
-			(file) => file.toLowerCase().endsWith('.xlsx') || file.toLowerCase().endsWith('.xls')
-		)
-		return excelFile ? path.join(dirPath, excelFile) : null
+		const isExcel = (file: string) =>
+			file.toLowerCase().endsWith('.xlsx') || file.toLowerCase().endsWith('.xls')
+		const preferredNames = ['archivio', 'da vedere']
+		const excelFiles = files.filter((file) => isExcel(file))
+
+		const preferredFile = excelFiles.find((file) => {
+			const base = path.parse(file).name.toLowerCase()
+			return preferredNames.includes(base)
+		})
+
+		if (preferredFile) return path.join(dirPath, preferredFile)
+		const fallback = excelFiles[0]
+		return fallback ? path.join(dirPath, fallback) : null
 	} catch (error) {
 		console.error('Error finding Excel file:', error)
 		return null
@@ -1038,12 +1279,14 @@ export async function createMovieArchivioFromFolders(
 		'ATTORI RILEVANTI',
 		'GENERE',
 		'TIPO',
-		'CHECK',
 		'DURATA',
-		'DIMENSIONI',
+		'DIMENSIONE',
+		'CHECK',
 		'NOTE'
 	]
 
+	// Title row (kept simple, first cell only)
+	worksheet.addRow(['ARCHIVIO'])
 	worksheet.addRow(headers)
 
 	const movieFolders = await findUnmatchedMovieFolders(moviesFolderPath, [])
@@ -1082,9 +1325,9 @@ export async function createMovieArchivioFromFolders(
 			movieInfo?.actors?.join(', ') || '',
 			movieInfo?.genres?.join(', ') || '',
 			movieInfo?.type || 'Film',
-			'',
 			durationFormatted,
 			sizeFormatted,
+			'',
 			''
 		])
 	}
