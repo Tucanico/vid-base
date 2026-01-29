@@ -15,6 +15,7 @@ asarUnpack:
 win:
    executableName: VidBase
    icon: build/icon.ico
+   forceCodeSigning: false
 nsis:
    artifactName: ${name}-${version}-setup.${ext}
    shortcutName: ${productName}
