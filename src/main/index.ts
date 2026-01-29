@@ -1,4 +1,5 @@
 import * as path from 'path'
+import * as fs from 'fs'
 import { app, shell, BrowserWindow, ipcMain, dialog, protocol, net, screen } from 'electron'
 import * as dotenv from 'dotenv'
 
@@ -18,11 +19,28 @@ console.info = (...args: unknown[]) => {
 		originalInfo(...args)
 	}
 }
-dotenv.config()
-console.log = originalLog
-console.info = originalInfo
+const loadEnvFile = (envPath?: string): void => {
+	console.log = (...args: unknown[]) => {
+		const message = args[0]?.toString() || ''
+		if (!message.includes('[dotenv]') && !message.includes('injecting env')) {
+			originalLog(...args)
+		}
+	}
+	console.info = (...args: unknown[]) => {
+		const message = args[0]?.toString() || ''
+		if (!message.includes('[dotenv]') && !message.includes('injecting env')) {
+			originalInfo(...args)
+		}
+	}
+	dotenv.config(envPath ? { path: envPath } : undefined)
+	console.log = originalLog
+	console.info = originalInfo
+}
+
+loadEnvFile()
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
+import log from 'electron-log/main'
 import icon from '../../resources/icon.png?asset'
 import { pathToFileURL } from 'url'
 import { scanDirectoryWithLibrary } from './VideoMode/metadata/scanner'
@@ -36,6 +54,32 @@ import {
 } from './MovieMode/metadata/movieParser'
 import { cleanupOrphans } from './VideoMode/metadata/cleanup'
 
+log.transports.file.resolvePath = () => path.join(app.getPath('userData'), 'logs/main.log')
+log.transports.file.level = 'info'
+log.transports.console.level = is.dev ? 'debug' : 'info'
+log.catchErrors({ showDialog: false })
+
+const consoleLog = console.log
+const consoleInfo = console.info
+const consoleWarn = console.warn
+const consoleError = console.error
+console.log = (...args: unknown[]) => {
+	log.info(...args)
+	consoleLog(...args)
+}
+console.info = (...args: unknown[]) => {
+	log.info(...args)
+	consoleInfo(...args)
+}
+console.warn = (...args: unknown[]) => {
+	log.warn(...args)
+	consoleWarn(...args)
+}
+console.error = (...args: unknown[]) => {
+	log.error(...args)
+	consoleError(...args)
+}
+
 // This method will be called when Electron has finished initialization and is ready to create browser windows
 // Some APIs can only be used after this event occurs
 app.whenReady().then(() => {
@@ -44,6 +88,16 @@ app.whenReady().then(() => {
 
 	// Set app user model id for windows
 	electronApp.setAppUserModelId('com.vidbase.app')
+
+	// Load user-specific env file (for packaged apps)
+	const userEnvPath = path.join(app.getPath('userData'), '.env')
+	if (fs.existsSync(userEnvPath)) {
+		loadEnvFile(userEnvPath)
+	} else if (!process.env.TMDB_API_KEY) {
+		console.warn(
+			`TMDB_API_KEY is not set. Create ${userEnvPath} with TMDB_API_KEY=... to enable TMDb.`
+		)
+	}
 
 	// Creates the main browser window
 	function createWindow(): void {
@@ -69,6 +123,20 @@ app.whenReady().then(() => {
 		// Shows the window once it's ready to prevent a visual flash
 		mainWindow.on('ready-to-show', () => {
 			mainWindow.show()
+		})
+
+		mainWindow.webContents.on('before-input-event', (event, input) => {
+			const isToggle =
+				input.key === 'F12' ||
+				((input.control || input.meta) && input.shift && input.key.toUpperCase() === 'I')
+			if (isToggle) {
+				event.preventDefault()
+				if (mainWindow.webContents.isDevToolsOpened()) {
+					mainWindow.webContents.closeDevTools()
+				} else {
+					mainWindow.webContents.openDevTools({ mode: 'detach' })
+				}
+			}
 		})
 
 		// Opens external links in the default web browser
