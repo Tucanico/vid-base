@@ -80,3 +80,4 @@ npm run build:linux
 
 - All data remains local to your folders and user profile.
 - No cloud sync, no external storage, and no telemetry.
+- Documentation updated.
