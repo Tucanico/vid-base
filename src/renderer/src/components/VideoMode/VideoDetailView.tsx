@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react'
-import { ParsedTag } from 'src/shared/types/metadata'
-import { VideoFile } from 'src/shared/types/video'
+import { ParsedTag } from '@shared/types/metadata'
+import { VideoFile } from '@shared/types/video'
 import { Library } from '@shared/types/library'
 import InfoRow from '../InfoRow'
 import { ClickableValues } from '../ClickableValues'

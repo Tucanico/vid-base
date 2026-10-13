@@ -1,5 +1,5 @@
 import React from 'react'
-import { VideoFile } from 'src/shared/types/video'
+import { VideoFile } from '@shared/types/video'
 import { sanitizeFileName } from '../../utils/sanitizeFileName'
 
 /** --- COMPONENT: VideoCard ---

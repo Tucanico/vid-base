@@ -231,8 +231,29 @@ app.whenReady().then(() => {
 			}
 		}
 	)
+	// Asks the user before an existing Archivio.xlsx is replaced by a new archive built from the
+	// folders. Returns true to replace it; false keeps it, and it is loaded instead
+	const confirmArchiveOverwrite = async (
+		window: BrowserWindow | null,
+		filePath: string
+	): Promise<boolean> => {
+		const options = {
+			type: 'warning' as const,
+			title: 'VidBase',
+			message: `${path.basename(filePath)} already exists in this folder`,
+			detail:
+				'VidBase could not find a movie archive here and was about to create a new one from the movie folders. Replacing the existing file loses what the folders and TMDb cannot rebuild, such as the LQ, CHECK and NOTE columns.',
+			buttons: ['Keep and load it', 'Replace it'],
+			defaultId: 0,
+			cancelId: 0
+		}
+		const { response } = window
+			? await dialog.showMessageBox(window, options)
+			: await dialog.showMessageBox(options)
+		return response === 1
+	}
 	// IPC handler to load movies from an Excel file
-	ipcMain.handle('movies:load', async (_, folderPath: string, moviesFolderPath?: string) => {
+	ipcMain.handle('movies:load', async (event, folderPath: string, moviesFolderPath?: string) => {
 		startKeepAlive(folderPath) // Keep the drive awake for movie mode too
 		return withRetry(async () => {
 			const moviesRoot = moviesFolderPath || folderPath
@@ -241,7 +262,12 @@ app.whenReady().then(() => {
 				return await parseMovieExcel(excelPath, moviesRoot)
 			}
 
-			const createdExcelPath = await createMovieArchivioFromFolders(moviesRoot, folderPath)
+			const createdExcelPath = await createMovieArchivioFromFolders(
+				moviesRoot,
+				folderPath,
+				(filePath) =>
+					confirmArchiveOverwrite(BrowserWindow.fromWebContents(event.sender), filePath)
+			)
 			return await parseMovieExcel(createdExcelPath, moviesRoot)
 		})
 	})
