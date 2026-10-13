@@ -6,7 +6,7 @@ import { ClickableFilterValues, ClickableSingleValue } from '../ClickableValues'
  *  Full-screen detail view for viewing movie information
  *  @param movie The Movie object being viewed
  *  @param onBack A function to call when the back button is clicked
- *  @param onFilterClick A function to call when a filterable field is clicked (category, value)
+ *  @param onFilterClick A function to call when a filterable field is clicked (category, value, and whether Ctrl/Cmd was held to open it in the background)
  */
 function MovieDetailView({
 	movie,
@@ -15,7 +15,7 @@ function MovieDetailView({
 }: {
 	movie: Movie
 	onBack: () => void
-	onFilterClick: (category: string, value: string) => void
+	onFilterClick: (category: string, value: string, inBackground?: boolean) => void
 }): React.ReactElement {
 	return (
 		<div

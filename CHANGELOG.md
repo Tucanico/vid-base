@@ -28,13 +28,21 @@ If commit/time are unknown (old entries, manual notes, not committed yet), just 
 
 ---
 
-## 2026-10-13 — feat(movies): ask before replacing an existing Archivio.xlsx
+## 2026-10-13 — feat(renderer): clicking a value opens it as a tab, and Home can be reshuffled
+
+Clicking a value in a video's or a movie's details (Category, Model, Channel, Production; Director, Year, Language, Actors, Genres, Type) used to set it as the only filter and go back to the list, which on Video Mode's Home view showed nothing of it (Home ignores filters). It now opens a tab next to Home / Library / Favourited (or All / Film / Serie TV / Documentario) with the list filtered by that value, and shows it; with Ctrl/Cmd held the tab opens in the background and the details stay on screen. Clicking a value that already has a tab shows that tab. Each tab keeps its own filters, search, sort, range filters and scroll position ([useValueTabs](src/renderer/src/hooks/useValueTabs.ts): switching saves the live list state of the view on screen and loads the target's, so the list logic did not change); the sidebar of a Video Mode tab offers the values of that tab's videos. Tabs close with × or a middle-click, and close when another folder is loaded. Home has a 🔀 Shuffle button that replaces its 24 videos with others not on it ([pickNewRandomIds](src/renderer/src/utils/videoList.ts), tested in [videoList.test.ts](src/renderer/src/utils/__tests__/videoList.test.ts)).
+
+## 2026-10-13 11:52 — feat(movies): ask before replacing an existing Archivio.xlsx
 
 When `findExcelFile` finds no archive, `movies:load` builds a new `Archivio.xlsx` from the movie folders. If one already exists (the folder could not be listed, so it was missed), [createMovieArchivioFromFolders](src/main/MovieMode/metadata/movieParser.ts) now asks first through a popup from [index.ts](src/main/index.ts): **Keep and load it** (the default) loads the existing file, **Replace it** builds the new one; without a TMDb key no new archive can be built, so the existing one is kept without asking. Keeping it would still have emptied it, because the same unreadable folder left every movie unmatched and unmatched movies are deleted: an error reading the movies root now skips folder matching instead ([movieFolders.ts](src/main/MovieMode/metadata/movieFolders.ts)), so the movies load without their folders and the file is left alone. Tests in [movieParser.test.ts](src/main/MovieMode/metadata/__tests__/movieParser.test.ts) and [movieDriveErrors.test.ts](src/main/MovieMode/metadata/__tests__/movieDriveErrors.test.ts), which also cover the drive-error handling of the previous commit.
 
-## 2026-10-13 — build(ts): tsconfig.web.json no longer uses options TypeScript 6 deprecates
+`0a6747d`
+
+## 2026-10-13 11:52 — build(ts): tsconfig.web.json no longer uses options TypeScript 6 deprecates
 
 VS Code (TypeScript 6) flagged `baseUrl` in [tsconfig.web.json](tsconfig.web.json); the project's TypeScript 5.9 does not. `baseUrl` only served nine type imports written `'src/shared/types/...'`, which now use the `@shared/...` alias like the rest of the renderer, and the `paths` entries start with `./`, which is required without `baseUrl`. `downlevelIteration`, also deprecated, is gone: it has no effect with `target: ES2020`. Both tsconfigs typecheck with TypeScript 5.9 and 6.0. The `ignoreDeprecations: "6.0"` the message suggests is rejected by TypeScript 5.9.
+
+`0a6747d`
 
 ## 2026-10-13 11:43 — fix(movies): a drive error no longer deletes rows from the Excel archive or overwrites it
 

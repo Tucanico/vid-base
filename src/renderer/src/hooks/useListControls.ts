@@ -1,6 +1,16 @@
 import { Dispatch, SetStateAction, useState } from 'react'
 import { ActiveFilters } from '@shared/types/filter'
 
+// The list state of one view, saved while another view (e.g. a value tab) is on screen
+export interface ListSnapshot {
+	activeFilters: ActiveFilters
+	openCategories: Set<string>
+	searchQuery: string
+	sortField: string
+	sortDirection: 'asc' | 'desc'
+	isMultiSelectMode: boolean
+}
+
 export interface ListControls {
 	activeFilters: ActiveFilters
 	setActiveFilters: Dispatch<SetStateAction<ActiveFilters>>
@@ -17,6 +27,9 @@ export interface ListControls {
 	handleFilterChange: (category: string, value: string | undefined) => void
 	handleMultiSelectChange: (category: string, option: string, isSelected: boolean) => void
 	toggleOpenCategory: (category: string) => void
+	snapshot: () => ListSnapshot
+	restore: (snapshot: ListSnapshot) => void
+	freshSnapshot: () => ListSnapshot
 }
 
 /** Filter, search and sort state shared by the Video Mode and Movie Mode list views, with the
@@ -85,6 +98,36 @@ export function useListControls(initialFilters: ActiveFilters): ListControls {
 		})
 	}
 
+	// The current state, to save it while another view is on screen
+	const snapshot = (): ListSnapshot => ({
+		activeFilters,
+		openCategories,
+		searchQuery,
+		sortField,
+		sortDirection,
+		isMultiSelectMode
+	})
+
+	// Replaces the current state with a saved one
+	const restore = (saved: ListSnapshot): void => {
+		setActiveFilters(saved.activeFilters)
+		setOpenCategories(saved.openCategories)
+		setSearchQuery(saved.searchQuery)
+		setSortField(saved.sortField)
+		setSortDirection(saved.sortDirection)
+		setIsMultiSelectMode(saved.isMultiSelectMode)
+	}
+
+	// The state a new view opens with: no filters or search, the current sort
+	const freshSnapshot = (): ListSnapshot => ({
+		activeFilters: { simpleTag: [] },
+		openCategories: new Set(),
+		searchQuery: '',
+		sortField,
+		sortDirection,
+		isMultiSelectMode: false
+	})
+
 	return {
 		activeFilters,
 		setActiveFilters,
@@ -100,6 +143,9 @@ export function useListControls(initialFilters: ActiveFilters): ListControls {
 		setIsMultiSelectMode,
 		handleFilterChange,
 		handleMultiSelectChange,
-		toggleOpenCategory
+		toggleOpenCategory,
+		snapshot,
+		restore,
+		freshSnapshot
 	}
 }

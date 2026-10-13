@@ -8,8 +8,9 @@ import AppHeader, { HeaderTab } from '../AppHeader'
 import ListLayout from '../ListLayout'
 import ScanLoader from '../ScanLoader'
 import EmptyMessage from '../EmptyMessage'
-import { useListControls } from '../../hooks/useListControls'
+import { ListSnapshot, useListControls } from '../../hooks/useListControls'
 import { useListScrollRestore } from '../../hooks/useListScrollRestore'
+import { useValueTabs, valueTabLabel } from '../../hooks/useValueTabs'
 import {
 	MovieTypeView,
 	RangeFilter,
@@ -69,10 +70,38 @@ function MovieModeView({ initialFolder }: { initialFolder: string }): React.Reac
 		sortField,
 		sortDirection
 	} = controls
-	const { listScrollRef, rememberScroll, restoreScroll } = useListScrollRestore(viewMode)
+	const { listScrollRef, rememberScroll, restoreScroll, currentScrollTop } =
+		useListScrollRestore(viewMode)
+	// Value tabs: the movies filtered by a value clicked in the detail view (e.g. Genres: Drama),
+	// each with its own filters, search, sort, range filters and scroll position
+	const valueTabs = useValueTabs<{
+		list: ListSnapshot
+		durationRange: RangeFilter | null
+		sizeRange: RangeFilter | null
+		scrollTop: number
+	}>(
+		() => ({
+			list: controls.snapshot(),
+			durationRange: movieDurationRange,
+			sizeRange: movieSizeRange,
+			scrollTop: currentScrollTop()
+		}),
+		(saved) => {
+			controls.restore(saved.list)
+			setMovieDurationRange(saved.durationRange)
+			setMovieSizeRange(saved.sizeRange)
+			restoreScroll(saved.scrollTop)
+		},
+		() => ({ list: controls.freshSnapshot(), durationRange: null, sizeRange: null, scrollTop: 0 })
+	)
+	const activeTab = valueTabs.activeTab
+	// A value tab shows movies of every type
+	const typeView: MovieTypeView = activeTab ? 'all' : movieTypeView
 
 	// Resets the view for loading another folder
 	const startLoading = (): void => {
+		// The tabs belong to the previous folder's archive
+		valueTabs.closeAllTabs()
 		setLoading(true)
 		setMovieTypeView('film')
 		setMovieDurationRange(null)
@@ -135,6 +164,7 @@ function MovieModeView({ initialFolder }: { initialFolder: string }): React.Reac
 	}
 
 	const handleMovieTypeView = (type: MovieTypeView): void => {
+		valueTabs.switchTo(null)
 		setMovieTypeView(type)
 		setMovieDurationRange(null)
 		setMovieSizeRange(null)
@@ -151,27 +181,40 @@ function MovieModeView({ initialFolder }: { initialFolder: string }): React.Reac
 		setViewingMovie(null)
 	}
 
-	// Handles clicking on a filterable name (director, actor, etc.)
-	const handleFilterClick = (category: string, value: string): void => {
-		// Set the filter and return to list view
-		const newFilters: ActiveFilters = { simpleTag: [] }
-		newFilters[category] = [value]
-		setActiveFilters(newFilters)
-		// Open the corresponding category in the sidebar
-		setOpenCategories(new Set([category]))
+	// Handles clicking on a filterable name (director, actor, genre, etc.): opens its tab and shows
+	// it, or with Ctrl/Cmd held opens it in the background and stays on the movie
+	const handleFilterClick = (category: string, value: string, inBackground = false): void => {
+		valueTabs.openTab(category, value, inBackground)
+		if (inBackground) return
 		setViewMode('list')
+		setViewingMovie(null)
 	}
+
+	// Shows a value tab
+	const handleTabClick = (id: string): void => {
+		valueTabs.switchTo(id)
+		setViewMode('list')
+		setViewingMovie(null)
+	}
+
+	// The movies of the value tab on screen (all movies on the type tabs)
+	const tabMovies = useMemo(() => {
+		if (!activeTab) return movies
+		const tabFilter: ActiveFilters = { simpleTag: [] }
+		tabFilter[activeTab.category] = [activeTab.value]
+		return applyMovieFilters(movies, tabFilter, new Set())
+	}, [movies, activeTab])
 
 	// The movies the duration and size ranges are computed from (type tab, filters and search,
 	// ignoring the range filters themselves)
 	const movieRangeBase = useMemo(() => {
-		let result = filterByMovieType(movies, movieTypeView)
+		let result = filterByMovieType(tabMovies, typeView)
 		result = applyMovieFilters(result, activeFilters, new Set(['TYPE', 'DURATION', 'SIZE']))
 		if (searchQuery.trim()) {
 			result = result.filter((movie) => movieMatchesSearch(movie, searchQuery))
 		}
 		return result
-	}, [movies, movieTypeView, activeFilters, searchQuery])
+	}, [tabMovies, typeView, activeFilters, searchQuery])
 
 	const movieRangeStats = useMemo(() => {
 		const durationValues = movieRangeBase
@@ -250,8 +293,8 @@ function MovieModeView({ initialFolder }: { initialFolder: string }): React.Reac
 
 	// Clears any active filter (a type tab keeps its TYPE filter, and the ranges reset to full)
 	const handleClearFilters = (): void => {
-		if (movieTypeView !== 'all') {
-			setActiveFilters({ simpleTag: [], TYPE: [movieTypeView] })
+		if (typeView !== 'all') {
+			setActiveFilters({ simpleTag: [], TYPE: [typeView] })
 			setMovieDurationRange((prev) =>
 				prev ? { ...prev, selectedMin: prev.min, selectedMax: prev.max } : prev
 			)
@@ -294,14 +337,14 @@ function MovieModeView({ initialFolder }: { initialFolder: string }): React.Reac
 			}
 		}
 		return {
-			categories: buildMovieFilterCategories(movieArchive.categories, movieTypeView),
+			categories: buildMovieFilterCategories(movieArchive.categories, typeView),
 			simpleTags: []
 		}
-	}, [movieArchive, movieTypeView])
+	}, [movieArchive, typeView])
 
 	// Computed: Filtered and sorted movies based on active filters, search, and sorting
 	const filteredMovies = useMemo(() => {
-		let result = filterByMovieType(movies, movieTypeView)
+		let result = filterByMovieType(tabMovies, typeView)
 
 		// Apply filters
 		const hasActiveFilters = Object.entries(activeFilters).some(
@@ -321,12 +364,12 @@ function MovieModeView({ initialFolder }: { initialFolder: string }): React.Reac
 
 		return filterByRanges(result, movieDurationRange, movieSizeRange)
 	}, [
-		movies,
+		tabMovies,
 		activeFilters,
 		searchQuery,
 		sortField,
 		sortDirection,
-		movieTypeView,
+		typeView,
 		movieDurationRange,
 		movieSizeRange
 	])
@@ -364,14 +407,32 @@ function MovieModeView({ initialFolder }: { initialFolder: string }): React.Reac
 						controls.setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
 					}
 				>
-					<div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+					<div
+						style={{
+							display: 'flex',
+							alignItems: 'center',
+							gap: '8px',
+							flexWrap: 'wrap',
+							justifyContent: 'flex-end'
+						}}
+					>
 						{TYPE_TABS.map(({ type, label }) => (
 							<HeaderTab
 								key={type}
-								active={movieTypeView === type}
+								active={!activeTab && movieTypeView === type}
 								onClick={() => handleMovieTypeView(type)}
 							>
 								{label}
+							</HeaderTab>
+						))}
+						{valueTabs.tabs.map((tab) => (
+							<HeaderTab
+								key={tab.id}
+								active={activeTab?.id === tab.id}
+								onClick={() => handleTabClick(tab.id)}
+								onClose={() => valueTabs.closeTab(tab.id)}
+							>
+								{valueTabLabel(tab)}
 							</HeaderTab>
 						))}
 					</div>

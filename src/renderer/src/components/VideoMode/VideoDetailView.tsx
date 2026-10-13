@@ -14,7 +14,7 @@ import { formatDuration, formatFileSize } from '../../utils/formatters'
  *  @param onBack A function to call when the back button is clicked
  *  @param onSave A function to call when the user saves changes; receives the new array of tags
  *  @param onDelete A function to call when the user deletes the video
- *  @param onFilterClick A function to call when a filterable name is clicked (category, value)
+ *  @param onFilterClick A function to call when a filterable name is clicked (category, value, and whether Ctrl/Cmd was held to open it in the background)
  */
 function VideoDetailView({
 	video,
@@ -29,7 +29,7 @@ function VideoDetailView({
 	onBack: () => void
 	onSave: (tags: ParsedTag[], favourited: boolean) => Promise<boolean>
 	onDelete: (video: VideoFile) => void
-	onFilterClick: (category: string, value: string) => void
+	onFilterClick: (category: string, value: string, inBackground?: boolean) => void
 }): React.ReactElement {
 	// State to manage the tags being edited
 	const [tags, setTags] = useState<ParsedTag[]>(video.tags)
@@ -254,11 +254,14 @@ function VideoDetailView({
 	}
 
 	// Find all key-value tags for each category and combine their values
-	const getCategoryValues = (key: string): Array<{ value: string; onClick: () => void }> => {
+	const getCategoryValues = (
+		key: string
+	): Array<{ value: string; onClick: (event: React.MouseEvent) => void }> => {
 		const matchingTags = tags.filter((t) => t.type === 'kv' && t.key === key)
 		return matchingTags.map((tag) => ({
 			value: tag.value,
-			onClick: () => onFilterClick(key, tag.value)
+			onClick: (event: React.MouseEvent) =>
+				onFilterClick(key, tag.value, event.ctrlKey || event.metaKey)
 		}))
 	}
 
