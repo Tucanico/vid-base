@@ -28,21 +28,37 @@ If commit/time are unknown (old entries, manual notes, not committed yet), just 
 
 ---
 
-## 2026-10-13 — fix(movies): a drive error no longer deletes rows from the Excel archive or overwrites it
+## 2026-10-13 — feat(movies): ask before replacing an existing Archivio.xlsx
+
+When `findExcelFile` finds no archive, `movies:load` builds a new `Archivio.xlsx` from the movie folders. If one already exists (the folder could not be listed, so it was missed), [createMovieArchivioFromFolders](src/main/MovieMode/metadata/movieParser.ts) now asks first through a popup from [index.ts](src/main/index.ts): **Keep and load it** (the default) loads the existing file, **Replace it** builds the new one; without a TMDb key no new archive can be built, so the existing one is kept without asking. Keeping it would still have emptied it, because the same unreadable folder left every movie unmatched and unmatched movies are deleted: an error reading the movies root now skips folder matching instead ([movieFolders.ts](src/main/MovieMode/metadata/movieFolders.ts)), so the movies load without their folders and the file is left alone. Tests in [movieParser.test.ts](src/main/MovieMode/metadata/__tests__/movieParser.test.ts) and [movieDriveErrors.test.ts](src/main/MovieMode/metadata/__tests__/movieDriveErrors.test.ts), which also cover the drive-error handling of the previous commit.
+
+## 2026-10-13 — build(ts): tsconfig.web.json no longer uses options TypeScript 6 deprecates
+
+VS Code (TypeScript 6) flagged `baseUrl` in [tsconfig.web.json](tsconfig.web.json); the project's TypeScript 5.9 does not. `baseUrl` only served nine type imports written `'src/shared/types/...'`, which now use the `@shared/...` alias like the rest of the renderer, and the `paths` entries start with `./`, which is required without `baseUrl`. `downlevelIteration`, also deprecated, is gone: it has no effect with `target: ES2020`. Both tsconfigs typecheck with TypeScript 5.9 and 6.0. The `ignoreDeprecations: "6.0"` the message suggests is rejected by TypeScript 5.9.
+
+## 2026-10-13 11:43 — fix(movies): a drive error no longer deletes rows from the Excel archive or overwrites it
 
 `parseMovieExcel` deletes the Excel rows of the movies whose folder it did not find. The folder walk ([movieFolders.ts](src/main/MovieMode/metadata/movieFolders.ts): `searchMovieFoldersRecursively`, `folderContainsVideo`, `findUnmatchedMovieFolders`, `calculateFolderSize`) caught and skipped every error, so a folder that could not be read while the drive was waking up left its movies unmatched, and their rows were deleted. `findExcelFile` returned `null` on any error, after which `movies:load` created a new `Archivio.xlsx` from the folders, overwriting the existing one with its LQ / CHECK / NOTE columns. All of them now rethrow transient drive errors (`isTransientDriveError` in [driveRetry.ts](src/main/driveRetry.ts), the codes `withRetry` retries), so the load is retried and nothing is written unless the scan completed; other errors (e.g. `EACCES` on a system folder) are skipped as before.
 
-## 2026-10-13 — fix(logs): renderer errors reach main.log, and info messages keep reaching it once the user .env is loaded
+`ec94ae3`
+
+## 2026-10-13 11:43 — fix(logs): renderer errors reach main.log, and info messages keep reaching it once the user .env is loaded
 
 The renderer logs through electron-log ([main.tsx](src/renderer/src/main.tsx)), which needs `log.initialize()` in the main process before its messages are written to the file; it was never called, so renderer errors only reached DevTools. And `loadEnvFile` in [index.ts](src/main/index.ts) hid dotenv's output by patching `console.log` / `console.info` and then restoring the functions saved at startup, which undid the wrapping that writes them to the log file whenever the user `.env` was loaded (the packaged app with a TMDb key). It now passes dotenv's `quiet` option instead.
 
-## 2026-10-13 — refactor: App.tsx and movieParser.ts are split by mode and by job
+`ec94ae3`
+
+## 2026-10-13 11:43 — refactor: App.tsx and movieParser.ts are split by mode and by job
 
 [App.tsx](src/renderer/src/App.tsx) held the state of both modes in 1,659 lines; it now only shows the mode selection, and [VideoModeView](src/renderer/src/components/VideoMode/VideoModeView.tsx) / [MovieModeView](src/renderer/src/components/MovieMode/MovieModeView.tsx) own their mode's state. They share the filter, search and sort state ([useListControls](src/renderer/src/hooks/useListControls.ts)), the scroll restore ([useListScrollRestore](src/renderer/src/hooks/useListScrollRestore.ts)) and the list chrome (`AppHeader`, `ListLayout`, `ScanLoader`, `EmptyMessage`); the pure list logic is in [videoList.ts](src/renderer/src/utils/videoList.ts) and [movieList.ts](src/renderer/src/utils/movieList.ts). The picked folder is now loaded by the mode view's first effect, behind a ref so StrictMode's second run in development does not start a second scan. [movieParser.ts](src/main/MovieMode/metadata/movieParser.ts) (1,325 lines) keeps the three load entry points; cell values moved to `excelValues.ts`, folder-name matching to `folderNames.ts`, the folder walk to `movieFolders.ts`, TMDb to `tmdb.ts`, and the Excel update to `archiveWriter.ts`. No behaviour change: every moved function compares identical to the previous commit, and an end-to-end run of both modes (scan, search, sort, favourites, tag filters, detail views, type tabs, duration range, folder re-pick, Excel additions and deletions) gave identical results.
 
-## 2026-10-13 — build(ci): tests for drive retry, library load/save and tag parsing; CI on every push
+`ec94ae3`
+
+## 2026-10-13 11:43 — build(ci): tests for drive retry, library load/save and tag parsing; CI on every push
 
 `withRetry` moved from `index.ts` to [driveRetry.ts](src/main/driveRetry.ts) so it can be tested. New suites: [driveRetry.test.ts](src/main/__tests__/driveRetry.test.ts), [library.test.ts](src/main/VideoMode/metadata/__tests__/library.test.ts) (missing, truncated and wrong-shape files, filesystem errors thrown, no temp file left) and [scanner.test.ts](src/main/VideoMode/metadata/__tests__/scanner.test.ts) (the tag format). [ci.yml](.github/workflows/ci.yml) runs typecheck, lint and tests on every push and pull request. `build:mac` and `build:linux` now go through `npm run build`, so they typecheck like `build:win`. The README gives the data-folder paths for Linux and macOS (`vidbase`, lowercase: the packaged app has no `productName`), says logs go to one `main.log`, and explains the X11 default on Linux.
+
+`ec94ae3`
 
 ## 2026-10-13 10:33 — fix(library): library.json is saved atomically and an unreadable one is kept instead of overwritten
 

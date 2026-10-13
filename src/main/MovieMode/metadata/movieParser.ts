@@ -476,22 +476,53 @@ export async function findExcelFile(dirPath: string): Promise<string | null> {
 }
 
 /**
+ * Whether a file exists. Errors other than "not found" are thrown: a file that could not be
+ * checked must not be assumed missing (and then overwritten)
+ * @param filePath Path to the file
+ * @returns true if the file exists
+ */
+async function fileExists(filePath: string): Promise<boolean> {
+	try {
+		await fs.stat(filePath)
+		return true
+	} catch (error) {
+		if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
+			return false
+		}
+		throw error
+	}
+}
+
+/**
  * Creates a new Archivio Excel file by scanning movie folders and enriching with TMDb.
+ * An existing Archivio.xlsx (which findExcelFile can miss, e.g. when the folder cannot be listed)
+ * is only replaced if `confirmOverwrite` says so; otherwise its path is returned, to load it instead
  * @param moviesFolderPath Path to the folder containing movie folders
  * @param outputDir Optional output directory for the Excel file (defaults to moviesFolderPath)
- * @returns A promise that resolves to the new Excel file path
+ * @param confirmOverwrite Asked before an existing Archivio.xlsx is replaced; true replaces it
+ * @returns A promise that resolves to the new Excel file path (or the existing one, if kept)
  */
 export async function createMovieArchivioFromFolders(
 	moviesFolderPath: string,
-	outputDir?: string
+	outputDir: string | undefined,
+	confirmOverwrite: (filePath: string) => Promise<boolean>
 ): Promise<string> {
 	const tmdbApiKey = process.env.TMDB_API_KEY
-	if (!tmdbApiKey || tmdbApiKey.trim() === '') {
-		throw new Error('TMDB_API_KEY is required to create a new movie archive')
-	}
+	const hasTmdbKey = Boolean(tmdbApiKey && tmdbApiKey.trim() !== '')
 
 	const targetDir = outputDir || moviesFolderPath
 	const filePath = path.join(targetDir, 'Archivio.xlsx')
+
+	// The archive holds what neither the folders nor TMDb can rebuild (LQ, CHECK, NOTE), so it is
+	// never replaced without asking. Without a TMDb key no new archive can be built, so it is kept
+	// without asking. Checked first, so keeping it skips the folder scan and the TMDb calls
+	if (await fileExists(filePath)) {
+		if (!hasTmdbKey || !(await confirmOverwrite(filePath))) return filePath
+	}
+
+	if (!tmdbApiKey || tmdbApiKey.trim() === '') {
+		throw new Error('TMDB_API_KEY is required to create a new movie archive')
+	}
 
 	const workbook = new ExcelJS.Workbook()
 	const worksheet = workbook.addWorksheet('Archivio')

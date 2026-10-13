@@ -106,8 +106,9 @@ export async function searchMovieFoldersRecursively(
 		}
 	} catch (error) {
 		// A drive error is rethrown: skipping the folder would leave its movies unmatched, and
-		// parseMovieExcel deletes the rows of unmatched movies from the Excel file
-		if (isTransientDriveError(error)) throw error
+		// parseMovieExcel deletes the rows of unmatched movies from the Excel file. Any error on the
+		// root is rethrown too: with the root unreadable no movie can be matched, so every row would go
+		if (isTransientDriveError(error) || currentPath === rootPath) throw error
 		console.error(`Error searching directory ${currentPath}:`, error)
 		// Continue searching other directories
 	}
