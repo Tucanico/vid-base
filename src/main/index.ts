@@ -53,6 +53,38 @@ import {
 	createMovieArchivioFromFolders
 } from './MovieMode/metadata/movieParser'
 import { cleanupOrphans } from './VideoMode/metadata/cleanup'
+import { startKeepAlive, stopKeepAlive } from './driveKeepAlive'
+
+// Error codes that indicate a transient drive I/O problem (spin-up, bus reset, etc.)
+// These are worth retrying; genuine "file not found" errors are not.
+const RETRYABLE_CODES = new Set(['EIO', 'EAGAIN', 'EBUSY', 'ETIMEDOUT', 'EREMOTEIO'])
+
+/** Retries `fn` up to `maxAttempts` times on transient drive errors, with exponential back-off. */
+async function withRetry<T>(fn: () => Promise<T>, maxAttempts = 3, initialDelayMs = 2000): Promise<T> {
+	let delay = initialDelayMs
+	let lastError: unknown
+	for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+		try {
+			return await fn()
+		} catch (error) {
+			lastError = error
+			const code =
+				error && typeof error === 'object' && 'code' in error
+					? (error as NodeJS.ErrnoException).code
+					: null
+			if (code && RETRYABLE_CODES.has(code) && attempt < maxAttempts) {
+				console.warn(
+					`Drive I/O error (${code}) on attempt ${attempt}/${maxAttempts} — retrying in ${delay}ms…`
+				)
+				await new Promise((resolve) => setTimeout(resolve, delay))
+				delay *= 2
+			} else {
+				throw error
+			}
+		}
+	}
+	throw lastError
+}
 
 log.transports.file.resolvePath = () => path.join(app.getPath('userData'), 'logs/main.log')
 log.transports.file.level = 'info'
@@ -192,42 +224,48 @@ app.whenReady().then(() => {
 		const { canceled, filePaths } = await dialog.showOpenDialog({ properties: ['openDirectory'] })
 		if (canceled) return null
 		currentLibraryRootPath = filePaths[0] // Store the root path
+		startKeepAlive(currentLibraryRootPath) // Keep the drive awake
 		return currentLibraryRootPath
 	})
 
 	// IPC handler to load the video library from a given folder path
-	ipcMain.handle('db:load', async (_, folderPath) => await loadLibrary(folderPath))
+	ipcMain.handle('db:load', async (_, folderPath) =>
+		withRetry(() => loadLibrary(folderPath))
+	)
 	// IPC handler to save the video library to a given folder path
 	ipcMain.handle('db:save', async (_, folderPath, videos) => {
-		const existingLibrary = await loadLibrary(folderPath)
-		await saveLibrary(folderPath, videos, existingLibrary)
+		await withRetry(async () => {
+			const existingLibrary = await loadLibrary(folderPath)
+			await saveLibrary(folderPath, videos, existingLibrary)
+		})
 	})
 	// IPC handler to scan a directory for new videos
 	// Uses library.json metadata when available, but always scans for new files
 	ipcMain.handle('videos:scan', async (event, folderPath) => {
-		// Load existing library if it exists
-		const existingLibrary = await loadLibrary(folderPath)
-		// Run cleanup FIRST (before saving new library, so it can detect orphaned entries)
-		await cleanupOrphans(folderPath)
-		// Scan directory using smart scan (uses library metadata when available)
-		const videos = await scanDirectoryWithLibrary(
-			folderPath,
-			existingLibrary ? existingLibrary.files : null,
-			(processed, total) => {
-				const percent = total > 0 ? Math.round((processed / total) * 100) : 0
-				event.sender.send('videos:scanProgress', { processed, total, percent })
-			}
-		)
-		// Save library with updated categories and tags
-		await saveLibrary(folderPath, videos, existingLibrary)
-		return videos
+		return withRetry(async () => {
+			// Load existing library if it exists
+			const existingLibrary = await loadLibrary(folderPath)
+			// Run cleanup FIRST (before saving new library, so it can detect orphaned entries)
+			await cleanupOrphans(folderPath)
+			// Scan directory using smart scan (uses library metadata when available)
+			const videos = await scanDirectoryWithLibrary(
+				folderPath,
+				existingLibrary ? existingLibrary.files : null,
+				(processed, total) => {
+					const percent = total > 0 ? Math.round((processed / total) * 100) : 0
+					event.sender.send('videos:scanProgress', { processed, total, percent })
+				}
+			)
+			// Save library with updated categories and tags
+			await saveLibrary(folderPath, videos, existingLibrary)
+			return videos
+		})
 	})
 	// IPC listener to open a video file in the default system player
 	ipcMain.on('video:open', (_, filePath) => shell.openPath(filePath))
 	// IPC handler to update the tags of a video file
-	ipcMain.handle(
-		'videos:updateTags',
-		async (_, filePath, tags, favourited) => await updateVideoTags(filePath, tags, favourited)
+	ipcMain.handle('videos:updateTags', async (_, filePath, tags, favourited) =>
+		withRetry(() => updateVideoTags(filePath, tags, favourited))
 	)
 	// IPC handler to delete a video file and its thumbnail
 	ipcMain.handle(
@@ -251,14 +289,17 @@ app.whenReady().then(() => {
 	)
 	// IPC handler to load movies from an Excel file
 	ipcMain.handle('movies:load', async (_, folderPath: string, moviesFolderPath?: string) => {
-		const moviesRoot = moviesFolderPath || folderPath
-		const excelPath = await findExcelFile(folderPath)
-		if (excelPath) {
-			return await parseMovieExcel(excelPath, moviesRoot)
-		}
+		startKeepAlive(folderPath) // Keep the drive awake for movie mode too
+		return withRetry(async () => {
+			const moviesRoot = moviesFolderPath || folderPath
+			const excelPath = await findExcelFile(folderPath)
+			if (excelPath) {
+				return await parseMovieExcel(excelPath, moviesRoot)
+			}
 
-		const createdExcelPath = await createMovieArchivioFromFolders(moviesRoot, folderPath)
-		return await parseMovieExcel(createdExcelPath, moviesRoot)
+			const createdExcelPath = await createMovieArchivioFromFolders(moviesRoot, folderPath)
+			return await parseMovieExcel(createdExcelPath, moviesRoot)
+		})
 	})
 	// IPC handler to open a folder in the file explorer
 	ipcMain.on('folder:open', (_, folderPath: string) => {
@@ -276,6 +317,7 @@ app.whenReady().then(() => {
 
 // Ensures the exiftool process is closed when the app is about to quit
 app.on('will-quit', () => {
+	stopKeepAlive()
 	closeExiftool()
 })
 
