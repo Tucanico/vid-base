@@ -5,7 +5,7 @@ export function ClickableValue({
 	onClick
 }: {
 	value: string
-	onClick: () => void
+	onClick: (event: React.MouseEvent) => void
 }): React.ReactElement {
 	return (
 		<span
@@ -30,7 +30,7 @@ export function ClickableValues({
 	values,
 	label
 }: {
-	values: Array<{ value: string; onClick: () => void }>
+	values: Array<{ value: string; onClick: (event: React.MouseEvent) => void }>
 	label: string
 }): React.ReactElement | null {
 	if (values.length === 0) return null
@@ -71,7 +71,7 @@ export function ClickableFilterValues({
 }: {
 	values: string[]
 	label: string
-	onFilterClick: (category: string, value: string) => void
+	onFilterClick: (category: string, value: string, inBackground?: boolean) => void
 }): React.ReactElement | null {
 	if (values.length === 0) return null
 	const displayLabel = label.charAt(0) + label.slice(1).toLowerCase()
@@ -96,7 +96,12 @@ export function ClickableFilterValues({
 			>
 				{values.map((value, index) => (
 					<span key={index} style={{ display: 'inline-flex', alignItems: 'center' }}>
-						<ClickableValue value={value} onClick={() => onFilterClick(label, value)} />
+						<ClickableValue
+							value={value}
+							onClick={(event) =>
+								onFilterClick(label, value, event.ctrlKey || event.metaKey)
+							}
+						/>
 						{index < values.length - 1 && <span style={{ marginRight: '4px' }}>,</span>}
 					</span>
 				))}
@@ -112,7 +117,7 @@ export function ClickableSingleValue({
 }: {
 	value: string
 	label: string
-	onFilterClick: (category: string, value: string) => void
+	onFilterClick: (category: string, value: string, inBackground?: boolean) => void
 }): React.ReactElement | null {
 	if (!value) return null
 	const displayLabel = label.charAt(0) + label.slice(1).toLowerCase()
@@ -127,7 +132,10 @@ export function ClickableSingleValue({
 		>
 			<span style={{ fontWeight: 500, color: 'var(--color-text)' }}>{displayLabel}</span>
 			<span style={{ color: 'var(--color-text-soft)' }}>
-				<ClickableValue value={value} onClick={() => onFilterClick(label, value)} />
+				<ClickableValue
+					value={value}
+					onClick={(event) => onFilterClick(label, value, event.ctrlKey || event.metaKey)}
+				/>
 			</span>
 		</div>
 	)
