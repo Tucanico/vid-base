@@ -60,7 +60,11 @@ import { startKeepAlive, stopKeepAlive } from './driveKeepAlive'
 const RETRYABLE_CODES = new Set(['EIO', 'EAGAIN', 'EBUSY', 'ETIMEDOUT', 'EREMOTEIO'])
 
 /** Retries `fn` up to `maxAttempts` times on transient drive errors, with exponential back-off. */
-async function withRetry<T>(fn: () => Promise<T>, maxAttempts = 3, initialDelayMs = 2000): Promise<T> {
+async function withRetry<T>(
+	fn: () => Promise<T>,
+	maxAttempts = 3,
+	initialDelayMs = 2000
+): Promise<T> {
 	let delay = initialDelayMs
 	let lastError: unknown
 	for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -229,9 +233,7 @@ app.whenReady().then(() => {
 	})
 
 	// IPC handler to load the video library from a given folder path
-	ipcMain.handle('db:load', async (_, folderPath) =>
-		withRetry(() => loadLibrary(folderPath))
-	)
+	ipcMain.handle('db:load', async (_, folderPath) => withRetry(() => loadLibrary(folderPath)))
 	// IPC handler to save the video library to a given folder path
 	ipcMain.handle('db:save', async (_, folderPath, videos) => {
 		await withRetry(async () => {
