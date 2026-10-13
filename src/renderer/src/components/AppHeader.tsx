@@ -4,19 +4,28 @@ import React, { ReactNode } from 'react'
  *  Tab-style button for a mode's navigation in the header (Home / Library / ..., All / Film / ...)
  *  @param active Whether this tab is the selected one
  *  @param onClick Called when the tab is clicked
+ *  @param onClose If given, the tab shows a × that calls it (a middle-click calls it too)
  */
 export function HeaderTab({
 	active,
 	onClick,
+	onClose,
 	children
 }: {
 	active: boolean
 	onClick: () => void
+	onClose?: () => void
 	children: ReactNode
 }): React.ReactElement {
 	return (
 		<button
 			onClick={onClick}
+			onAuxClick={(e) => {
+				if (e.button === 1 && onClose) {
+					e.preventDefault()
+					onClose()
+				}
+			}}
 			style={{
 				padding: '8px 14px',
 				fontSize: '0.9rem',
@@ -28,6 +37,21 @@ export function HeaderTab({
 			}}
 		>
 			{children}
+			{onClose && (
+				<span
+					role="button"
+					aria-label="Close tab"
+					title="Close tab"
+					onClick={(e) => {
+						// Don't also select the tab being closed
+						e.stopPropagation()
+						onClose()
+					}}
+					style={{ marginLeft: '8px', opacity: 0.7 }}
+				>
+					×
+				</span>
+			)}
 		</button>
 	)
 }
@@ -93,7 +117,17 @@ function AppHeader({
 					</h1>
 				</div>
 
-				<div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+				{/* Takes the free width, so that many value tabs wrap instead of overflowing */}
+				<div
+					style={{
+						display: 'flex',
+						gap: '10px',
+						alignItems: 'center',
+						flex: 1,
+						minWidth: 0,
+						justifyContent: 'flex-end'
+					}}
+				>
 					{children}
 					<button
 						onClick={onSelectFolder}

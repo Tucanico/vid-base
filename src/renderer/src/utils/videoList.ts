@@ -16,6 +16,33 @@ export const pickRandomIds = (items: VideoFile[], count: number): string[] => {
 	return ids.slice(0, Math.min(count, ids.length))
 }
 
+/** Picks `count` random video ids for the home view's shuffle, preferring videos that are not on it
+ *  now; the current ones only fill in when there are not enough others
+ *  @param items The videos to pick from
+ *  @param currentIds The ids on the home view now
+ *  @param count How many ids to return (fewer if there are fewer videos)
+ *  @returns The picked ids
+ */
+export const pickNewRandomIds = (
+	items: VideoFile[],
+	currentIds: string[],
+	count: number
+): string[] => {
+	const current = new Set(currentIds)
+	const fresh = pickRandomIds(
+		items.filter((item) => !current.has(item.id)),
+		count
+	)
+	if (fresh.length >= count) return fresh
+	return [
+		...fresh,
+		...pickRandomIds(
+			items.filter((item) => current.has(item.id)),
+			count - fresh.length
+		)
+	]
+}
+
 /** Removes the "fav" tag from a tag list, reporting whether it was there
  *  @param tags The tags to clean
  *  @returns The tags without "fav", and whether "fav" was present

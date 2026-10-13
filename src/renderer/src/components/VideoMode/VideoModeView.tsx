@@ -11,13 +11,15 @@ import AppHeader, { HeaderTab } from '../AppHeader'
 import ListLayout from '../ListLayout'
 import ScanLoader, { ScanProgress } from '../ScanLoader'
 import EmptyMessage from '../EmptyMessage'
-import { useListControls } from '../../hooks/useListControls'
+import { ListSnapshot, useListControls } from '../../hooks/useListControls'
 import { useListScrollRestore } from '../../hooks/useListScrollRestore'
+import { useValueTabs, valueTabLabel } from '../../hooks/useValueTabs'
 import {
 	applyBatchTagChanges,
 	buildFilterOptionsFromVideos,
 	buildRawTagString,
 	filterVideosByTags,
+	pickNewRandomIds,
 	pickRandomIds,
 	sortVideos,
 	stripFavoriteTag,
@@ -73,10 +75,26 @@ function VideoModeView({ initialFolder }: { initialFolder: string }): React.Reac
 		sortField,
 		sortDirection
 	} = controls
-	const { listScrollRef, rememberScroll, restoreScroll } = useListScrollRestore(viewMode)
+	const { listScrollRef, rememberScroll, restoreScroll, currentScrollTop } =
+		useListScrollRestore(viewMode)
+	// Value tabs: the library filtered by a value clicked in the detail view (e.g. Model: X), each
+	// with its own filters, search, sort and scroll position
+	const valueTabs = useValueTabs<{ list: ListSnapshot; scrollTop: number }>(
+		() => ({ list: controls.snapshot(), scrollTop: currentScrollTop() }),
+		(saved) => {
+			controls.restore(saved.list)
+			restoreScroll(saved.scrollTop)
+		},
+		() => ({ list: controls.freshSnapshot(), scrollTop: 0 })
+	)
+	const activeTab = valueTabs.activeTab
+	// The list shown: a value tab shows the library, filtered by its value
+	const listMode: VideoListViewMode = activeTab ? 'library' : videoListViewMode
 
 	// Resets the view for a scan of `folder`. `listView` is the list view kept if the scan fails
 	const startLoading = (folder: string, listView: VideoListViewMode): void => {
+		// The tabs belong to the previous folder's videos
+		valueTabs.closeAllTabs()
 		setCurrentFolder(folder)
 		setLoading(true)
 		setScanProgress({ processed: 0, total: 0, percent: 0 })
@@ -340,6 +358,7 @@ function VideoModeView({ initialFolder }: { initialFolder: string }): React.Reac
 	}
 
 	const handleHomeView = (): void => {
+		valueTabs.switchTo(null)
 		setActiveFilters({ simpleTag: [] })
 		setOpenCategories(new Set())
 		setSearchQuery('')
@@ -348,7 +367,14 @@ function VideoModeView({ initialFolder }: { initialFolder: string }): React.Reac
 		setViewingVideo(null)
 	}
 
+	// Replaces the home view's videos with others, not shown there now when possible
+	const handleShuffle = (): void => {
+		setHomeVideoIds(pickNewRandomIds(videos, homeVideoIds, 24))
+		listScrollRef.current?.scrollTo(0, 0)
+	}
+
 	const handleFavoritesView = (): void => {
+		valueTabs.switchTo(null)
 		setActiveFilters({ simpleTag: [] })
 		setOpenCategories(new Set())
 		setSearchQuery('')
@@ -358,19 +384,24 @@ function VideoModeView({ initialFolder }: { initialFolder: string }): React.Reac
 	}
 
 	const handleLibraryView = (): void => {
+		valueTabs.switchTo(null)
 		setVideoListViewMode('library')
 		setViewMode('list')
 		setViewingVideo(null)
 	}
 
-	// Handles clicking on a filterable name (model, production, etc.)
-	const handleFilterClick = (category: string, value: string): void => {
-		// Set the filter and return to list view
-		const newFilters: ActiveFilters = { simpleTag: [] }
-		newFilters[category] = [value]
-		setActiveFilters(newFilters)
-		// Open the corresponding category in the sidebar
-		setOpenCategories(new Set([category]))
+	// Handles clicking on a filterable name (category, model, channel, production): opens its tab and
+	// shows it, or with Ctrl/Cmd held opens it in the background and stays on the video
+	const handleFilterClick = (category: string, value: string, inBackground = false): void => {
+		valueTabs.openTab(category, value, inBackground)
+		if (inBackground) return
+		setViewMode('list')
+		setViewingVideo(null)
+	}
+
+	// Shows a value tab
+	const handleTabClick = (id: string): void => {
+		valueTabs.switchTo(id)
 		setViewMode('list')
 		setViewingVideo(null)
 	}
@@ -380,9 +411,20 @@ function VideoModeView({ initialFolder }: { initialFolder: string }): React.Reac
 		setActiveFilters({ simpleTag: [] })
 	}
 
+	// The videos of the value tab on screen (all videos on the main views)
+	const tabVideos = useMemo(() => {
+		if (!activeTab) return videos
+		const tabFilter: ActiveFilters = { simpleTag: [] }
+		tabFilter[activeTab.category] = [activeTab.value]
+		return filterVideosByTags(videos, tabFilter)
+	}, [videos, activeTab])
+
 	// useMemo to calculate all available filter options, from library.json (or from the
-	// favourited videos in the favourites view)
+	// videos shown, in the favourites view and in a value tab)
 	const filterOptions = useMemo(() => {
+		if (activeTab) {
+			return buildFilterOptionsFromVideos(tabVideos)
+		}
 		if (videoListViewMode === 'favorites') {
 			const favoriteVideos = videos.filter((video) => video.favourited)
 			return buildFilterOptionsFromVideos(favoriteVideos)
@@ -397,7 +439,7 @@ function VideoModeView({ initialFolder }: { initialFolder: string }): React.Reac
 			categories: library.categories,
 			simpleTags: library.tags
 		}
-	}, [library, videoListViewMode, videos])
+	}, [library, videoListViewMode, videos, activeTab, tabVideos])
 
 	// useMemo to compute the list of videos to display based on filters, search, and sorting
 	const homeVideos = useMemo(() => {
@@ -407,13 +449,13 @@ function VideoModeView({ initialFolder }: { initialFolder: string }): React.Reac
 	}, [homeVideoIds, videos])
 
 	const filteredVideos = useMemo(() => {
-		if (videoListViewMode === 'home') {
+		if (listMode === 'home') {
 			return homeVideos
 		}
 
-		let result = videos
+		let result = tabVideos
 
-		if (videoListViewMode === 'favorites') {
+		if (listMode === 'favorites') {
 			result = result.filter((video) => video.favourited)
 		}
 
@@ -427,7 +469,7 @@ function VideoModeView({ initialFolder }: { initialFolder: string }): React.Reac
 
 		// Apply sorting
 		return sortVideos(result, sortField, sortDirection)
-	}, [videos, activeFilters, searchQuery, sortField, sortDirection, videoListViewMode, homeVideos])
+	}, [tabVideos, activeFilters, searchQuery, sortField, sortDirection, listMode, homeVideos])
 
 	if (loading) {
 		return <ScanLoader progress={scanProgress} />
@@ -448,7 +490,7 @@ function VideoModeView({ initialFolder }: { initialFolder: string }): React.Reac
 	}
 
 	// Show list view
-	const isHome = videoListViewMode === 'home'
+	const isHome = listMode === 'home'
 	return (
 		<ListLayout
 			header={
@@ -466,19 +508,42 @@ function VideoModeView({ initialFolder }: { initialFolder: string }): React.Reac
 						controls.setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
 					}
 				>
-					<div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-						<HeaderTab active={videoListViewMode === 'home'} onClick={handleHomeView}>
+					<div
+						style={{
+							display: 'flex',
+							alignItems: 'center',
+							gap: '8px',
+							flexWrap: 'wrap',
+							justifyContent: 'flex-end'
+						}}
+					>
+						<HeaderTab active={listMode === 'home'} onClick={handleHomeView}>
 							Home
 						</HeaderTab>
-						<HeaderTab active={videoListViewMode === 'library'} onClick={handleLibraryView}>
+						{isHome && (
+							<HeaderTab active={false} onClick={handleShuffle}>
+								🔀 Shuffle
+							</HeaderTab>
+						)}
+						<HeaderTab
+							active={!activeTab && listMode === 'library'}
+							onClick={handleLibraryView}
+						>
 							Library
 						</HeaderTab>
-						<HeaderTab
-							active={videoListViewMode === 'favorites'}
-							onClick={handleFavoritesView}
-						>
+						<HeaderTab active={listMode === 'favorites'} onClick={handleFavoritesView}>
 							★ Favourited
 						</HeaderTab>
+						{valueTabs.tabs.map((tab) => (
+							<HeaderTab
+								key={tab.id}
+								active={activeTab?.id === tab.id}
+								onClick={() => handleTabClick(tab.id)}
+								onClose={() => valueTabs.closeTab(tab.id)}
+							>
+								{valueTabLabel(tab)}
+							</HeaderTab>
+						))}
 					</div>
 					{selectedVideoIds.size > 0 && (
 						<button
