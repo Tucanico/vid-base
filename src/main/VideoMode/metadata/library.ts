@@ -45,7 +45,24 @@ function extractCategoriesAndTags(videos: VideoFile[]): {
 	}
 }
 
+/** Moves an unreadable library.json aside (to library.corrupt-<timestamp>.json) so that rebuilding
+ *  the library does not destroy it, and its categories and tags can still be recovered by hand
+ *  @param dbPath The path to the unreadable library.json file
+ *  @returns A promise that resolves when the file has been moved, or rejects if it could not be
+ */
+async function moveCorruptLibraryAside(dbPath: string): Promise<void> {
+	// Colons and dots are replaced because Windows does not allow colons in file names
+	const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+	const backupPath = path.join(
+		path.dirname(dbPath),
+		LIBRARY_FILE.replace(/\.json$/, `.corrupt-${timestamp}.json`)
+	)
+	await fs.rename(dbPath, backupPath)
+	console.warn(`Unreadable library moved to ${backupPath}`)
+}
+
 /** Loads the video library from a JSON file in the specified folder
+ *  An unreadable library.json (invalid JSON or format) is moved aside before null is returned
  *  @param folderPath The path to the folder containing the library.json file
  *  @returns A promise that resolves to a Library object, or null if the library is not found or is invalid
  *  @throws On filesystem errors other than "file not found" (e.g. a drive I/O failure)
@@ -69,6 +86,7 @@ export async function loadLibrary(folderPath: string): Promise<Library | null> {
 			console.warn(
 				'Invalid library format - expected Library object with files, categories, and tags'
 			)
+			await moveCorruptLibraryAside(dbPath)
 			return null
 		}
 	} catch (error) {
@@ -84,8 +102,10 @@ export async function loadLibrary(folderPath: string): Promise<Library | null> {
 		if (code) {
 			throw error
 		}
-		// For other errors (e.g. invalid JSON), log them
+		// For other errors (e.g. invalid JSON), log them and keep the unreadable file. If it cannot be
+		// moved aside, that error propagates: returning null would let the next save overwrite it
 		console.error('Error loading library:', error)
+		await moveCorruptLibraryAside(dbPath)
 		return null
 	}
 }
@@ -136,7 +156,18 @@ export async function saveLibrary(
 
 		// Stringify the library with pretty printing (2-space indentation) for readability
 		const data = JSON.stringify(library, null, 2)
-		await fs.writeFile(dbPath, data, 'utf-8')
+		// Write to a temporary file, flush it to the drive, then rename it over library.json.
+		// Writing library.json directly empties it first, so a drive disconnecting mid-save would
+		// leave a half-written file; with the rename it is always either the old or the new version
+		const tmpPath = `${dbPath}.tmp`
+		const handle = await fs.open(tmpPath, 'w')
+		try {
+			await handle.writeFile(data, 'utf-8')
+			await handle.sync()
+		} finally {
+			await handle.close()
+		}
+		await fs.rename(tmpPath, dbPath)
 	} catch (error) {
 		console.error('Error saving library:', error)
 		// Re-throw the error so the caller knows the save failed (and can retry it)
