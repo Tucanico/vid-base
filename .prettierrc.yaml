@@ -2,6 +2,6 @@ singleQuote: true
 semi: false
 printWidth: 100
 trailingComma: none
-endOfLine: crlf
+endOfLine: lf
 useTabs: true
 tabWidth: 3

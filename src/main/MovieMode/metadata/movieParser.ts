@@ -4,167 +4,23 @@ import * as XLSX from 'xlsx'
 import ExcelJS from 'exceljs'
 import { v4 as uuidv4 } from 'uuid'
 import { Movie, MovieArchive } from '../../../shared/types/movie'
-
-/**
- * Parses a comma-separated string into an array, trimming whitespace
- * Handles cases with one or two spaces before commas
- */
-function parseArrayField(value: string | undefined): string[] {
-	if (!value || typeof value !== 'string') return []
-	return value
-		.split(/\s*,\s*/) // Split on comma with optional whitespace before and after
-		.map((item) => item.trim())
-		.filter((item) => item.length > 0)
-}
-
-/**
- * Parses duration values from Excel into seconds.
- * Supports raw seconds or formatted strings like "1h26m", "45m", "30s".
- */
-function parseDurationValue(value: unknown): number | undefined {
-	if (value === undefined || value === null || value === '') return undefined
-	if (typeof value === 'number') return value
-
-	const raw = String(value).trim().toLowerCase()
-	if (!raw) return undefined
-
-	const hasUnits = /[hms]/.test(raw)
-	const match = raw.match(
-		/^(?:(\d+(?:\.\d+)?)h)?\s*(?:(\d+(?:\.\d+)?)m)?\s*(?:(\d+(?:\.\d+)?)s)?$/
-	)
-
-	if (match && (match[1] || match[2] || match[3])) {
-		const hours = parseFloat(match[1] || '0')
-		const minutes = parseFloat(match[2] || '0')
-		const seconds = parseFloat(match[3] || '0')
-		return Math.round(hours * 3600 + minutes * 60 + seconds)
-	}
-
-	if (hasUnits) return undefined
-
-	const parsed = parseFloat(raw)
-	return isNaN(parsed) ? undefined : parsed
-}
-
-/**
- * Parses size values from Excel into bytes.
- * Supports raw bytes or formatted strings like "1.5 GB", "500 MB".
- */
-function parseSizeValue(value: unknown): number | undefined {
-	if (value === undefined || value === null || value === '') return undefined
-	if (typeof value === 'number') return value
-
-	const raw = String(value).trim()
-	if (!raw) return undefined
-
-	const normalized = raw.replace(',', '.')
-	const unitMatch = normalized.match(/^([\d.]+)\s*([KMGT]?B)$/i)
-	if (unitMatch) {
-		const amount = parseFloat(unitMatch[1])
-		if (isNaN(amount)) return undefined
-		const unit = unitMatch[2].toUpperCase()
-		const powers: Record<string, number> = { B: 0, KB: 1, MB: 2, GB: 3, TB: 4 }
-		const power = powers[unit]
-		if (power === undefined) return undefined
-		return Math.round(amount * 1024 ** power)
-	}
-
-	if (/[a-z]/i.test(normalized)) return undefined
-
-	const parsed = parseFloat(normalized)
-	return isNaN(parsed) ? undefined : parsed
-}
-
-/**
- * Converts director name from "Surname, Name" format to "Name Surname" format
- */
-function formatDirectorName(director: string): string {
-	// Check if it's in "Surname, Name" format
-	if (director.includes(',')) {
-		const parts = director.split(',').map((p) => p.trim())
-		if (parts.length === 2) {
-			// Return "Name Surname"
-			return `${parts[1]} ${parts[0]}`
-		}
-	}
-	// If not in that format, return as is
-	return director.trim()
-}
-
-/**
- * Sanitizes a string for matching by:
- * - Converting to lowercase
- * - Removing special characters (keeping only alphanumeric and spaces)
- * - Normalizing whitespace
- */
-function sanitizeForMatching(str: string): string {
-	return str
-		.toLowerCase()
-		.replace(/[^\w\s]/g, '') // Remove special characters
-		.replace(/\s+/g, ' ') // Normalize whitespace
-		.trim()
-}
-
-/**
- * Removes common suffixes from folder names (years, language codes, etc.)
- * Examples: "12 Monkey (1995 - Terry Gilliam)" -> "12 Monkey"
- */
-function removeFolderSuffixes(folderName: string): string {
-	// Remove content in parentheses and brackets
-	let cleaned = folderName.replace(/\([^)]*\)/g, '').replace(/\[[^\]]*\]/g, '')
-	// Remove trailing spaces and dashes
-	cleaned = cleaned.replace(/[\s-]+$/, '').trim()
-	return cleaned
-}
-
-/**
- * Extracts the year from a folder name if present
- * Formats: "12 Monkey (1995 - Terry Gilliam)" or "12 Monkey (1995)" or "12 Monkey (1995 - Terry Gilliam) [EN]"
- * The year is typically the first 4 digits after the opening parenthesis
- * @param folderName Name of the folder
- * @returns Year as number if found, undefined otherwise
- */
-function extractYearFromFolderName(folderName: string): number | undefined {
-	// Look for pattern: (YYYY or (YYYY - or (YYYY)
-	const yearMatch = folderName.match(/\((\d{4})/)
-	if (yearMatch) {
-		const year = parseInt(yearMatch[1], 10)
-		if (!isNaN(year) && year >= 1900 && year <= 2100) {
-			// Reasonable year range
-			return year
-		}
-	}
-	return undefined
-}
-
-/**
- * Matches a movie title with a folder name
- * Handles variations like:
- * - "12 Monkeys" -> "12 Monkeys (1995 - Terry Gilliam)"
- * - "21 Grams" -> "21 Grams (2003)"
- * - "300" -> "300"
- * - "8 Mile" -> "8 Mile (2002) [EN]"
- */
-function matchMovieToFolder(movieTitle: string, folderName: string): boolean {
-	// Remove suffixes from folder name
-	const cleanedFolder = removeFolderSuffixes(folderName)
-
-	// Sanitize both for comparison
-	const sanitizedMovie = sanitizeForMatching(movieTitle)
-	const sanitizedFolder = sanitizeForMatching(cleanedFolder)
-
-	// Check if folder name starts with movie title (or vice versa for short titles)
-	if (sanitizedFolder.startsWith(sanitizedMovie)) {
-		return true
-	}
-
-	// Check if movie title starts with folder name (for cases like "300")
-	if (sanitizedMovie.startsWith(sanitizedFolder)) {
-		return true
-	}
-
-	return false
-}
+import { isTransientDriveError } from '../../driveRetry'
+import {
+	formatDirectorName,
+	formatDuration,
+	formatFileSize,
+	parseArrayField,
+	parseDurationValue,
+	parseSizeValue
+} from './excelValues'
+import { extractLanguage, extractYearFromFolderName, removeFolderSuffixes } from './folderNames'
+import {
+	calculateFolderSize,
+	findUnmatchedMovieFolders,
+	searchMovieFoldersRecursively
+} from './movieFolders'
+import { getMovieInfoFromTMDB } from './tmdb'
+import { BackfillRow, NewMovieRow, updateArchiveFile } from './archiveWriter'
 
 /**
  * Parses an Excel file and returns a MovieArchive
@@ -365,18 +221,7 @@ export async function parseMovieExcel(
 				const unmatchedFolders = await findUnmatchedMovieFolders(moviesFolderPath, movies)
 
 				// Collect all new movies first (before writing to Excel)
-				const newMoviesToAdd: Array<{
-					title: string
-					director: string
-					year?: number
-					duration?: number
-					language: string
-					actors: string[]
-					genres: string[]
-					type: string
-					size: number
-					folderPath: string
-				}> = []
+				const newMoviesToAdd: NewMovieRow[] = []
 
 				for (const { folderPath, folderName } of unmatchedFolders) {
 					try {
@@ -431,14 +276,7 @@ export async function parseMovieExcel(
 				}
 
 				// Identify movies missing BOTH duration and size to backfill
-				const rowsToBackfill: Array<{
-					row: number
-					movie: Movie
-					durationFormatted: string
-					durationSeconds?: number
-					sizeFormatted: string
-					sizeBytes?: number
-				}> = []
+				const rowsToBackfill: BackfillRow[] = []
 				if (hasTmdbKey) {
 					for (const movie of movies) {
 						const presence = movieExcelFieldPresence.get(movie.id)
@@ -489,194 +327,13 @@ export async function parseMovieExcel(
 					}
 				}
 
-				// Apply Excel updates (additions and deletions) in one pass
-				if (newMoviesToAdd.length > 0 || rowsToDelete.length > 0 || rowsToBackfill.length > 0) {
-					try {
-						const workbook = new ExcelJS.Workbook()
-						await workbook.xlsx.readFile(filePath)
-						const worksheet = workbook.worksheets[0] || workbook.addWorksheet('Archivio')
-
-						// Find header row (supports optional title row)
-						let headerRowNumber = -1
-						const maxHeaderSearch = Math.min(10, worksheet.rowCount)
-						for (let i = 1; i <= maxHeaderSearch; i++) {
-							const rowValues = (worksheet.getRow(i).values || []) as unknown[]
-							const rowStrings = rowValues.map((v) =>
-								String(v ?? '')
-									.trim()
-									.toUpperCase()
-							)
-							if (rowStrings.includes('TITOLO') && rowStrings.includes('REGISTA')) {
-								headerRowNumber = i
-								break
-							}
-						}
-
-						if (headerRowNumber === -1) {
-							throw new Error('Could not find header row in Excel file')
-						}
-
-						// Map column indices from header row
-						const headerRow = worksheet.getRow(headerRowNumber)
-						const headerValues = (headerRow.values || []) as unknown[]
-						const headerMap = new Map<string, number>()
-						headerValues.forEach((value, index) => {
-							if (index === 0) return
-							const key = String(value ?? '')
-								.trim()
-								.toUpperCase()
-							if (key) headerMap.set(key, index)
-						})
-
-						const getCol = (names: string[]): number | undefined => {
-							for (const name of names) {
-								const col = headerMap.get(name)
-								if (col !== undefined) return col
-							}
-							return undefined
-						}
-
-						const colLQ = getCol(['LQ'])
-						const colTitolo = getCol(['TITOLO'])
-						const colRegista = getCol(['REGISTA'])
-						const colAnno = getCol(['ANNO'])
-						const colLingua = getCol(['LINGUA'])
-						const colAttori = getCol(['ATTORI RILEVANTI', 'ATTORI'])
-						const colGenere = getCol(['GENERE'])
-						const colTipo = getCol(['TIPO'])
-						const colDurata = getCol(['DURATA'])
-						const colDimensione = getCol(['DIMENSIONE', 'DIMENSIONI'])
-						const colCheck = getCol(['CHECK'])
-						const colNote = getCol(['NOTE'])
-
-						if (!colTitolo || !colRegista) {
-							throw new Error('Excel file must have TITOLO and REGISTA columns')
-						}
-						if (rowsToBackfill.length > 0 && (!colDurata || !colDimensione)) {
-							throw new Error('Excel file must have DURATA and DIMENSIONE columns')
-						}
-
-						// Delete missing movies first (from bottom to top)
-						if (rowsToDelete.length > 0) {
-							rowsToDelete.sort((a, b) => b - a)
-							for (const rowNumber of rowsToDelete) {
-								worksheet.spliceRows(rowNumber, 1)
-							}
-						}
-
-						// Backfill duration and size for existing rows
-						if (rowsToBackfill.length > 0 && colDurata && colDimensione) {
-							for (const entry of rowsToBackfill) {
-								const row = worksheet.getRow(entry.row)
-								row.getCell(colDurata).value = entry.durationFormatted
-								row.getCell(colDimensione).value = entry.sizeFormatted
-							}
-						}
-
-						// Find the last row with actual data (ExcelJS rowCount can include empty styled rows)
-						const dataStartRow = headerRowNumber + 1
-						let lastDataRow = headerRowNumber
-						for (let i = worksheet.rowCount; i >= dataStartRow; i--) {
-							const rowValues = (worksheet.getRow(i).values || []) as unknown[]
-							const hasValue = rowValues.some((v, idx) => {
-								if (idx === 0) return false
-								if (v === null || v === undefined) return false
-								return String(v).trim() !== ''
-							})
-							if (hasValue) {
-								lastDataRow = i
-								break
-							}
-						}
-
-						// Add new movie rows
-						for (const movieData of newMoviesToAdd) {
-							// Convert director from "FirstName LastName" to "LastName, FirstName" for Excel
-							let directorForExcel = movieData.director
-							const nameParts = movieData.director.trim().split(/\s+/)
-							if (nameParts.length >= 2) {
-								const lastName = nameParts[nameParts.length - 1]
-								const firstName = nameParts.slice(0, -1).join(' ')
-								directorForExcel = `${lastName}, ${firstName}`
-							}
-
-							// Format duration and size
-							const durationFormatted = movieData.duration
-								? formatDuration(movieData.duration)
-								: ''
-							const sizeFormatted = movieData.size ? formatFileSize(movieData.size) : ''
-
-							const rowValues: unknown[] = []
-							if (colLQ) rowValues[colLQ] = ''
-							if (colTitolo) rowValues[colTitolo] = movieData.title || ''
-							if (colRegista) rowValues[colRegista] = directorForExcel || ''
-							if (colAnno) rowValues[colAnno] = movieData.year ? String(movieData.year) : ''
-							if (colLingua) rowValues[colLingua] = movieData.language || ''
-							if (colAttori) rowValues[colAttori] = movieData.actors.join(', ') || ''
-							if (colGenere) rowValues[colGenere] = movieData.genres.join(', ') || ''
-							if (colTipo) rowValues[colTipo] = movieData.type || ''
-							if (colDurata) rowValues[colDurata] = durationFormatted
-							if (colDimensione) rowValues[colDimensione] = sizeFormatted
-							if (colCheck) rowValues[colCheck] = ''
-							if (colNote) rowValues[colNote] = ''
-
-							const row = worksheet.insertRow(lastDataRow + 1, rowValues)
-							lastDataRow += 1
-							row.eachCell((cell) => {
-								cell.numFmt = '@'
-							})
-						}
-
-						const writeWithRetry = async (): Promise<void> => {
-							const delays = [0, 300, 600]
-							for (let attempt = 0; attempt < delays.length; attempt++) {
-								if (delays[attempt] > 0) {
-									await new Promise((resolve) => setTimeout(resolve, delays[attempt]))
-								}
-								try {
-									await workbook.xlsx.writeFile(filePath)
-									return
-								} catch (error) {
-									if (attempt === delays.length - 1) throw error
-								}
-							}
-						}
-
-						// Write updates back to the original file (with retry for transient locks)
-						await writeWithRetry()
-
-						// Log success with movie titles
-						if (newMoviesToAdd.length > 0) {
-							console.log(`\nSuccessfully added ${newMoviesToAdd.length} new movie(s):`)
-							for (const movieData of newMoviesToAdd) {
-								const yearStr = movieData.year ? ` (${movieData.year})` : ''
-								console.log(`  ${movieData.title}${yearStr}`)
-							}
-						}
-						if (rowsToDelete.length > 0) {
-							console.log(`\nSuccessfully removed ${rowsToDelete.length} missing movie(s):`)
-							for (const movieData of removedMovieEntries) {
-								const yearStr = movieData.year ? ` (${movieData.year})` : ''
-								console.log(`  ${movieData.title}${yearStr}`)
-							}
-						}
-						if (rowsToBackfill.length > 0) {
-							console.log(
-								`\nSuccessfully backfilled ${rowsToBackfill.length} movie(s) missing duration/size:`
-							)
-							for (const entry of rowsToBackfill) {
-								const yearStr = entry.movie.year ? ` (${entry.movie.year})` : ''
-								console.log(`  ${entry.movie.title}${yearStr}`)
-							}
-						}
-					} catch (excelError) {
-						const errorMessage =
-							excelError instanceof Error ? excelError.message : String(excelError)
-						console.error(`\n❌ Error updating Excel:`, errorMessage)
-						// Note: Movies are still added to the in-memory array so they appear in the UI
-						// but won't be persisted to Excel until next successful write
-					}
-				}
+				// Apply Excel updates (additions, deletions and backfills) in one pass
+				await updateArchiveFile(filePath, {
+					newMoviesToAdd,
+					rowsToDelete,
+					rowsToBackfill,
+					removedMovieEntries
+				})
 
 				// Remove from in-memory list and rebuild categories
 				if (removedMovieIds.size > 0) {
@@ -763,6 +420,9 @@ export async function parseMovieExcel(
 					if (entry.movie.size) categories.SIZE.add(entry.movie.size)
 				}
 			} catch (error) {
+				// A drive error is rethrown so withRetry can retry the load, instead of returning the
+				// movies without their folders
+				if (isTransientDriveError(error)) throw error
 				console.error('Error matching movies with folders:', error)
 				// Continue without folder matching
 			}
@@ -783,431 +443,6 @@ export async function parseMovieExcel(
 		console.error('Error parsing Excel file:', error)
 		throw error
 	}
-}
-
-/**
- * Calculates the total size of a folder recursively
- * @param folderPath Path to the folder
- * @returns Total size in bytes
- */
-async function calculateFolderSize(folderPath: string): Promise<number> {
-	let totalSize = 0
-	try {
-		const entries = await fs.readdir(folderPath, { withFileTypes: true })
-		for (const entry of entries) {
-			const fullPath = path.join(folderPath, entry.name)
-			if (entry.isDirectory()) {
-				// Skip hidden folders
-				if (entry.name.startsWith('.')) continue
-				totalSize += await calculateFolderSize(fullPath)
-			} else if (entry.isFile()) {
-				try {
-					const stats = await fs.stat(fullPath)
-					totalSize += stats.size
-				} catch {
-					// If stat fails, skip this file
-					continue
-				}
-			}
-		}
-	} catch {
-		// If readdir fails, return 0
-		return 0
-	}
-	return totalSize
-}
-
-/**
- * Recursively searches for movie folders and matches them with movies from Excel
- * If a folder matches a movie, it doesn't recurse into it (it IS the movie folder)
- * Also calculates folder size if not provided in Excel
- * @param currentPath Current directory being searched
- * @param movies Array of movies from Excel to match
- * @param matchedMovies Set of movie IDs that have already been matched
- * @param rootPath Root path of the movies folder (for relative paths)
- */
-async function searchMovieFoldersRecursively(
-	currentPath: string,
-	movies: Movie[],
-	matchedMovies: Set<string>,
-	rootPath: string
-): Promise<void> {
-	try {
-		const entries = await fs.readdir(currentPath, { withFileTypes: true })
-
-		for (const entry of entries) {
-			// Skip hidden folders
-			if (entry.name.startsWith('.')) continue
-
-			if (entry.isDirectory()) {
-				const folderPath = path.join(currentPath, entry.name)
-
-				const hasVideo = await folderContainsVideo(folderPath, false)
-				if (!hasVideo) {
-					// No video files here, keep searching deeper
-					await searchMovieFoldersRecursively(folderPath, movies, matchedMovies, rootPath)
-					continue
-				}
-
-				// Try to match this folder with an unmatched movie
-				for (const movie of movies) {
-					if (matchedMovies.has(movie.id)) continue // Skip already matched movies
-
-					if (matchMovieToFolder(movie.title, entry.name)) {
-						movie.folderPath = folderPath
-						// Calculate folder size if not provided in Excel
-						if (!movie.sizeBytes) {
-							try {
-								movie.sizeBytes = await calculateFolderSize(folderPath)
-								if (movie.sizeBytes) {
-									movie.size = formatFileSize(movie.sizeBytes)
-								}
-							} catch (error) {
-								console.warn(`Could not calculate size for folder ${folderPath}:`, error)
-							}
-						}
-						matchedMovies.add(movie.id)
-						break // Found a match, stop searching
-					}
-				}
-
-				// If this folder matched a movie, don't recurse into it.
-				// Folders with videos are treated as movie folders; only folders
-				// without videos are recursed into (handled above).
-			}
-		}
-	} catch (error) {
-		console.error(`Error searching directory ${currentPath}:`, error)
-		// Continue searching other directories
-	}
-}
-
-/**
- * Extracts language code from folder name or parent folder
- * Looks for patterns like "[ES]", "[EN]" in folder name
- * Or checks parent folder names like "EN", "ENG", "IT", "ITA"
- * @param folderName Name of the movie folder
- * @param folderPath Full path to the movie folder
- * @returns Language code (default: "EN")
- */
-function extractLanguage(folderName: string, folderPath: string): string {
-	// First, try to extract from folder name pattern like "[ES]" or "[EN]"
-	const bracketMatch = folderName.match(/\[([A-Z]{2,3})\]/i)
-	if (bracketMatch) {
-		const langCode = bracketMatch[1].toUpperCase()
-		// Map common codes
-		if (langCode === 'ENG') return 'EN'
-		if (langCode === 'ITA') return 'IT'
-		return langCode
-	}
-
-	// Check parent folder name
-	const parentFolder = path.basename(path.dirname(folderPath))
-	const parentUpper = parentFolder.toUpperCase()
-
-	// Check for language folders
-	if (parentUpper === 'EN' || parentUpper === 'ENG') return 'EN'
-	if (parentUpper === 'IT' || parentUpper === 'ITA') return 'IT'
-	if (parentUpper === 'ES' || parentUpper === 'ESP') return 'ES'
-	if (parentUpper === 'FR' || parentUpper === 'FRA') return 'FR'
-	if (parentUpper === 'DE' || parentUpper === 'GER') return 'DE'
-
-	// Default to EN if not found
-	return 'EN'
-}
-
-/**
- * Formats duration in seconds to "1h26m" format
- * @param seconds Duration in seconds
- * @returns Formatted string like "1h26m" or "45m"
- */
-function formatDuration(seconds: number): string {
-	const hours = Math.floor(seconds / 3600)
-	const minutes = Math.floor((seconds % 3600) / 60)
-	if (hours > 0) {
-		return `${hours}h${minutes}m`
-	}
-	return `${minutes}m`
-}
-
-/**
- * Formats file size in bytes to human-readable format
- * @param bytes Size in bytes
- * @returns Formatted string like "1.5 GB" or "500 MB"
- */
-function formatFileSize(bytes: number): string {
-	const units = ['B', 'KB', 'MB', 'GB', 'TB']
-	let size = bytes
-	let unitIndex = 0
-	while (size >= 1024 && unitIndex < units.length - 1) {
-		size /= 1024
-		unitIndex++
-	}
-	return `${size.toFixed(unitIndex === 0 ? 0 : 2)} ${units[unitIndex]}`
-}
-
-/**
- * TMDb API response types
- */
-interface TMDBMovieSearchResult {
-	id: number
-	title: string
-	release_date?: string
-	popularity: number
-}
-
-interface TMDBMovieDetails {
-	id: number
-	title: string
-	release_date?: string
-	runtime?: number
-	genres: Array<{ id: number; name: string }>
-}
-
-interface TMDBCredits {
-	crew: Array<{ job: string; name: string }>
-	cast: Array<{ name: string; order: number }>
-}
-
-/**
- * Calls TMDb API to get movie information
- * @param movieTitle Title of the movie
- * @param apiKey TMDb API key (v3)
- * @param year Optional year to help with more accurate results
- * @returns Movie information object or null if API call fails
- */
-async function getMovieInfoFromTMDB(
-	movieTitle: string,
-	apiKey: string,
-	year?: number
-): Promise<{
-	director: string
-	year: number | undefined
-	duration: number | undefined
-	actors: string[]
-	genres: string[]
-	type: string
-} | null> {
-	try {
-		const baseUrl = 'https://api.themoviedb.org/3'
-
-		// Step 1: Search for the movie
-		const searchParams = new URLSearchParams({
-			api_key: apiKey,
-			query: movieTitle,
-			language: 'en-US'
-		})
-		if (year) {
-			searchParams.append('year', String(year))
-		}
-
-		console.log(`TMDb Search for "${movieTitle}"${year ? ` (${year})` : ''}`)
-		const searchResponse = await fetch(`${baseUrl}/search/movie?${searchParams.toString()}`)
-
-		if (!searchResponse.ok) {
-			console.error(`TMDb search failed: ${searchResponse.status} ${searchResponse.statusText}`)
-			return null
-		}
-
-		const searchData = (await searchResponse.json()) as { results: TMDBMovieSearchResult[] }
-		if (!searchData.results || searchData.results.length === 0) {
-			return null
-		}
-
-		// Get the first result (best match)
-		const movieId = searchData.results[0].id
-		const matchedMovie = searchData.results[0]
-		console.log(`   Found: "${matchedMovie.title}" (ID: ${movieId})`)
-
-		// Step 2: Get movie details (runtime, genres, release date)
-		const detailsParams = new URLSearchParams({
-			api_key: apiKey,
-			language: 'en-US'
-		})
-		const detailsResponse = await fetch(`${baseUrl}/movie/${movieId}?${detailsParams.toString()}`)
-
-		if (!detailsResponse.ok) {
-			console.error(
-				`TMDb details failed: ${detailsResponse.status} ${detailsResponse.statusText}`
-			)
-			return null
-		}
-
-		const movieDetails = (await detailsResponse.json()) as TMDBMovieDetails
-
-		// Step 3: Get credits (director, cast)
-		const creditsParams = new URLSearchParams({
-			api_key: apiKey,
-			language: 'en-US'
-		})
-		const creditsResponse = await fetch(
-			`${baseUrl}/movie/${movieId}/credits?${creditsParams.toString()}`
-		)
-
-		if (!creditsResponse.ok) {
-			console.error(
-				`TMDb credits failed: ${creditsResponse.status} ${creditsResponse.statusText}`
-			)
-			return null
-		}
-
-		const credits = (await creditsResponse.json()) as TMDBCredits
-
-		// Extract director (first person with job "Director")
-		const director = credits.crew.find((person) => person.job === 'Director')?.name || ''
-
-		// Extract top 3 actors (ordered by cast order)
-		const actors = credits.cast
-			.sort((a, b) => a.order - b.order)
-			.slice(0, 3)
-			.map((actor) => actor.name)
-
-		// Extract genres
-		const genres = movieDetails.genres.map((genre) => genre.name)
-
-		// Extract year from release_date
-		let releaseYear: number | undefined = undefined
-		if (movieDetails.release_date) {
-			const yearMatch = movieDetails.release_date.match(/^(\d{4})/)
-			if (yearMatch) {
-				releaseYear = parseInt(yearMatch[1], 10)
-			}
-		}
-
-		// Convert runtime from minutes to seconds
-		const durationInSeconds = movieDetails.runtime ? movieDetails.runtime * 60 : undefined
-
-		// Determine type: Film, Serie, or Docu
-		// TMDb doesn't directly provide this, but we can infer from genres
-		let type = 'Film'
-		const genreNames = genres.map((g) => g.toLowerCase())
-		if (genreNames.includes('documentary')) {
-			type = 'Docu'
-		} else if (genreNames.includes('tv movie') || genreNames.includes('tv series')) {
-			type = 'Serie'
-		}
-
-		return {
-			director,
-			year: releaseYear || year || undefined,
-			duration: durationInSeconds,
-			actors,
-			genres,
-			type
-		}
-	} catch (error) {
-		console.error('Error calling TMDb API:', error)
-		return null
-	}
-}
-
-/**
- * Checks if a folder contains at least one video file
- * @param folderPath Path to the folder to check
- * @returns true if folder contains at least one video file
- */
-async function folderContainsVideo(
-	folderPath: string,
-	recursive: boolean = true
-): Promise<boolean> {
-	const videoExtensions = [
-		'.mp4',
-		'.mkv',
-		'.mov',
-		'.avi',
-		'.wmv',
-		'.m4v',
-		'.webm',
-		'.flv',
-		'.mpg',
-		'.mpeg'
-	]
-
-	try {
-		const entries = await fs.readdir(folderPath, { withFileTypes: true })
-
-		for (const entry of entries) {
-			if (entry.isDirectory()) {
-				if (!recursive) continue
-				// Recursively check subdirectories
-				const subFolderPath = path.join(folderPath, entry.name)
-				if (await folderContainsVideo(subFolderPath, true)) {
-					return true
-				}
-			} else if (entry.isFile()) {
-				const ext = path.extname(entry.name).toLowerCase()
-				if (videoExtensions.includes(ext)) {
-					return true
-				}
-			}
-		}
-	} catch (error) {
-		console.error(`Error checking folder ${folderPath}:`, error)
-	}
-
-	return false
-}
-
-/**
- * Finds all movie folders that don't match any existing movies
- * A movie folder is defined as a folder that contains at least one video file
- * @param moviesFolderPath Root path containing movie folders
- * @param existingMovies Movies already in Excel
- * @returns Array of unmatched folder paths and names
- */
-async function findUnmatchedMovieFolders(
-	moviesFolderPath: string,
-	existingMovies: Movie[]
-): Promise<Array<{ folderPath: string; folderName: string }>> {
-	const unmatchedFolders: Array<{ folderPath: string; folderName: string }> = []
-	const matchedFolderPaths = new Set(
-		existingMovies.filter((m) => m.folderPath).map((m) => m.folderPath!)
-	)
-
-	async function searchFolders(currentPath: string): Promise<void> {
-		try {
-			const entries = await fs.readdir(currentPath, { withFileTypes: true })
-
-			for (const entry of entries) {
-				if (entry.name.startsWith('.')) continue
-
-				if (entry.isDirectory()) {
-					const folderPath = path.join(currentPath, entry.name)
-
-					// Check if this folder is already matched to a movie
-					if (matchedFolderPaths.has(folderPath)) {
-						// This folder is already matched, don't recurse
-						continue
-					}
-
-					// Check if this folder matches any existing movie title
-					const matchesExisting = existingMovies.some((movie) =>
-						matchMovieToFolder(movie.title, entry.name)
-					)
-
-					if (!matchesExisting) {
-						// Check if this folder contains at least one video file (definition of a movie folder)
-						const hasVideo = await folderContainsVideo(folderPath, false)
-						if (hasVideo) {
-							// This is an unmatched movie folder - could be a new movie
-							unmatchedFolders.push({ folderPath, folderName: entry.name })
-						} else {
-							// No video files, recurse to find nested movie folders
-							await searchFolders(folderPath)
-						}
-					} else {
-						// It matches an existing movie but folderPath wasn't set - recurse to find nested movies
-						await searchFolders(folderPath)
-					}
-				}
-			}
-		} catch (error) {
-			console.error(`Error searching folder ${currentPath}:`, error)
-		}
-	}
-
-	await searchFolders(moviesFolderPath)
-	return unmatchedFolders
 }
 
 /**
@@ -1232,28 +467,62 @@ export async function findExcelFile(dirPath: string): Promise<string | null> {
 		const fallback = excelFiles[0]
 		return fallback ? path.join(dirPath, fallback) : null
 	} catch (error) {
+		// A drive error is rethrown: null means "no archive here", and the caller would then create a
+		// new Archivio.xlsx from the folders, overwriting the existing one
+		if (isTransientDriveError(error)) throw error
 		console.error('Error finding Excel file:', error)
 		return null
 	}
 }
 
 /**
+ * Whether a file exists. Errors other than "not found" are thrown: a file that could not be
+ * checked must not be assumed missing (and then overwritten)
+ * @param filePath Path to the file
+ * @returns true if the file exists
+ */
+async function fileExists(filePath: string): Promise<boolean> {
+	try {
+		await fs.stat(filePath)
+		return true
+	} catch (error) {
+		if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
+			return false
+		}
+		throw error
+	}
+}
+
+/**
  * Creates a new Archivio Excel file by scanning movie folders and enriching with TMDb.
+ * An existing Archivio.xlsx (which findExcelFile can miss, e.g. when the folder cannot be listed)
+ * is only replaced if `confirmOverwrite` says so; otherwise its path is returned, to load it instead
  * @param moviesFolderPath Path to the folder containing movie folders
  * @param outputDir Optional output directory for the Excel file (defaults to moviesFolderPath)
- * @returns A promise that resolves to the new Excel file path
+ * @param confirmOverwrite Asked before an existing Archivio.xlsx is replaced; true replaces it
+ * @returns A promise that resolves to the new Excel file path (or the existing one, if kept)
  */
 export async function createMovieArchivioFromFolders(
 	moviesFolderPath: string,
-	outputDir?: string
+	outputDir: string | undefined,
+	confirmOverwrite: (filePath: string) => Promise<boolean>
 ): Promise<string> {
 	const tmdbApiKey = process.env.TMDB_API_KEY
-	if (!tmdbApiKey || tmdbApiKey.trim() === '') {
-		throw new Error('TMDB_API_KEY is required to create a new movie archive')
-	}
+	const hasTmdbKey = Boolean(tmdbApiKey && tmdbApiKey.trim() !== '')
 
 	const targetDir = outputDir || moviesFolderPath
 	const filePath = path.join(targetDir, 'Archivio.xlsx')
+
+	// The archive holds what neither the folders nor TMDb can rebuild (LQ, CHECK, NOTE), so it is
+	// never replaced without asking. Without a TMDb key no new archive can be built, so it is kept
+	// without asking. Checked first, so keeping it skips the folder scan and the TMDb calls
+	if (await fileExists(filePath)) {
+		if (!hasTmdbKey || !(await confirmOverwrite(filePath))) return filePath
+	}
+
+	if (!tmdbApiKey || tmdbApiKey.trim() === '') {
+		throw new Error('TMDB_API_KEY is required to create a new movie archive')
+	}
 
 	const workbook = new ExcelJS.Workbook()
 	const worksheet = workbook.addWorksheet('Archivio')

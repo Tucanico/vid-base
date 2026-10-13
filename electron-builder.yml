@@ -12,6 +12,10 @@ files:
    - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
 asarUnpack:
    - resources/**
+   - node_modules/ffmpeg-static/**
+   - node_modules/ffprobe-static/**
+   - node_modules/exiftool-vendored.pl/**
+   - node_modules/exiftool-vendored.exe/**
 win:
    executableName: VidBase
    icon: build/icon.ico
@@ -36,10 +40,16 @@ linux:
    icon: build/icon.png
    target:
       - AppImage
-      - snap
       - deb
-   maintainer: electronjs.org
-   category: Utility
+   maintainer: Jacopo Lombardo
+   category: AudioVideo
+   # Electron's Wayland backend segfaults on current Mutter releases (Ubuntu 25.10+),
+   # so the launcher pins the X11/XWayland backend.
+   executableArgs:
+      - --ozone-platform=x11
+   desktop:
+      entry:
+         StartupWMClass: VidBase
 appImage:
    artifactName: ${name}-${version}.${ext}
 npmRebuild: false

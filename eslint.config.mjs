@@ -39,7 +39,7 @@ export default defineConfig(
 					semi: false,
 					printWidth: 100,
 					trailingComma: 'none',
-					endOfLine: 'crlf'
+					endOfLine: 'lf'
 				}
 			]
 		}
