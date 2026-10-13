@@ -28,13 +28,33 @@ If commit/time are unknown (old entries, manual notes, not committed yet), just 
 
 ---
 
-## 2026-10-13 — fix(library): library.json is saved atomically and an unreadable one is kept instead of overwritten
+## 2026-10-13 — fix(movies): a drive error no longer deletes rows from the Excel archive or overwrites it
+
+`parseMovieExcel` deletes the Excel rows of the movies whose folder it did not find. The folder walk ([movieFolders.ts](src/main/MovieMode/metadata/movieFolders.ts): `searchMovieFoldersRecursively`, `folderContainsVideo`, `findUnmatchedMovieFolders`, `calculateFolderSize`) caught and skipped every error, so a folder that could not be read while the drive was waking up left its movies unmatched, and their rows were deleted. `findExcelFile` returned `null` on any error, after which `movies:load` created a new `Archivio.xlsx` from the folders, overwriting the existing one with its LQ / CHECK / NOTE columns. All of them now rethrow transient drive errors (`isTransientDriveError` in [driveRetry.ts](src/main/driveRetry.ts), the codes `withRetry` retries), so the load is retried and nothing is written unless the scan completed; other errors (e.g. `EACCES` on a system folder) are skipped as before.
+
+## 2026-10-13 — fix(logs): renderer errors reach main.log, and info messages keep reaching it once the user .env is loaded
+
+The renderer logs through electron-log ([main.tsx](src/renderer/src/main.tsx)), which needs `log.initialize()` in the main process before its messages are written to the file; it was never called, so renderer errors only reached DevTools. And `loadEnvFile` in [index.ts](src/main/index.ts) hid dotenv's output by patching `console.log` / `console.info` and then restoring the functions saved at startup, which undid the wrapping that writes them to the log file whenever the user `.env` was loaded (the packaged app with a TMDb key). It now passes dotenv's `quiet` option instead.
+
+## 2026-10-13 — refactor: App.tsx and movieParser.ts are split by mode and by job
+
+[App.tsx](src/renderer/src/App.tsx) held the state of both modes in 1,659 lines; it now only shows the mode selection, and [VideoModeView](src/renderer/src/components/VideoMode/VideoModeView.tsx) / [MovieModeView](src/renderer/src/components/MovieMode/MovieModeView.tsx) own their mode's state. They share the filter, search and sort state ([useListControls](src/renderer/src/hooks/useListControls.ts)), the scroll restore ([useListScrollRestore](src/renderer/src/hooks/useListScrollRestore.ts)) and the list chrome (`AppHeader`, `ListLayout`, `ScanLoader`, `EmptyMessage`); the pure list logic is in [videoList.ts](src/renderer/src/utils/videoList.ts) and [movieList.ts](src/renderer/src/utils/movieList.ts). The picked folder is now loaded by the mode view's first effect, behind a ref so StrictMode's second run in development does not start a second scan. [movieParser.ts](src/main/MovieMode/metadata/movieParser.ts) (1,325 lines) keeps the three load entry points; cell values moved to `excelValues.ts`, folder-name matching to `folderNames.ts`, the folder walk to `movieFolders.ts`, TMDb to `tmdb.ts`, and the Excel update to `archiveWriter.ts`. No behaviour change: every moved function compares identical to the previous commit, and an end-to-end run of both modes (scan, search, sort, favourites, tag filters, detail views, type tabs, duration range, folder re-pick, Excel additions and deletions) gave identical results.
+
+## 2026-10-13 — build(ci): tests for drive retry, library load/save and tag parsing; CI on every push
+
+`withRetry` moved from `index.ts` to [driveRetry.ts](src/main/driveRetry.ts) so it can be tested. New suites: [driveRetry.test.ts](src/main/__tests__/driveRetry.test.ts), [library.test.ts](src/main/VideoMode/metadata/__tests__/library.test.ts) (missing, truncated and wrong-shape files, filesystem errors thrown, no temp file left) and [scanner.test.ts](src/main/VideoMode/metadata/__tests__/scanner.test.ts) (the tag format). [ci.yml](.github/workflows/ci.yml) runs typecheck, lint and tests on every push and pull request. `build:mac` and `build:linux` now go through `npm run build`, so they typecheck like `build:win`. The README gives the data-folder paths for Linux and macOS (`vidbase`, lowercase: the packaged app has no `productName`), says logs go to one `main.log`, and explains the X11 default on Linux.
+
+## 2026-10-13 10:33 — fix(library): library.json is saved atomically and an unreadable one is kept instead of overwritten
 
 `saveLibrary` ([library.ts](src/main/VideoMode/metadata/library.ts)) wrote `library.json` in place, which empties the file before writing it, so an external drive disconnecting mid-save left a half-written file. The next load could not parse it, treated the library as missing, and the next save rebuilt it from the scanned files alone, dropping every category and tag no current video used. Saves now go to `library.json.tmp`, are flushed to the drive, and are renamed over `library.json`, so the file is always either the old or the new version. An unreadable `library.json` (invalid JSON or not the `{ files, categories, tags }` shape) is moved to `library.corrupt-<timestamp>.json` before the library is rebuilt; if it cannot be moved, the load fails instead of returning `null`, so nothing gets overwritten.
 
-## 2026-10-13 — chore: line endings are LF everywhere
+`4107861`
+
+## 2026-10-13 10:33 — chore: line endings are LF everywhere
 
 The working copy had been checked out with CRLF while the repo stores LF, and both Prettier configs (`.prettierrc.yaml` and the `prettier/prettier` options in [eslint.config.mjs](eslint.config.mjs)) asked for CRLF, so on Linux `npm run lint` failed on every line and `npm run format` would have rewritten every file. Both now say `lf`, and [.gitattributes](.gitattributes) (`* text=auto eol=lf`) keeps checkouts LF on Windows too. Also adds [CLAUDE.md](CLAUDE.md) and this changelog.
+
+`4107861`
 
 ## 2026-10-13 10:23 — chore(deps): refresh package-lock
 

@@ -3,38 +3,11 @@ import * as fs from 'fs'
 import { app, shell, BrowserWindow, ipcMain, dialog, protocol, net, screen } from 'electron'
 import * as dotenv from 'dotenv'
 
-// Load environment variables from .env file (silent mode to suppress logs)
-// Suppress dotenv console output by temporarily overriding console.log
-const originalLog = console.log
-const originalInfo = console.info
-console.log = (...args: unknown[]) => {
-	const message = args[0]?.toString() || ''
-	if (!message.includes('[dotenv]') && !message.includes('injecting env')) {
-		originalLog(...args)
-	}
-}
-console.info = (...args: unknown[]) => {
-	const message = args[0]?.toString() || ''
-	if (!message.includes('[dotenv]') && !message.includes('injecting env')) {
-		originalInfo(...args)
-	}
-}
+// Load environment variables from a .env file
+// quiet: dotenv 17 otherwise prints a line on every load. Don't patch console.log to hide it: the
+// console is wrapped below to also write to the log file, and restoring it would undo that
 const loadEnvFile = (envPath?: string): void => {
-	console.log = (...args: unknown[]) => {
-		const message = args[0]?.toString() || ''
-		if (!message.includes('[dotenv]') && !message.includes('injecting env')) {
-			originalLog(...args)
-		}
-	}
-	console.info = (...args: unknown[]) => {
-		const message = args[0]?.toString() || ''
-		if (!message.includes('[dotenv]') && !message.includes('injecting env')) {
-			originalInfo(...args)
-		}
-	}
-	dotenv.config(envPath ? { path: envPath } : undefined)
-	console.log = originalLog
-	console.info = originalInfo
+	dotenv.config({ path: envPath, quiet: true })
 }
 
 loadEnvFile()
@@ -54,42 +27,11 @@ import {
 } from './MovieMode/metadata/movieParser'
 import { cleanupOrphans } from './VideoMode/metadata/cleanup'
 import { startKeepAlive, stopKeepAlive } from './driveKeepAlive'
+import { withRetry } from './driveRetry'
 
-// Error codes that indicate a transient drive I/O problem (spin-up, bus reset, etc.)
-// These are worth retrying; genuine "file not found" errors are not.
-const RETRYABLE_CODES = new Set(['EIO', 'EAGAIN', 'EBUSY', 'ETIMEDOUT', 'EREMOTEIO'])
-
-/** Retries `fn` up to `maxAttempts` times on transient drive errors, with exponential back-off. */
-async function withRetry<T>(
-	fn: () => Promise<T>,
-	maxAttempts = 3,
-	initialDelayMs = 2000
-): Promise<T> {
-	let delay = initialDelayMs
-	let lastError: unknown
-	for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-		try {
-			return await fn()
-		} catch (error) {
-			lastError = error
-			const code =
-				error && typeof error === 'object' && 'code' in error
-					? (error as NodeJS.ErrnoException).code
-					: null
-			if (code && RETRYABLE_CODES.has(code) && attempt < maxAttempts) {
-				console.warn(
-					`Drive I/O error (${code}) on attempt ${attempt}/${maxAttempts} — retrying in ${delay}ms…`
-				)
-				await new Promise((resolve) => setTimeout(resolve, delay))
-				delay *= 2
-			} else {
-				throw error
-			}
-		}
-	}
-	throw lastError
-}
-
+// Lets the renderer's electron-log (src/renderer/src/main.tsx) send its messages to this process,
+// so renderer errors are written to the log file too. Without it they only reach DevTools
+log.initialize()
 log.transports.file.resolvePath = () => path.join(app.getPath('userData'), 'logs/main.log')
 log.transports.file.level = 'info'
 log.transports.console.level = is.dev ? 'debug' : 'info'

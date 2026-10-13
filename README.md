@@ -52,7 +52,11 @@ TMDB_API_KEY=your_api_key_here
 
 Packaged app:
 
-Create `%APPDATA%\VidBase\.env` with the same key:
+Create `.env` with the same key in the app's data folder:
+
+- Windows: `%APPDATA%\VidBase\.env`
+- Linux: `~/.config/vidbase/.env`
+- macOS: `~/Library/Application Support/vidbase/.env`
 
 ```
 TMDB_API_KEY=your_api_key_here
@@ -71,13 +75,24 @@ npm run build:mac
 npm run build:linux
 ```
 
+`build:linux` produces an AppImage and a `.deb` in `dist/`.
+
+## Linux and Wayland
+
+Electron's Wayland backend crashes on current GNOME releases (Ubuntu 25.10 and later), so on
+Linux VidBase runs through X11 (XWayland): `npm run dev` and the packaged launcher both start it
+with `--ozone-platform=x11`. To try native Wayland in development, run
+`VIDBASE_OZONE_PLATFORM=wayland npm run dev`.
+
 ## Logs
 
-- Main process: `%APPDATA%\VidBase\logs\main.log`
-- Renderer process: `%APPDATA%\VidBase\logs\renderer.log`
+Main and renderer messages are written to `logs/main.log` in the app's data folder:
+
+- Windows: `%APPDATA%\VidBase\logs\main.log`
+- Linux: `~/.config/vidbase/logs/main.log`
+- macOS: `~/Library/Application Support/vidbase/logs/main.log`
 
 ## Notes
 
 - All data remains local to your folders and user profile.
 - No cloud sync, no external storage, and no telemetry.
-- Documentation updated.
