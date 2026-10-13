@@ -47,7 +47,8 @@ function extractCategoriesAndTags(videos: VideoFile[]): {
 
 /** Loads the video library from a JSON file in the specified folder
  *  @param folderPath The path to the folder containing the library.json file
- *  @returns A promise that resolves to a Library object, or null if the library is not found or an error occurs
+ *  @returns A promise that resolves to a Library object, or null if the library is not found or is invalid
+ *  @throws On filesystem errors other than "file not found" (e.g. a drive I/O failure)
  */
 export async function loadLibrary(folderPath: string): Promise<Library | null> {
 	const dbPath = path.join(folderPath, LIBRARY_FILE)
@@ -71,13 +72,20 @@ export async function loadLibrary(folderPath: string): Promise<Library | null> {
 			return null
 		}
 	} catch (error) {
+		const code = error && typeof error === 'object' && 'code' in error ? error.code : undefined
 		// Check if it's a "file not found" error (ENOENT)
-		if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
+		if (code === 'ENOENT') {
 			console.log('Library not present, creating it...')
-		} else {
-			// For other errors, log them
-			console.error('Error loading library:', error)
+			return null
 		}
+		// Any other filesystem error (e.g. EIO while a drive spins up) is rethrown so the caller can
+		// retry. Returning null would make it look like there is no library, and the next save would
+		// overwrite library.json without its existing categories and tags
+		if (code) {
+			throw error
+		}
+		// For other errors (e.g. invalid JSON), log them
+		console.error('Error loading library:', error)
 		return null
 	}
 }
@@ -87,7 +95,7 @@ export async function loadLibrary(folderPath: string): Promise<Library | null> {
  *  @param folderPath The path to the folder where the library.json file will be saved
  *  @param videos An array of VideoFile objects to save to the library
  *  @param existingLibrary Optional existing library to preserve categories/tags and merge with new ones
- *  @returns A promise that resolves when the library has been saved
+ *  @returns A promise that resolves when the library has been saved, or rejects on error
  */
 export async function saveLibrary(
 	folderPath: string,
@@ -131,6 +139,8 @@ export async function saveLibrary(
 		await fs.writeFile(dbPath, data, 'utf-8')
 	} catch (error) {
 		console.error('Error saving library:', error)
+		// Re-throw the error so the caller knows the save failed (and can retry it)
+		throw error
 	}
 }
 
