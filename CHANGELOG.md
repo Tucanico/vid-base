@@ -28,9 +28,15 @@ If commit/time are unknown (old entries, manual notes, not committed yet), just 
 
 ---
 
-## 2026-10-13 — feat(renderer): clicking a value opens it as a tab, and Home can be reshuffled
+## 2026-10-13 — fix(drive): the keep-alive actually reaches the drive
+
+[driveKeepAlive.ts](src/main/driveKeepAlive.ts) stat-ed the open folder every 30s to keep an external drive from spinning down, but a stat of a folder in use is answered from the OS cache: measured with `/proc/self/io`, 20 pings sent 0 bytes to the disk, so the drive's idle timer never reset and it still spun down, and the next access hung while it spun up. Each ping now writes the time to a small hidden file, `.vidbase-keepalive`, in the open folder and flushes it with fsync, which always reaches the drive (4 KB per ping). The file is removed when the app quits or another folder is opened; the Video and Movie Mode scans ignore it (they only look at media and Excel files). Tests in [driveKeepAlive.test.ts](src/main/__tests__/driveKeepAlive.test.ts); checked in the app: the file appears after the first ping, is not listed nor added to `library.json`, and is gone after quitting.
+
+## 2026-10-13 12:19 — feat(renderer): clicking a value opens it as a tab, and Home can be reshuffled
 
 Clicking a value in a video's or a movie's details (Category, Model, Channel, Production; Director, Year, Language, Actors, Genres, Type) used to set it as the only filter and go back to the list, which on Video Mode's Home view showed nothing of it (Home ignores filters). It now opens a tab next to Home / Library / Favourited (or All / Film / Serie TV / Documentario) with the list filtered by that value, and shows it; with Ctrl/Cmd held the tab opens in the background and the details stay on screen. Clicking a value that already has a tab shows that tab. Each tab keeps its own filters, search, sort, range filters and scroll position ([useValueTabs](src/renderer/src/hooks/useValueTabs.ts): switching saves the live list state of the view on screen and loads the target's, so the list logic did not change); the sidebar of a Video Mode tab offers the values of that tab's videos. Tabs close with × or a middle-click, and close when another folder is loaded. Home has a 🔀 Shuffle button that replaces its 24 videos with others not on it ([pickNewRandomIds](src/renderer/src/utils/videoList.ts), tested in [videoList.test.ts](src/renderer/src/utils/__tests__/videoList.test.ts)).
+
+`61251a7`
 
 ## 2026-10-13 11:52 — feat(movies): ask before replacing an existing Archivio.xlsx
 
