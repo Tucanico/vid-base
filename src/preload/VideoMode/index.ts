@@ -1,6 +1,6 @@
 import { ipcRenderer } from 'electron'
 import { ParsedTag } from '../../shared/types/metadata'
-import { VideoFile } from '../../shared/types/video'
+import { RenameResult, VideoFile } from '../../shared/types/video'
 import { Library } from '../../shared/types/library'
 
 export const videoApi = {
@@ -23,6 +23,9 @@ export const videoApi = {
 	openVideo: (path: string): void => ipcRenderer.send('video:open', path),
 	// Sends a one-way message to the 'video:showInFolder' handler to show a file in its folder
 	showInFolder: (path: string): void => ipcRenderer.send('video:showInFolder', path),
+	// Invokes the 'video:rename' handler to rename a file (the extension is kept)
+	renameVideo: (folderPath: string, videoId: string, newBaseName: string): Promise<RenameResult> =>
+		ipcRenderer.invoke('video:rename', folderPath, videoId, newBaseName),
 	// Invokes the 'videos:updateTags' handler to update metadata for a file
 	updateTags: (filePath: string, tags: ParsedTag[], favourited: boolean): Promise<void> =>
 		ipcRenderer.invoke('videos:updateTags', filePath, tags, favourited),

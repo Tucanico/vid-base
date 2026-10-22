@@ -17,6 +17,8 @@ import { formatDuration, formatFileSize } from '../../utils/formatters'
  *  @param onFilterClick A function to call when a filterable name is clicked (category, value, and whether Ctrl/Cmd was held to open it in the background)
  *  @param isInSession Whether the video is in the session collection
  *  @param onToggleSession A function to call to add the video to the session collection or remove it
+ *  @param onRename A function to call to rename the file (new name without extension); resolves to
+ *  an error message to show, or null once renamed
  */
 function VideoDetailView({
 	video,
@@ -26,7 +28,8 @@ function VideoDetailView({
 	onDelete,
 	onFilterClick,
 	isInSession,
-	onToggleSession
+	onToggleSession,
+	onRename
 }: {
 	video: VideoFile
 	library: Library | null
@@ -36,6 +39,7 @@ function VideoDetailView({
 	onFilterClick: (category: string, value: string, inBackground?: boolean) => void
 	isInSession: boolean
 	onToggleSession: () => void
+	onRename: (newBaseName: string) => Promise<string | null>
 }): React.ReactElement {
 	// State to manage the tags being edited
 	const [tags, setTags] = useState<ParsedTag[]>(video.tags)
@@ -51,11 +55,44 @@ function VideoDetailView({
 	const [selectedIndex, setSelectedIndex] = useState(0)
 	const inputRef = useRef<HTMLInputElement>(null)
 	const suggestionsRef = useRef<HTMLDivElement>(null)
+	// State for renaming the file
+	const [isRenaming, setIsRenaming] = useState(false)
+	const [nameDraft, setNameDraft] = useState('')
+	const [renameError, setRenameError] = useState<string | null>(null)
+	const [isRenameSaving, setIsRenameSaving] = useState(false)
 
 	useEffect(() => {
 		setTags(video.tags)
 		setIsFavorited(video.favourited)
 	}, [video])
+
+	// The file's extension stays as it is; only the name before it can be renamed
+	const extensionIndex = video.fileName.lastIndexOf('.')
+	const extension = extensionIndex > 0 ? video.fileName.slice(extensionIndex) : ''
+	const baseName = video.fileName.slice(0, video.fileName.length - extension.length)
+
+	const startRenaming = (): void => {
+		setNameDraft(baseName)
+		setRenameError(null)
+		setIsRenaming(true)
+	}
+
+	const cancelRenaming = (): void => {
+		setIsRenaming(false)
+		setRenameError(null)
+	}
+
+	const saveRename = async (): Promise<void> => {
+		if (isRenameSaving) return
+		setIsRenameSaving(true)
+		const error = await onRename(nameDraft)
+		setIsRenameSaving(false)
+		if (error) {
+			setRenameError(error)
+			return
+		}
+		setIsRenaming(false)
+	}
 
 	// Generate autocomplete suggestions based on input value
 	const suggestions = useMemo(() => {
@@ -509,17 +546,102 @@ function VideoDetailView({
 						gap: '25px'
 					}}
 				>
-					{/* Title */}
-					<h2
-						style={{
-							margin: 0,
-							color: 'var(--color-text)',
-							fontSize: '1.8rem',
-							wordBreak: 'break-word'
-						}}
-					>
-						{sanitizeFileName(video.fileName)}
-					</h2>
+					{/* Title, or the rename field */}
+					{isRenaming ? (
+						<div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+							<div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+								<input
+									autoFocus
+									value={nameDraft}
+									onChange={(e) => setNameDraft(e.target.value)}
+									onKeyDown={(e) => {
+										if (e.key === 'Enter') void saveRename()
+										if (e.key === 'Escape') cancelRenaming()
+									}}
+									disabled={isRenameSaving}
+									aria-label="New file name"
+									style={{
+										flex: 1,
+										minWidth: 0,
+										fontSize: '1.2rem',
+										padding: '8px 10px',
+										border: '1px solid var(--color-background-mute)',
+										borderRadius: '6px',
+										backgroundColor: 'var(--color-background)',
+										color: 'var(--color-text)'
+									}}
+								/>
+								<span style={{ color: 'var(--color-text-mute)', fontSize: '1.1rem' }}>
+									{extension}
+								</span>
+							</div>
+							<div style={{ display: 'flex', gap: '8px' }}>
+								<button
+									onClick={() => void saveRename()}
+									disabled={isRenameSaving}
+									style={{
+										padding: '8px 16px',
+										backgroundColor: 'var(--color-primary)',
+										color: 'white',
+										border: 'none',
+										borderRadius: '6px',
+										cursor: isRenameSaving ? 'not-allowed' : 'pointer',
+										fontWeight: 600
+									}}
+								>
+									{isRenameSaving ? 'Renaming...' : 'Rename'}
+								</button>
+								<button
+									onClick={cancelRenaming}
+									disabled={isRenameSaving}
+									style={{
+										padding: '8px 16px',
+										background: 'transparent',
+										color: 'var(--color-text)',
+										border: '1px solid var(--color-background-mute)',
+										borderRadius: '6px',
+										cursor: 'pointer'
+									}}
+								>
+									Cancel
+								</button>
+							</div>
+							{renameError && (
+								<div role="alert" style={{ color: 'var(--color-danger)' }}>
+									{renameError}
+								</div>
+							)}
+						</div>
+					) : (
+						<div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+							<h2
+								style={{
+									margin: 0,
+									color: 'var(--color-text)',
+									fontSize: '1.8rem',
+									wordBreak: 'break-word'
+								}}
+							>
+								{sanitizeFileName(video.fileName)}
+							</h2>
+							<button
+								onClick={startRenaming}
+								title="Rename file"
+								aria-label="Rename file"
+								style={{
+									marginTop: '6px',
+									padding: '2px 6px',
+									background: 'transparent',
+									border: 'none',
+									cursor: 'pointer',
+									fontSize: '1.2rem',
+									lineHeight: 1
+								}}
+							>
+								✏️
+							</button>
+						</div>
+					)}
 
 					{/* Info Section */}
 					<div>

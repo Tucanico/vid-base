@@ -28,9 +28,15 @@ If commit/time are unknown (old entries, manual notes, not committed yet), just 
 
 ---
 
-## 2026-10-22 — feat(videos): a session collection, "Show in folder", and value tabs on their own row
+## 2026-10-22 — feat(videos): rename videos and photos from the detail page
+
+A ✏️ next to the name on the detail page turns it into a field with the file's real name; the extension stays as it is and is shown next to the field. Enter or **Rename** renames, Escape or **Cancel** goes back. [rename.ts](src/main/VideoMode/metadata/rename.ts) (`video:rename` IPC) renames the file, its thumbnail (when no other thumbnail has the new name; otherwise the entry keeps the old one) and its `library.json` entry, which keeps its id, so the session collection, Home and the selection keep it, and the next scan matches it by its new path. A name is refused when it is empty, ends with a dot or a space, contains a character Windows does not allow (`< > : " / \ | ? *`, control characters) or a Windows device name (CON, NUL, COM1...), or is longer than 255 bytes, so a drive renamed on Linux keeps working on Windows; and when another file already has that name (`fs.rename` would silently replace it on Linux; a case-only rename is allowed only when the target is the same file). If `library.json` cannot be saved, the file and thumbnail are renamed back. Not in Movie Mode: folder names link movies to their Excel rows. Tests in [rename.test.ts](src/main/VideoMode/metadata/__tests__/rename.test.ts); checked in the app on a video (still in the session afterwards) and a photo, with an invalid name and a name already taken.
+
+## 2026-10-22 14:26 — feat(videos): a session collection, "Show in folder", and value tabs on their own row
 
 A 📌 on every video and photo card, and on the detail page next to the ★, saves it to the **session collection**, shown by the new **📌 Session** tab next to ★ Favourited (with a count) and filterable like the favourites. It is held in memory only ([VideoModeView](src/renderer/src/components/VideoMode/VideoModeView.tsx)), so it is empty every time VidBase starts. The detail page has a **📁 Show in folder** button that opens the file manager on the file's folder with the file selected (Electron's `shell.showItemInFolder`, through a new `video:showInFolder` IPC; the selection depends on the file manager, Nautilus does it). The closable value tabs (Model: X, Genres: Drama, ...) moved from the navigation row to a row of their own under it, in both modes ([AppHeader](src/renderer/src/components/AppHeader.tsx) `tabsRow`). Checked in the app: adding and removing from cards and the detail page, the count, the session emptying on restart, the folder opened for the right file, and the tabs on the second row in Video and Movie Mode.
+
+`57a87bc`
 
 ## 2026-10-13 12:29 — fix(drive): the keep-alive actually reaches the drive
 
