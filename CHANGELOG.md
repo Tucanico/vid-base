@@ -28,9 +28,15 @@ If commit/time are unknown (old entries, manual notes, not committed yet), just 
 
 ---
 
-## 2026-10-13 — fix(drive): the keep-alive actually reaches the drive
+## 2026-10-22 — feat(videos): a session collection, "Show in folder", and value tabs on their own row
+
+A 📌 on every video and photo card, and on the detail page next to the ★, saves it to the **session collection**, shown by the new **📌 Session** tab next to ★ Favourited (with a count) and filterable like the favourites. It is held in memory only ([VideoModeView](src/renderer/src/components/VideoMode/VideoModeView.tsx)), so it is empty every time VidBase starts. The detail page has a **📁 Show in folder** button that opens the file manager on the file's folder with the file selected (Electron's `shell.showItemInFolder`, through a new `video:showInFolder` IPC; the selection depends on the file manager, Nautilus does it). The closable value tabs (Model: X, Genres: Drama, ...) moved from the navigation row to a row of their own under it, in both modes ([AppHeader](src/renderer/src/components/AppHeader.tsx) `tabsRow`). Checked in the app: adding and removing from cards and the detail page, the count, the session emptying on restart, the folder opened for the right file, and the tabs on the second row in Video and Movie Mode.
+
+## 2026-10-13 12:29 — fix(drive): the keep-alive actually reaches the drive
 
 [driveKeepAlive.ts](src/main/driveKeepAlive.ts) stat-ed the open folder every 30s to keep an external drive from spinning down, but a stat of a folder in use is answered from the OS cache: measured with `/proc/self/io`, 20 pings sent 0 bytes to the disk, so the drive's idle timer never reset and it still spun down, and the next access hung while it spun up. Each ping now writes the time to a small hidden file, `.vidbase-keepalive`, in the open folder and flushes it with fsync, which always reaches the drive (4 KB per ping). The file is removed when the app quits or another folder is opened; the Video and Movie Mode scans ignore it (they only look at media and Excel files). Tests in [driveKeepAlive.test.ts](src/main/__tests__/driveKeepAlive.test.ts); checked in the app: the file appears after the first ping, is not listed nor added to `library.json`, and is gone after quitting.
+
+`0bfc834`
 
 ## 2026-10-13 12:19 — feat(renderer): clicking a value opens it as a tab, and Home can be reshuffled
 

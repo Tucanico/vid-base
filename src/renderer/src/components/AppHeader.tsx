@@ -61,11 +61,13 @@ export function HeaderTab({
  *  button, and optionally the search and sort controls
  *  @param selectFolderLabel Label of the folder button
  *  @param onSelectFolder Called when the folder button is clicked
+ *  @param tabsRow If given, a row under the navigation for the value tabs (Model: X, Genres: Drama, ...)
  *  @param showSearchBar Whether to show the search and sort row
  *  @param sortOptions The fields the list can be sorted by
  */
 function AppHeader({
 	children,
+	tabsRow,
 	selectFolderLabel,
 	onSelectFolder,
 	showSearchBar,
@@ -78,6 +80,7 @@ function AppHeader({
 	onToggleSortDirection
 }: {
 	children?: ReactNode
+	tabsRow?: ReactNode
 	selectFolderLabel: string
 	onSelectFolder: () => void
 	showSearchBar: boolean
@@ -117,17 +120,7 @@ function AppHeader({
 					</h1>
 				</div>
 
-				{/* Takes the free width, so that many value tabs wrap instead of overflowing */}
-				<div
-					style={{
-						display: 'flex',
-						gap: '10px',
-						alignItems: 'center',
-						flex: 1,
-						minWidth: 0,
-						justifyContent: 'flex-end'
-					}}
-				>
+				<div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
 					{children}
 					<button
 						onClick={onSelectFolder}
@@ -146,6 +139,21 @@ function AppHeader({
 					</button>
 				</div>
 			</div>
+
+			{/* Value tabs, under the navigation; they wrap onto more lines when there are many */}
+			{tabsRow && (
+				<div
+					style={{
+						display: 'flex',
+						gap: '8px',
+						alignItems: 'center',
+						flexWrap: 'wrap',
+						justifyContent: 'flex-end'
+					}}
+				>
+					{tabsRow}
+				</div>
+			)}
 
 			{/* Bottom row: Search and Sort controls */}
 			{showSearchBar && (

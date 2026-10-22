@@ -406,26 +406,9 @@ function MovieModeView({ initialFolder }: { initialFolder: string }): React.Reac
 					onToggleSortDirection={() =>
 						controls.setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
 					}
-				>
-					<div
-						style={{
-							display: 'flex',
-							alignItems: 'center',
-							gap: '8px',
-							flexWrap: 'wrap',
-							justifyContent: 'flex-end'
-						}}
-					>
-						{TYPE_TABS.map(({ type, label }) => (
-							<HeaderTab
-								key={type}
-								active={!activeTab && movieTypeView === type}
-								onClick={() => handleMovieTypeView(type)}
-							>
-								{label}
-							</HeaderTab>
-						))}
-						{valueTabs.tabs.map((tab) => (
+					tabsRow={
+						valueTabs.tabs.length > 0 &&
+						valueTabs.tabs.map((tab) => (
 							<HeaderTab
 								key={tab.id}
 								active={activeTab?.id === tab.id}
@@ -433,6 +416,18 @@ function MovieModeView({ initialFolder }: { initialFolder: string }): React.Reac
 								onClose={() => valueTabs.closeTab(tab.id)}
 							>
 								{valueTabLabel(tab)}
+							</HeaderTab>
+						))
+					}
+				>
+					<div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+						{TYPE_TABS.map(({ type, label }) => (
+							<HeaderTab
+								key={type}
+								active={!activeTab && movieTypeView === type}
+								onClick={() => handleMovieTypeView(type)}
+							>
+								{label}
 							</HeaderTab>
 						))}
 					</div>

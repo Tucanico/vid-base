@@ -7,6 +7,8 @@ import { sanitizeFileName } from '../../utils/sanitizeFileName'
  *  Shows a thumbnail, title, and key tags
  *  @param video The VideoFile object to display
  *  @param onEdit A function to call when the card is clicked, to open the edit modal
+ *  @param isInSession Whether the video is in the session collection
+ *  @param onToggleSession If given, the card shows a 📌 that adds the video to the session collection or removes it
  */
 function VideoCard({
 	video,
@@ -14,7 +16,9 @@ function VideoCard({
 	isSelected = false,
 	onSelect,
 	onSelectToggle,
-	onToggleFavorite
+	onToggleFavorite,
+	isInSession = false,
+	onToggleSession
 }: {
 	video: VideoFile
 	onEdit: (event?: React.MouseEvent) => void
@@ -22,6 +26,8 @@ function VideoCard({
 	onSelect?: (isSelected: boolean) => void
 	onSelectToggle?: () => void
 	onToggleFavorite?: () => void
+	isInSession?: boolean
+	onToggleSession?: () => void
 }): React.ReactElement {
 	// Find specific tags to highlight on the card
 	const categoryTag = video.tags.find((t) => t.type === 'kv' && t.key === 'category')
@@ -187,6 +193,41 @@ function VideoCard({
 					title={isFavorited ? 'Unfavorite' : 'Favorite'}
 				>
 					★
+				</button>
+			)}
+
+			{/* Session collection pin */}
+			{onToggleSession && (
+				<button
+					onClick={(e) => {
+						e.stopPropagation()
+						onToggleSession()
+					}}
+					onDoubleClick={(e) => e.stopPropagation()}
+					style={{
+						position: 'absolute',
+						top: '8px',
+						right: '34px',
+						zIndex: 10,
+						width: '20px',
+						height: '20px',
+						padding: 0,
+						border: 'none',
+						backgroundColor: 'transparent',
+						display: 'flex',
+						alignItems: 'center',
+						justifyContent: 'center',
+						cursor: 'pointer',
+						fontSize: '17px',
+						lineHeight: 1,
+						// Greyed out while the video is not in the session collection
+						filter: isInSession ? 'drop-shadow(0 1px 2px rgba(0,0,0,0.8))' : 'grayscale(1)',
+						opacity: isInSession ? 1 : 0.6
+					}}
+					aria-label={isInSession ? 'Remove from session' : 'Add to session'}
+					title={isInSession ? 'Remove from session' : 'Add to session'}
+				>
+					📌
 				</button>
 			)}
 
