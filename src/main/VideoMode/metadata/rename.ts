@@ -1,7 +1,7 @@
 import * as fs from 'fs/promises'
 import { Stats } from 'fs'
 import * as path from 'path'
-import { RenameResult, VideoFile } from '../../../shared/types/video'
+import { VideoUpdateResult, VideoFile } from '../../../shared/types/video'
 import { loadLibrary, saveLibrary } from './library'
 
 // Characters Windows does not allow in file names (control characters are checked separately).
@@ -56,7 +56,7 @@ export async function renameVideoFile(
 	folderPath: string,
 	videoId: string,
 	newBaseName: string
-): Promise<RenameResult> {
+): Promise<VideoUpdateResult> {
 	const library = await loadLibrary(folderPath)
 	const entry = library?.files.find((file) => file.id === videoId)
 	if (!library || !entry) {

@@ -20,7 +20,14 @@ import { scanDirectoryWithLibrary } from './VideoMode/metadata/scanner'
 import { updateVideoTags } from './VideoMode/metadata/updateTags'
 import { closeExiftool } from './metadata/utils'
 import { renameVideoFile } from './VideoMode/metadata/rename'
-import { loadLibrary, saveLibrary, removeVideoEntryFromLibrary } from './VideoMode/metadata/library'
+import { previewFrame, setThumbnailFrame } from './VideoMode/metadata/thumbnailFrame'
+import {
+	loadLibrary,
+	saveLibrary,
+	saveSavedViews,
+	removeVideoEntryFromLibrary
+} from './VideoMode/metadata/library'
+import { SavedView } from '../shared/types/library'
 import {
 	parseMovieExcel,
 	findExcelFile,
@@ -94,8 +101,9 @@ app.whenReady().then(() => {
 			icon: icon, // Set icon for all platforms
 			webPreferences: {
 				preload: join(__dirname, '../preload/index.js'),
-				sandbox: false,
-				webSecurity: false // Useful to avoid CORS issues with local files
+				// The sandbox stays off: the preload bundle needs Node (with it on, window.api is missing).
+				// Web security stays on: local files reach the page through the media:// protocol
+				sandbox: false
 			}
 		})
 
@@ -138,21 +146,26 @@ app.whenReady().then(() => {
 		// 1. Remove the protocol prefix. Handles both "media://" and "media:///"
 		let url = request.url.replace(/^media:\/\//, '')
 
-		// 2. Decode URI-encoded characters (e.g., %20 -> space)
+		// 2. Drop the query: the renderer adds "?v=..." to a file that changed on disk (a new thumbnail) so
+		// Chromium loads it again instead of showing the copy it keeps in memory. A "?" in a file name is
+		// URL-encoded by the renderer (see mediaUrl), so it is not cut here
+		url = url.split('?')[0]
+
+		// 3. Decode URI-encoded characters (e.g., %20 -> space)
 		url = decodeURIComponent(url)
 
-		// 3. Fix for Windows paths that start with a slash (e.g., /C:/...)
+		// 4. Fix for Windows paths that start with a slash (e.g., /C:/...)
 		if (process.platform === 'win32' && url.startsWith('/') && /^[a-zA-Z]:/.test(url.slice(1))) {
 			url = url.slice(1)
 		}
 
-		// 4. Normalize path separators for the current OS (e.g., converts / to \ on Windows)
+		// 5. Normalize path separators for the current OS (e.g., converts / to \ on Windows)
 		const absolutePath = path.normalize(url)
 
-		// 5. Create a proper file:// URL from the absolute path
+		// 6. Create a proper file:// URL from the absolute path
 		const fileUrl = pathToFileURL(absolutePath).toString()
 
-		// 6. Fetch the file and return it. Catches errors if the file doesn't exist
+		// 7. Fetch the file and return it. Catches errors if the file doesn't exist
 		return net.fetch(fileUrl).catch((e) => {
 			console.error(`❌ LOADING ERROR: ${absolutePath}`)
 			console.error(`   Detail: ${e.message}`)
@@ -229,6 +242,19 @@ app.whenReady().then(() => {
 	ipcMain.on('video:open', (_, filePath) => shell.openPath(filePath))
 	// IPC listener to show a video file in the system file manager, selected when the file manager supports it
 	ipcMain.on('video:showInFolder', (_, filePath: string) => shell.showItemInFolder(filePath))
+	// IPC handler to save a library's saved searches
+	ipcMain.handle('library:saveViews', async (_, folderPath: string, savedViews: SavedView[]) =>
+		withRetry(() => saveSavedViews(folderPath, savedViews))
+	)
+	// IPC handlers to choose a video's thumbnail: a quick preview of a frame, and setting it
+	ipcMain.handle('video:previewFrame', async (_, filePath: string, seconds: number) =>
+		previewFrame(filePath, seconds)
+	)
+	ipcMain.handle(
+		'video:setThumbnail',
+		async (_, folderPath: string, videoId: string, seconds: number) =>
+			setThumbnailFrame(folderPath, videoId, seconds)
+	)
 	// IPC handler to rename a video or photo: the file, its thumbnail and its library entry. Not wrapped in
 	// withRetry: a second attempt after a partial rename would no longer find the file
 	ipcMain.handle(

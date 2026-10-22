@@ -16,7 +16,9 @@ export interface VideoFile {
 	rawTags: string // The original, unprocessed string of tags read from the file's metadata
 	fileSize?: number // File size in bytes
 	duration?: number // Duration in seconds (for videos)
+	thumbnailVersion?: number // When the thumbnail was last chosen by hand (ms); part of its URL, so the new image is shown
 }
 
-// Result of renaming a media file: the updated library entry, or a message to show the user
-export type RenameResult = { ok: true; video: VideoFile } | { ok: false; error: string }
+// Result of changing a media file (renaming it, choosing its thumbnail): the updated library entry,
+// or a message to show the user
+export type VideoUpdateResult = { ok: true; video: VideoFile } | { ok: false; error: string }

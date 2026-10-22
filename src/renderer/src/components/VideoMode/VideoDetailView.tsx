@@ -6,6 +6,7 @@ import InfoRow from '../InfoRow'
 import { ClickableValues } from '../ClickableValues'
 import { sanitizeFileName } from '../../utils/sanitizeFileName'
 import { formatDuration, formatFileSize } from '../../utils/formatters'
+import { mediaUrl } from '../../utils/mediaUrl'
 
 /** --- COMPONENT: VideoDetailView ---
  *  Full-screen detail view for viewing and editing a video's tags
@@ -22,6 +23,8 @@ import { formatDuration, formatFileSize } from '../../utils/formatters'
  *  @param onPrevious Shows the previous video of the list; missing on the first one
  *  @param onNext Shows the next video of the list; missing on the last one
  *  @param position The video's place in the list (1-based) and the list's length
+ *  @param onSetThumbnail Makes the frame at the given time the video's thumbnail; resolves to an error
+ *  message to show, or null once done
  */
 function VideoDetailView({
 	video,
@@ -33,6 +36,7 @@ function VideoDetailView({
 	isInSession,
 	onToggleSession,
 	onRename,
+	onSetThumbnail,
 	onPrevious,
 	onNext,
 	position
@@ -46,6 +50,7 @@ function VideoDetailView({
 	isInSession: boolean
 	onToggleSession: () => void
 	onRename: (newBaseName: string) => Promise<string | null>
+	onSetThumbnail: (seconds: number) => Promise<string | null>
 	onPrevious?: () => void
 	onNext?: () => void
 	position?: { index: number; total: number }
@@ -69,6 +74,57 @@ function VideoDetailView({
 	const [nameDraft, setNameDraft] = useState('')
 	const [renameError, setRenameError] = useState<string | null>(null)
 	const [isRenameSaving, setIsRenameSaving] = useState(false)
+	// State for choosing the thumbnail's frame (videos only)
+	const [isChoosingFrame, setIsChoosingFrame] = useState(false)
+	const [frameTime, setFrameTime] = useState(0)
+	const [framePreview, setFramePreview] = useState<string | null>(null)
+	const [frameError, setFrameError] = useState<string | null>(null)
+	const [isFrameSaving, setIsFrameSaving] = useState(false)
+	const duration = video.duration ?? 0
+	const canChooseFrame = video.mediaType === 'video' && duration > 0
+
+	// While choosing a thumbnail, a preview of the frame at the slider's time, asked for once the slider
+	// rests for a moment (each preview runs FFmpeg)
+	useEffect(() => {
+		if (!isChoosingFrame) return undefined
+		let cancelled = false
+		const timer = setTimeout(() => {
+			window.api.previewFrame(video.filePath, frameTime).then(
+				(url) => {
+					if (cancelled) return
+					setFramePreview(url)
+					setFrameError(null)
+				},
+				() => {
+					if (!cancelled) setFrameError('This frame could not be read.')
+				}
+			)
+		}, 250)
+		return () => {
+			cancelled = true
+			clearTimeout(timer)
+		}
+	}, [isChoosingFrame, frameTime, video.filePath])
+
+	const startChoosingFrame = (): void => {
+		// Where thumbnails are taken by default
+		setFrameTime(duration * 0.2)
+		setFramePreview(null)
+		setFrameError(null)
+		setIsChoosingFrame(true)
+	}
+
+	const saveFrame = async (): Promise<void> => {
+		if (isFrameSaving) return
+		setIsFrameSaving(true)
+		const error = await onSetThumbnail(frameTime)
+		setIsFrameSaving(false)
+		if (error) {
+			setFrameError(error)
+			return
+		}
+		setIsChoosingFrame(false)
+	}
 
 	// The tag editor starts over from the saved tags whenever they change (after a save, or when
 	// another video is shown). Compared during render, React's pattern for state that follows a prop,
@@ -564,9 +620,15 @@ function VideoDetailView({
 						>
 							📌
 						</button>
-						{video.mediaType === 'image' ? (
+						{isChoosingFrame && framePreview ? (
 							<img
-								src={`media:///${video.filePath.replace(/\\/g, '/')}`}
+								src={framePreview}
+								alt="Frame preview"
+								style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+							/>
+						) : video.mediaType === 'image' ? (
+							<img
+								src={mediaUrl(video.filePath)}
 								alt={video.fileName}
 								style={{ width: '100%', height: '100%', objectFit: 'contain' }}
 								onError={(e) => {
@@ -576,7 +638,7 @@ function VideoDetailView({
 							/>
 						) : video.thumbnailPath ? (
 							<img
-								src={`media:///${video.thumbnailPath.replace(/\\/g, '/')}`}
+								src={mediaUrl(video.thumbnailPath, video.thumbnailVersion)}
 								alt="thumbnail"
 								style={{ width: '100%', height: '100%', objectFit: 'cover' }}
 							/>
@@ -594,6 +656,84 @@ function VideoDetailView({
 							</div>
 						)}
 					</div>
+
+					{/* Choosing the thumbnail's frame */}
+					{canChooseFrame &&
+						(isChoosingFrame ? (
+							<div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+								<input
+									type="range"
+									min={0}
+									max={duration}
+									step={Math.max(duration / 1000, 0.1)}
+									value={frameTime}
+									onChange={(e) => setFrameTime(Number(e.target.value))}
+									disabled={isFrameSaving}
+									aria-label="Thumbnail frame"
+									style={{ width: '100%' }}
+								/>
+								<div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+									<span
+										style={{
+											color: 'var(--color-text-mute)',
+											fontSize: '0.9rem',
+											flex: 1
+										}}
+									>
+										{formatDuration(frameTime, true)} / {formatDuration(duration, true)}
+									</span>
+									<button
+										onClick={() => void saveFrame()}
+										disabled={isFrameSaving || !framePreview}
+										style={{
+											padding: '8px 16px',
+											backgroundColor: 'var(--color-primary)',
+											color: 'white',
+											border: 'none',
+											borderRadius: '6px',
+											cursor: isFrameSaving || !framePreview ? 'not-allowed' : 'pointer',
+											fontWeight: 600
+										}}
+									>
+										{isFrameSaving ? 'Saving...' : 'Use this frame'}
+									</button>
+									<button
+										onClick={() => setIsChoosingFrame(false)}
+										disabled={isFrameSaving}
+										style={{
+											padding: '8px 16px',
+											background: 'transparent',
+											color: 'var(--color-text)',
+											border: '1px solid var(--color-background-mute)',
+											borderRadius: '6px',
+											cursor: 'pointer'
+										}}
+									>
+										Cancel
+									</button>
+								</div>
+								{frameError && (
+									<div role="alert" style={{ color: 'var(--color-danger)' }}>
+										{frameError}
+									</div>
+								)}
+							</div>
+						) : (
+							<button
+								onClick={startChoosingFrame}
+								style={{
+									alignSelf: 'flex-start',
+									padding: '6px 12px',
+									background: 'transparent',
+									color: 'var(--color-text)',
+									border: '1px solid var(--color-background-mute)',
+									borderRadius: '6px',
+									cursor: 'pointer'
+								}}
+							>
+								🖼 Choose thumbnail
+							</button>
+						))}
 
 					{/* Action buttons */}
 					<div style={{ display: 'flex', gap: '10px' }}>

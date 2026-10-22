@@ -1,4 +1,5 @@
 import * as fs from 'fs/promises'
+import * as fsSync from 'fs'
 import * as path from 'path'
 import * as XLSX from 'xlsx'
 import ExcelJS from 'exceljs'
@@ -21,6 +22,10 @@ import {
 } from './movieFolders'
 import { getMovieInfoFromTMDB } from './tmdb'
 import { BackfillRow, NewMovieRow, updateArchiveFile } from './archiveWriter'
+
+// SheetJS's ES module build does not load Node's fs by itself, and XLSX.readFile needs it. The
+// packaged app loads its CommonJS build, which does; passing fs makes both behave the same
+XLSX.set_fs(fsSync)
 
 /**
  * Parses an Excel file and returns a MovieArchive

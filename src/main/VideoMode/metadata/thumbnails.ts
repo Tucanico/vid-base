@@ -84,3 +84,28 @@ export async function generateThumbnail(videoPath: string): Promise<string | und
 		})
 	})
 }
+
+/** Extracts the frame of a video at a given time into a JPEG file
+ *  @param videoPath The absolute path to the video file
+ *  @param seconds Where to take the frame
+ *  @param outputPath The JPEG file to write (replaced if it exists)
+ *  @param width If given, the frame is scaled to this width (for quick previews)
+ *  @returns A promise that resolves once the file is written, or rejects on an FFmpeg error
+ */
+export function extractFrame(
+	videoPath: string,
+	seconds: number,
+	outputPath: string,
+	width?: number
+): Promise<void> {
+	return new Promise((resolve, reject) => {
+		ffmpeg(videoPath)
+			.seekInput(Math.max(0, seconds))
+			.frames(1)
+			.outputOptions(['-q:v 4', '-y', ...(width ? [`-vf scale=${width}:-2`] : [])])
+			.output(outputPath)
+			.on('end', () => resolve())
+			.on('error', (err: Error) => reject(err))
+			.run()
+	})
+}

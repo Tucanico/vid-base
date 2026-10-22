@@ -1,6 +1,7 @@
 import React from 'react'
 import { VideoFile } from '@shared/types/video'
 import { sanitizeFileName } from '../../utils/sanitizeFileName'
+import { mediaUrl } from '../../utils/mediaUrl'
 
 /** --- COMPONENT: VideoCard ---
  *  A component to display a single video in the main grid
@@ -243,7 +244,7 @@ function VideoCard({
 				{video.mediaType === 'image' ? (
 					// For images, show the image itself
 					<img
-						src={`media:///${video.filePath.replace(/\\/g, '/')}`}
+						src={mediaUrl(video.filePath)}
 						alt={video.fileName}
 						style={{
 							width: '100%',
@@ -258,7 +259,7 @@ function VideoCard({
 				) : video.thumbnailPath ? (
 					// For videos, show thumbnail
 					<img
-						src={`media:///${video.thumbnailPath.replace(/\\/g, '/')}`}
+						src={mediaUrl(video.thumbnailPath, video.thumbnailVersion)}
 						alt="thumbnail"
 						style={{
 							width: '100%',

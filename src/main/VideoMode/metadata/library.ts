@@ -1,7 +1,7 @@
 import * as fs from 'fs/promises'
 import * as path from 'path'
 import { VideoFile } from '../../../shared/types/video'
-import { Library } from '../../../shared/types/library'
+import { Library, SavedView } from '../../../shared/types/library'
 import { deleteFile } from '../../metadata/utils'
 import { resolveStoredPaths, toStoredFiles } from './libraryPaths'
 
@@ -155,7 +155,9 @@ export async function saveLibrary(
 		const library: Library = {
 			files: toStoredFiles(folderPath, videos),
 			categories: finalCategories,
-			tags: finalTags
+			tags: finalTags,
+			// Saved searches are not derived from the files: carried over, or every save would drop them
+			...(existingLibrary?.savedViews ? { savedViews: existingLibrary.savedViews } : {})
 		}
 
 		// Stringify the library with pretty printing (2-space indentation) for readability
@@ -177,6 +179,17 @@ export async function saveLibrary(
 		// Re-throw the error so the caller knows the save failed (and can retry it)
 		throw error
 	}
+}
+
+/** Replaces the saved searches of a library, keeping everything else
+ *  @param folderPath The library folder
+ *  @param savedViews The saved searches
+ *  @returns A promise that resolves once saved, or rejects (also when the folder has no library yet)
+ */
+export async function saveSavedViews(folderPath: string, savedViews: SavedView[]): Promise<void> {
+	const library = await loadLibrary(folderPath)
+	if (!library) throw new Error('There is no library.json in this folder yet.')
+	await saveLibrary(folderPath, library.files, { ...library, savedViews })
 }
 
 /** Removes a video entry from the library without touching the actual files.
