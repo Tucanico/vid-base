@@ -1,6 +1,6 @@
 import { ElectronAPI } from '@electron-toolkit/preload'
 import { ParsedTag } from '../shared/types/metadata'
-import { VideoFile } from '../shared/types/video'
+import { RenameResult, VideoFile } from '../shared/types/video'
 import { Library } from '../shared/types/library'
 import { MovieArchive } from '../shared/types/movie'
 
@@ -15,6 +15,11 @@ declare global {
 			) => () => void
 			openVideo: (path: string) => void
 			showInFolder: (path: string) => void
+			renameVideo: (
+				folderPath: string,
+				videoId: string,
+				newBaseName: string
+			) => Promise<RenameResult>
 			updateTags: (filePath: string, tags: ParsedTag[], favourited: boolean) => Promise<void>
 			loadLibrary: (folderPath: string) => Promise<Library | null>
 			saveLibrary: (folderPath: string, videos: VideoFile[]) => Promise<void>

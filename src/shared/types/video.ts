@@ -17,3 +17,6 @@ export interface VideoFile {
 	fileSize?: number // File size in bytes
 	duration?: number // Duration in seconds (for videos)
 }
+
+// Result of renaming a media file: the updated library entry, or a message to show the user
+export type RenameResult = { ok: true; video: VideoFile } | { ok: false; error: string }

@@ -233,6 +233,25 @@ function VideoModeView({ initialFolder }: { initialFolder: string }): React.Reac
 		}
 	}
 
+	// Renames a video's file (and its thumbnail and library entry). Its id does not change, so the
+	// session collection, Home and the selection keep it
+	// @returns A message to show in the detail view, or null once renamed
+	const handleRename = async (video: VideoFile, newBaseName: string): Promise<string | null> => {
+		if (!currentFolder) return 'No folder is open.'
+		try {
+			const result = await window.api.renameVideo(currentFolder, video.id, newBaseName)
+			if (!result.ok) return result.error
+			const { fileName, filePath, thumbnailPath } = result.video
+			const renamed = { ...video, fileName, filePath, thumbnailPath }
+			setVideos((prev) => prev.map((v) => (v.id === video.id ? renamed : v)))
+			setViewingVideo(renamed)
+			return null
+		} catch (error) {
+			console.error('Error renaming file:', error)
+			return 'The file could not be renamed. It may be open in another program, or the drive may not be available.'
+		}
+	}
+
 	// Handles deleting a video
 	const handleDeleteVideo = async (videoToDelete: VideoFile): Promise<void> => {
 		if (!currentFolder) return
@@ -535,6 +554,7 @@ function VideoModeView({ initialFolder }: { initialFolder: string }): React.Reac
 				onFilterClick={handleFilterClick}
 				isInSession={sessionIds.has(viewingVideo.id)}
 				onToggleSession={() => toggleSession(viewingVideo.id)}
+				onRename={(newBaseName) => handleRename(viewingVideo, newBaseName)}
 			/>
 		)
 	}

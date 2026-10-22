@@ -19,6 +19,7 @@ import { pathToFileURL } from 'url'
 import { scanDirectoryWithLibrary } from './VideoMode/metadata/scanner'
 import { updateVideoTags } from './VideoMode/metadata/updateTags'
 import { closeExiftool } from './metadata/utils'
+import { renameVideoFile } from './VideoMode/metadata/rename'
 import { loadLibrary, saveLibrary, removeVideoEntryFromLibrary } from './VideoMode/metadata/library'
 import {
 	parseMovieExcel,
@@ -209,6 +210,13 @@ app.whenReady().then(() => {
 	ipcMain.on('video:open', (_, filePath) => shell.openPath(filePath))
 	// IPC listener to show a video file in the system file manager, selected when the file manager supports it
 	ipcMain.on('video:showInFolder', (_, filePath: string) => shell.showItemInFolder(filePath))
+	// IPC handler to rename a video or photo: the file, its thumbnail and its library entry. Not wrapped in
+	// withRetry: a second attempt after a partial rename would no longer find the file
+	ipcMain.handle(
+		'video:rename',
+		async (_, folderPath: string, videoId: string, newBaseName: string) =>
+			renameVideoFile(folderPath, videoId, newBaseName)
+	)
 	// IPC handler to update the tags of a video file
 	ipcMain.handle('videos:updateTags', async (_, filePath, tags, favourited) =>
 		withRetry(() => updateVideoTags(filePath, tags, favourited))
