@@ -28,9 +28,15 @@ If commit/time are unknown (old entries, manual notes, not committed yet), just 
 
 ---
 
-## 2026-10-22 — feat(videos): rename videos and photos from the detail page
+## 2026-10-22 — fix(videos): renaming no longer drops tag edits that are not saved yet
+
+The detail page's tag editor started over from the saved tags in an effect that ran on any change of the `video` it shows, and a rename replaces that object, so tags added but not saved yet disappeared when the file was renamed. [VideoDetailView](src/renderer/src/components/VideoMode/VideoDetailView.tsx) now compares the saved tags and favourite during render (React's pattern for state that follows a prop) and starts over only when those change: after a save, after the "fav" shortcut, or when another video is shown. Checked in the app: an unsaved tag stays through a rename and is saved afterwards, "fav" still turns the star on without leaving a tag, and another video shows its own tags.
+
+## 2026-10-22 14:45 — feat(videos): rename videos and photos from the detail page
 
 A ✏️ next to the name on the detail page turns it into a field with the file's real name; the extension stays as it is and is shown next to the field. Enter or **Rename** renames, Escape or **Cancel** goes back. [rename.ts](src/main/VideoMode/metadata/rename.ts) (`video:rename` IPC) renames the file, its thumbnail (when no other thumbnail has the new name; otherwise the entry keeps the old one) and its `library.json` entry, which keeps its id, so the session collection, Home and the selection keep it, and the next scan matches it by its new path. A name is refused when it is empty, ends with a dot or a space, contains a character Windows does not allow (`< > : " / \ | ? *`, control characters) or a Windows device name (CON, NUL, COM1...), or is longer than 255 bytes, so a drive renamed on Linux keeps working on Windows; and when another file already has that name (`fs.rename` would silently replace it on Linux; a case-only rename is allowed only when the target is the same file). If `library.json` cannot be saved, the file and thumbnail are renamed back. Not in Movie Mode: folder names link movies to their Excel rows. Tests in [rename.test.ts](src/main/VideoMode/metadata/__tests__/rename.test.ts); checked in the app on a video (still in the session afterwards) and a photo, with an invalid name and a name already taken.
+
+`cc8b6e2`
 
 ## 2026-10-22 14:26 — feat(videos): a session collection, "Show in folder", and value tabs on their own row
 

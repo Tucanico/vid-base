@@ -61,10 +61,19 @@ function VideoDetailView({
 	const [renameError, setRenameError] = useState<string | null>(null)
 	const [isRenameSaving, setIsRenameSaving] = useState(false)
 
-	useEffect(() => {
+	// The tag editor starts over from the saved tags whenever they change (after a save, or when
+	// another video is shown). Compared during render, React's pattern for state that follows a prop,
+	// and on the tags and favourite only: a rename replaces `video` but keeps them, so tag edits that
+	// are not saved yet stay
+	const [editorSource, setEditorSource] = useState({
+		tags: video.tags,
+		favourited: video.favourited
+	})
+	if (editorSource.tags !== video.tags || editorSource.favourited !== video.favourited) {
+		setEditorSource({ tags: video.tags, favourited: video.favourited })
 		setTags(video.tags)
 		setIsFavorited(video.favourited)
-	}, [video])
+	}
 
 	// The file's extension stays as it is; only the name before it can be renamed
 	const extensionIndex = video.fileName.lastIndexOf('.')
