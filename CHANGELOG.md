@@ -28,25 +28,39 @@ If commit/time are unknown (old entries, manual notes, not committed yet), just 
 
 ---
 
-## 2026-10-22 — feat(videos): find duplicate videos and photos
+## 2026-10-22 — build(deps): exiftool-vendored 39, and the unused EditModal removed
+
+exiftool-vendored 34.3 had an argument-injection advisory (a newline in a tag name or path could add ExifTool arguments, as ExifTool reads them one per line; fixed in 35.19), so it is now 39.0.1, with ExifTool 13.59. None of the breaking changes from 35 to 39 touch how VidBase uses it (one shared instance, `read`, `write` with `-overwrite_original`, `end` on quit): 36 needs Node 22, which Electron 39 has, and 39 only accepts `useMWG` in the constructor, which VidBase does not set. Since 37, malformed UTF-8 in a tag reads as `�` instead of `?`. Checked in the app: tags and the favourite saved from the video page are in the file's Keywords, Subject, Category, Description and Comment, a library rebuilt from the files gets them back, and no ExifTool process is left after quitting; 34.3 writes the same fields. `EditModal.tsx` was not used anywhere any more and is removed.
+
+## 2026-10-22 15:40 — feat(videos): find duplicate videos and photos
 
 A **⧉ Duplicates** tab (with a count when there are any) lists the files that are probably copies of each other: the same kind, the same size in bytes and, for videos, the same duration to the second ([findDuplicateGroups](src/renderer/src/utils/videoList.ts)). Groups are headed with the number of copies, the size and the duration, biggest first, and each card shows the folder it is in, so the copy to delete can be picked; the video page's ‹ › go through all of them. Files are not compared byte by byte, so two different files with exactly the same size (and duration) would be listed too. The sidebar, search and sort are hidden in this view. Video Mode only. Tests in [videoList.test.ts](src/renderer/src/utils/__tests__/videoList.test.ts); checked in the app with a copy in a subfolder.
 
-## 2026-10-22 — feat(videos): saved searches
+`a49ce45`
+
+## 2026-10-22 15:40 — feat(videos): saved searches
 
 **🔖 Save search**, at the end of the search row, saves the list on screen under a name: Library or Favourited, its filters (inside a value tab, with the tab's value), its search and its sort. Saved searches are 🔖 tabs at the start of the value-tab row: clicking one shows its list, its tab is highlighted while the list on screen is still the one it gives, and × (after a confirmation) deletes it; saving under a name already used replaces that one. They are stored per library, in `library.json` as an optional `savedViews` (libraries without it load as before), through `library:saveViews` and [saveSavedViews](src/main/VideoMode/metadata/library.ts); `saveLibrary` carries them over on every save, as they do not come from the files. A VidBase build older than this one drops them the next time it saves the library. Video Mode only. Tests in [library.test.ts](src/main/VideoMode/metadata/__tests__/library.test.ts) and [videoList.test.ts](src/renderer/src/utils/__tests__/videoList.test.ts) (`sameFilters`, `addTabValue`); checked in the app: saving inside a search, the highlight, applying it, after a restart, deleting it.
 
-## 2026-10-22 — feat(videos): choose a video's thumbnail frame
+`a49ce45`
+
+## 2026-10-22 15:40 — feat(videos): choose a video's thumbnail frame
 
 The video page has a **🖼 Choose thumbnail** button: a slider over the video's length previews the frame at that point (`video:previewFrame`, a 640px JPEG made by FFmpeg in the temp folder and sent as a data URL), and **Use this frame** makes it the thumbnail ([thumbnailFrame.ts](src/main/VideoMode/metadata/thumbnailFrame.ts), `video:setThumbnail`). The frame is written next to the old thumbnail and renamed over it, so a failed extraction keeps the old one. Chromium keeps images in memory by URL, so the same `.thumbnails/<name>.jpg` kept showing the old picture: the entry now gets a `thumbnailVersion` (optional in `library.json`), which [mediaUrl](src/renderer/src/utils/mediaUrl.ts) adds to the image URL as `?v=`, and the `media://` handler in [index.ts](src/main/index.ts) drops the query. `mediaUrl` also URL-encodes each part of the path, so a `?` or `#` in a file name is not read as the start of the query. Tests in [thumbnailFrame.test.ts](src/main/VideoMode/metadata/__tests__/thumbnailFrame.test.ts) (with the real FFmpeg); checked in the app: the preview, the thumbnail file replaced, and the new image on the page and on the card.
 
-## 2026-10-22 — feat(videos): add the selected videos to the session collection
+`a49ce45`
+
+## 2026-10-22 15:40 — feat(videos): add the selected videos to the session collection
 
 With videos or photos selected, **📌 Add N to session**, next to **Edit N Selected**, adds them all to the session collection and clears the selection. Checked in the app.
 
-## 2026-10-22 — fix(security): a maintained SheetJS for Excel files, and web security back on
+`a49ce45`
+
+## 2026-10-22 15:40 — fix(security): a maintained SheetJS for Excel files, and web security back on
 
 The `xlsx` package on npm stopped at 0.18.5, which has two unfixed advisories (prototype pollution and a regular-expression denial of service, both triggered by opening a crafted spreadsheet); SheetJS publishes the fixed versions only on its own CDN, so `package.json` now installs 0.20.3 from `cdn.sheetjs.com`. Its ES module build does not load Node's `fs` by itself, so [movieParser.ts](src/main/MovieMode/metadata/movieParser.ts) passes it with `XLSX.set_fs`. The window also ran with `webSecurity: false`, which turns off the same-origin policy for the page; it is on again ([index.ts](src/main/index.ts)), as every local image and video already reaches the page through the `media://` protocol. The sandbox stays off: the preload bundle needs Node. Checked in the app: thumbnails and photos load, and Movie Mode reads its Excel file.
+
+`a49ce45`
 
 ## 2026-10-22 15:06 — fix(library): a library keeps working where its drive is mounted somewhere else
 
