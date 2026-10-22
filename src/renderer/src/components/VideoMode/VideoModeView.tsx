@@ -26,7 +26,7 @@ import {
 	videoMatchesSearch
 } from '../../utils/videoList'
 
-type VideoListViewMode = 'library' | 'home' | 'favorites'
+type VideoListViewMode = 'library' | 'home' | 'favorites' | 'session'
 
 const SORT_OPTIONS = [
 	{ value: 'name', label: 'Name' },
@@ -35,8 +35,8 @@ const SORT_OPTIONS = [
 ]
 
 /** --- COMPONENT: VideoModeView ---
- *  Video Mode: scans a folder and shows its videos (home, library and favourites views), and lets the
- *  user edit tags, favourite, delete and batch-edit them. It owns all Video Mode state and its
+ *  Video Mode: scans a folder and shows its videos (home, library, favourites and session views), and
+ *  lets the user edit tags, favourite, delete and batch-edit them. It owns all Video Mode state and its
  *  interactions with the main process via the `window.api` object
  *  @param initialFolder The folder picked on the mode selection screen, scanned when the view opens
  */
@@ -65,6 +65,9 @@ function VideoModeView({ initialFolder }: { initialFolder: string }): React.Reac
 	const [selectedVideoIds, setSelectedVideoIds] = useState<Set<string>>(new Set())
 	// State for batch edit modal
 	const [showBatchEditModal, setShowBatchEditModal] = useState(false)
+	// The session collection: videos saved for this run of the app. Deliberately in memory only, so
+	// it is empty every time VidBase starts
+	const [sessionIds, setSessionIds] = useState<Set<string>>(new Set())
 	const controls = useListControls({ simpleTag: [] })
 	const {
 		activeFilters,
@@ -390,6 +393,29 @@ function VideoModeView({ initialFolder }: { initialFolder: string }): React.Reac
 		setViewingVideo(null)
 	}
 
+	const handleSessionView = (): void => {
+		valueTabs.switchTo(null)
+		setActiveFilters({ simpleTag: [] })
+		setOpenCategories(new Set())
+		setSearchQuery('')
+		setVideoListViewMode('session')
+		setViewMode('list')
+		setViewingVideo(null)
+	}
+
+	// Adds a video to the session collection, or removes it
+	const toggleSession = (videoId: string): void => {
+		setSessionIds((prev) => {
+			const next = new Set(prev)
+			if (next.has(videoId)) {
+				next.delete(videoId)
+			} else {
+				next.add(videoId)
+			}
+			return next
+		})
+	}
+
 	// Handles clicking on a filterable name (category, model, channel, production): opens its tab and
 	// shows it, or with Ctrl/Cmd held opens it in the background and stays on the video
 	const handleFilterClick = (category: string, value: string, inBackground = false): void => {
@@ -419,8 +445,14 @@ function VideoModeView({ initialFolder }: { initialFolder: string }): React.Reac
 		return filterVideosByTags(videos, tabFilter)
 	}, [videos, activeTab])
 
+	// The videos in the session collection that are in the current folder
+	const sessionVideos = useMemo(
+		() => videos.filter((video) => sessionIds.has(video.id)),
+		[videos, sessionIds]
+	)
+
 	// useMemo to calculate all available filter options, from library.json (or from the
-	// videos shown, in the favourites view and in a value tab)
+	// videos shown, in the favourites and session views and in a value tab)
 	const filterOptions = useMemo(() => {
 		if (activeTab) {
 			return buildFilterOptionsFromVideos(tabVideos)
@@ -428,6 +460,9 @@ function VideoModeView({ initialFolder }: { initialFolder: string }): React.Reac
 		if (videoListViewMode === 'favorites') {
 			const favoriteVideos = videos.filter((video) => video.favourited)
 			return buildFilterOptionsFromVideos(favoriteVideos)
+		}
+		if (videoListViewMode === 'session') {
+			return buildFilterOptionsFromVideos(sessionVideos)
 		}
 		if (!library) {
 			return {
@@ -439,7 +474,7 @@ function VideoModeView({ initialFolder }: { initialFolder: string }): React.Reac
 			categories: library.categories,
 			simpleTags: library.tags
 		}
-	}, [library, videoListViewMode, videos, activeTab, tabVideos])
+	}, [library, videoListViewMode, videos, activeTab, tabVideos, sessionVideos])
 
 	// useMemo to compute the list of videos to display based on filters, search, and sorting
 	const homeVideos = useMemo(() => {
@@ -459,6 +494,10 @@ function VideoModeView({ initialFolder }: { initialFolder: string }): React.Reac
 			result = result.filter((video) => video.favourited)
 		}
 
+		if (listMode === 'session') {
+			result = result.filter((video) => sessionIds.has(video.id))
+		}
+
 		// Apply filters
 		result = filterVideosByTags(result, activeFilters)
 
@@ -469,7 +508,16 @@ function VideoModeView({ initialFolder }: { initialFolder: string }): React.Reac
 
 		// Apply sorting
 		return sortVideos(result, sortField, sortDirection)
-	}, [tabVideos, activeFilters, searchQuery, sortField, sortDirection, listMode, homeVideos])
+	}, [
+		tabVideos,
+		activeFilters,
+		searchQuery,
+		sortField,
+		sortDirection,
+		listMode,
+		homeVideos,
+		sessionIds
+	])
 
 	if (loading) {
 		return <ScanLoader progress={scanProgress} />
@@ -485,6 +533,8 @@ function VideoModeView({ initialFolder }: { initialFolder: string }): React.Reac
 				onSave={saveTags}
 				onDelete={handleDeleteVideo}
 				onFilterClick={handleFilterClick}
+				isInSession={sessionIds.has(viewingVideo.id)}
+				onToggleSession={() => toggleSession(viewingVideo.id)}
 			/>
 		)
 	}
@@ -507,16 +557,21 @@ function VideoModeView({ initialFolder }: { initialFolder: string }): React.Reac
 					onToggleSortDirection={() =>
 						controls.setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
 					}
+					tabsRow={
+						valueTabs.tabs.length > 0 &&
+						valueTabs.tabs.map((tab) => (
+							<HeaderTab
+								key={tab.id}
+								active={activeTab?.id === tab.id}
+								onClick={() => handleTabClick(tab.id)}
+								onClose={() => valueTabs.closeTab(tab.id)}
+							>
+								{valueTabLabel(tab)}
+							</HeaderTab>
+						))
+					}
 				>
-					<div
-						style={{
-							display: 'flex',
-							alignItems: 'center',
-							gap: '8px',
-							flexWrap: 'wrap',
-							justifyContent: 'flex-end'
-						}}
-					>
+					<div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
 						<HeaderTab active={listMode === 'home'} onClick={handleHomeView}>
 							Home
 						</HeaderTab>
@@ -534,16 +589,9 @@ function VideoModeView({ initialFolder }: { initialFolder: string }): React.Reac
 						<HeaderTab active={listMode === 'favorites'} onClick={handleFavoritesView}>
 							★ Favourited
 						</HeaderTab>
-						{valueTabs.tabs.map((tab) => (
-							<HeaderTab
-								key={tab.id}
-								active={activeTab?.id === tab.id}
-								onClick={() => handleTabClick(tab.id)}
-								onClose={() => valueTabs.closeTab(tab.id)}
-							>
-								{valueTabLabel(tab)}
-							</HeaderTab>
-						))}
+						<HeaderTab active={listMode === 'session'} onClick={handleSessionView}>
+							📌 Session{sessionVideos.length > 0 ? ` (${sessionVideos.length})` : ''}
+						</HeaderTab>
 					</div>
 					{selectedVideoIds.size > 0 && (
 						<button
@@ -616,6 +664,8 @@ function VideoModeView({ initialFolder }: { initialFolder: string }): React.Reac
 						onSelect={(isSelected) => handleVideoSelect(vid.id, isSelected)}
 						onSelectToggle={() => handleVideoSelect(vid.id, !selectedVideoIds.has(vid.id))}
 						onToggleFavorite={() => toggleFavorite(vid)}
+						isInSession={sessionIds.has(vid.id)}
+						onToggleSession={() => toggleSession(vid.id)}
 					/>
 				))}
 
@@ -623,9 +673,17 @@ function VideoModeView({ initialFolder }: { initialFolder: string }): React.Reac
 				{videos.length === 0 && (
 					<EmptyMessage>No videos loaded. Click the top-right button to start.</EmptyMessage>
 				)}
-				{videos.length > 0 && filteredVideos.length === 0 && (
-					<EmptyMessage>No videos match the selected filters.</EmptyMessage>
+				{videos.length > 0 && listMode === 'session' && sessionVideos.length === 0 && (
+					<EmptyMessage>
+						Nothing saved in this session yet. Use 📌 on a video or photo to add it here; the
+						list empties when VidBase closes.
+					</EmptyMessage>
 				)}
+				{videos.length > 0 &&
+					filteredVideos.length === 0 &&
+					!(listMode === 'session' && sessionVideos.length === 0) && (
+						<EmptyMessage>No videos match the selected filters.</EmptyMessage>
+					)}
 			</div>
 			{isHome && (
 				<div style={{ textAlign: 'center', marginTop: '22px' }}>

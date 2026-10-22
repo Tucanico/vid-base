@@ -15,6 +15,8 @@ import { formatDuration, formatFileSize } from '../../utils/formatters'
  *  @param onSave A function to call when the user saves changes; receives the new array of tags
  *  @param onDelete A function to call when the user deletes the video
  *  @param onFilterClick A function to call when a filterable name is clicked (category, value, and whether Ctrl/Cmd was held to open it in the background)
+ *  @param isInSession Whether the video is in the session collection
+ *  @param onToggleSession A function to call to add the video to the session collection or remove it
  */
 function VideoDetailView({
 	video,
@@ -22,7 +24,9 @@ function VideoDetailView({
 	onBack,
 	onSave,
 	onDelete,
-	onFilterClick
+	onFilterClick,
+	isInSession,
+	onToggleSession
 }: {
 	video: VideoFile
 	library: Library | null
@@ -30,6 +34,8 @@ function VideoDetailView({
 	onSave: (tags: ParsedTag[], favourited: boolean) => Promise<boolean>
 	onDelete: (video: VideoFile) => void
 	onFilterClick: (category: string, value: string, inBackground?: boolean) => void
+	isInSession: boolean
+	onToggleSession: () => void
 }): React.ReactElement {
 	// State to manage the tags being edited
 	const [tags, setTags] = useState<ParsedTag[]>(video.tags)
@@ -384,6 +390,35 @@ function VideoDetailView({
 						>
 							★
 						</button>
+						<button
+							onClick={onToggleSession}
+							style={{
+								position: 'absolute',
+								top: '15px',
+								right: '55px',
+								zIndex: 2,
+								width: '25px',
+								height: '25px',
+								padding: 0,
+								border: 'none',
+								backgroundColor: 'transparent',
+								display: 'flex',
+								alignItems: 'center',
+								justifyContent: 'center',
+								cursor: 'pointer',
+								fontSize: '26px',
+								lineHeight: 1,
+								// Greyed out while the video is not in the session collection
+								filter: isInSession
+									? 'drop-shadow(0 1px 2px rgba(0,0,0,0.8))'
+									: 'grayscale(1)',
+								opacity: isInSession ? 1 : 0.6
+							}}
+							aria-label={isInSession ? 'Remove from session' : 'Add to session'}
+							title={isInSession ? 'Remove from session' : 'Add to session'}
+						>
+							📌
+						</button>
 						{video.mediaType === 'image' ? (
 							<img
 								src={`media:///${video.filePath.replace(/\\/g, '/')}`}
@@ -431,6 +466,21 @@ function VideoDetailView({
 							}}
 						>
 							{video.mediaType === 'image' ? '📂 Open' : '▶ Play'}
+						</button>
+						<button
+							onClick={() => window.api.showInFolder(video.filePath)}
+							title="Open the folder with this file selected"
+							style={{
+								padding: '12px 20px',
+								background: 'transparent',
+								color: 'var(--color-text)',
+								border: '1px solid var(--color-background-mute)',
+								borderRadius: '6px',
+								cursor: 'pointer',
+								fontWeight: 600
+							}}
+						>
+							📁 Show in folder
 						</button>
 						<button
 							onClick={handleDeleteClick}

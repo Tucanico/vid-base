@@ -207,6 +207,8 @@ app.whenReady().then(() => {
 	})
 	// IPC listener to open a video file in the default system player
 	ipcMain.on('video:open', (_, filePath) => shell.openPath(filePath))
+	// IPC listener to show a video file in the system file manager, selected when the file manager supports it
+	ipcMain.on('video:showInFolder', (_, filePath: string) => shell.showItemInFolder(filePath))
 	// IPC handler to update the tags of a video file
 	ipcMain.handle('videos:updateTags', async (_, filePath, tags, favourited) =>
 		withRetry(() => updateVideoTags(filePath, tags, favourited))

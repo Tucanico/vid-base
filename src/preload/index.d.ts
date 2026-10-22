@@ -14,6 +14,7 @@ declare global {
 				callback: (progress: { processed: number; total: number; percent: number }) => void
 			) => () => void
 			openVideo: (path: string) => void
+			showInFolder: (path: string) => void
 			updateTags: (filePath: string, tags: ParsedTag[], favourited: boolean) => Promise<void>
 			loadLibrary: (folderPath: string) => Promise<Library | null>
 			saveLibrary: (folderPath: string, videos: VideoFile[]) => Promise<void>
