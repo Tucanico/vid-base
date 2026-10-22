@@ -28,9 +28,27 @@ If commit/time are unknown (old entries, manual notes, not committed yet), just 
 
 ---
 
-## 2026-10-22 — fix(videos): renaming no longer drops tag edits that are not saved yet
+## 2026-10-22 — fix(library): a library keeps working where its drive is mounted somewhere else
+
+`library.json` stored only absolute paths, so the same drive opened at another mount point (Windows `E:\` vs Linux `/run/media/...`, another computer, a VeraCrypt drive letter) matched none of its entries: `cleanupOrphans` saw every file as missing, dropped every entry and moved every thumbnail to the trash, and the scan rebuilt the library (tags survive, as they are in the files; ids, thumbnails and unused categories did not). Each entry is now also stored with `relativePath` and `relativeThumbnailPath`, relative to the library folder with `/` separators ([libraryPaths.ts](src/main/VideoMode/metadata/libraryPaths.ts)); `loadLibrary` makes them absolute for where the folder is now. The absolute `filePath` and `thumbnailPath` are still written, so older VidBase builds still work on the computer that last saved the library. A library without relative paths yet keeps its absolute paths when they are inside the folder; when they come from elsewhere, the folder they started from is found by looking for a few of its files under the open folder, and every entry is moved under it; the next save writes the relative paths. [merge-libraries.js](src/scripts/merge-libraries.js) drops the relative paths, which would be wrong in a merged library. Tests in [libraryPaths.test.ts](src/main/VideoMode/metadata/__tests__/libraryPaths.test.ts); checked in the app: a scanned folder moved to another place, and a library saved with `E:\Videos` paths, open with the same ids, untouched thumbnails and nothing trashed.
+
+## 2026-10-22 — feat: recent folders on the start screen, and a clear message when a folder is not available
+
+The start screen lists the last library folders opened (up to 8, kept in localStorage by [recentFolders.ts](src/renderer/src/utils/recentFolders.ts)), with their mode; one click opens one without the folder dialog, through a new `folder:use` IPC that does what picking it does (sets the folder used to delete files, starts the drive keep-alive). A folder that is not there (drive disconnected, VeraCrypt vault not mounted) is shown as not available, and clicking it again checks again; × removes one. When a folder fails to load because it is not there, both modes now say so instead of the generic error. The start screen also shows the app's version. Checked in the app: the list after a restart, opening without the dialog, deleting a video afterwards, and a missing folder.
+
+## 2026-10-22 — feat(videos): previous / next and keyboard shortcuts on the video page
+
+The video page shows its place in the list it was opened from (Home, Library, Favourited, Session or a value tab, with its filters and search) with ‹ › buttons, and has keyboard shortcuts: ← → previous / next, F favourite, P session, R rename, Esc back (ignored while typing in a field). Each video gets a fresh page (`key` on its id), so a rename in progress or a half-typed tag does not carry over; a rename keeps the id, so it keeps the page. Checked in the app.
+
+## 2026-10-22 — build: every build gets its own version
+
+Builds were all "1.0.0", so installing a newer `.deb` needed `apt install --reinstall`. The `build:*` scripts now package through [scripts/package.mjs](scripts/package.mjs), which passes electron-builder the major.minor of `package.json` with the number of git commits as the third number (e.g. 1.0.60), for the app, the `.deb` and the installer; without git it uses `package.json`'s version.
+
+## 2026-10-22 14:51 — fix(videos): renaming no longer drops tag edits that are not saved yet
 
 The detail page's tag editor started over from the saved tags in an effect that ran on any change of the `video` it shows, and a rename replaces that object, so tags added but not saved yet disappeared when the file was renamed. [VideoDetailView](src/renderer/src/components/VideoMode/VideoDetailView.tsx) now compares the saved tags and favourite during render (React's pattern for state that follows a prop) and starts over only when those change: after a save, after the "fav" shortcut, or when another video is shown. Checked in the app: an unsaved tag stays through a rename and is saved afterwards, "fav" still turns the star on without leaving a tag, and another video shows its own tags.
+
+`3c4eb76`
 
 ## 2026-10-22 14:45 — feat(videos): rename videos and photos from the detail page
 

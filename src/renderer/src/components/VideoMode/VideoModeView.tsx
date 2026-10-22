@@ -14,6 +14,7 @@ import EmptyMessage from '../EmptyMessage'
 import { ListSnapshot, useListControls } from '../../hooks/useListControls'
 import { useListScrollRestore } from '../../hooks/useListScrollRestore'
 import { useValueTabs, valueTabLabel } from '../../hooks/useValueTabs'
+import { addRecentFolder, folderUnavailableMessage } from '../../utils/recentFolders'
 import {
 	applyBatchTagChanges,
 	buildFilterOptionsFromVideos,
@@ -120,9 +121,11 @@ function VideoModeView({ initialFolder }: { initialFolder: string }): React.Reac
 			if (updatedLibrary) {
 				setLibrary(updatedLibrary)
 			}
+			addRecentFolder('videos', folder)
 		} catch (error) {
 			console.error('Loading error:', error)
-			alert('There was an error during loading.')
+			const available = await window.api.folderExists(folder).catch(() => false)
+			alert(available ? 'There was an error during loading.' : folderUnavailableMessage(folder))
 		} finally {
 			setLoading(false)
 			setScanProgress({ processed: 0, total: 0, percent: 0 })
@@ -538,6 +541,15 @@ function VideoModeView({ initialFolder }: { initialFolder: string }): React.Reac
 		sessionIds
 	])
 
+	// Previous and next video in the list the detail view was opened from (with its filters and search)
+	const viewingIndex = viewingVideo
+		? filteredVideos.findIndex((video) => video.id === viewingVideo.id)
+		: -1
+	const showAdjacent = (offset: number): void => {
+		const adjacent = viewingIndex >= 0 ? filteredVideos[viewingIndex + offset] : undefined
+		if (adjacent) setViewingVideo(adjacent)
+	}
+
 	if (loading) {
 		return <ScanLoader progress={scanProgress} />
 	}
@@ -546,6 +558,9 @@ function VideoModeView({ initialFolder }: { initialFolder: string }): React.Reac
 	if (viewMode === 'detail' && viewingVideo) {
 		return (
 			<VideoDetailView
+				// A new page for each video, so a rename in progress or a half-typed tag does not carry
+				// over to the next one (a rename keeps the id, so it keeps the page)
+				key={viewingVideo.id}
 				video={viewingVideo}
 				library={library}
 				onBack={handleBackToList}
@@ -555,6 +570,17 @@ function VideoModeView({ initialFolder }: { initialFolder: string }): React.Reac
 				isInSession={sessionIds.has(viewingVideo.id)}
 				onToggleSession={() => toggleSession(viewingVideo.id)}
 				onRename={(newBaseName) => handleRename(viewingVideo, newBaseName)}
+				onPrevious={viewingIndex > 0 ? () => showAdjacent(-1) : undefined}
+				onNext={
+					viewingIndex >= 0 && viewingIndex < filteredVideos.length - 1
+						? () => showAdjacent(1)
+						: undefined
+				}
+				position={
+					viewingIndex >= 0
+						? { index: viewingIndex + 1, total: filteredVideos.length }
+						: undefined
+				}
 			/>
 		)
 	}

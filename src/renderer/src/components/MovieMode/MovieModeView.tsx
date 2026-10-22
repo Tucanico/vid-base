@@ -11,6 +11,7 @@ import EmptyMessage from '../EmptyMessage'
 import { ListSnapshot, useListControls } from '../../hooks/useListControls'
 import { useListScrollRestore } from '../../hooks/useListScrollRestore'
 import { useValueTabs, valueTabLabel } from '../../hooks/useValueTabs'
+import { addRecentFolder, folderUnavailableMessage } from '../../utils/recentFolders'
 import {
 	MovieTypeView,
 	RangeFilter,
@@ -119,10 +120,14 @@ function MovieModeView({ initialFolder }: { initialFolder: string }): React.Reac
 			const archive = await window.api.loadMovies(folder, folder)
 			setMovies(archive.movies)
 			setMovieArchive(archive)
+			addRecentFolder('movies', folder)
 		} catch (error) {
 			console.error('Loading error:', error)
+			const available = await window.api.folderExists(folder).catch(() => false)
 			alert(
-				'There was an error loading movies. If no Excel file exists, set TMDB_API_KEY so VidBase can create one.'
+				available
+					? 'There was an error loading movies. If no Excel file exists, set TMDB_API_KEY so VidBase can create one.'
+					: folderUnavailableMessage(folder)
 			)
 		} finally {
 			setLoading(false)

@@ -174,6 +174,25 @@ app.whenReady().then(() => {
 		startKeepAlive(currentLibraryRootPath) // Keep the drive awake
 		return currentLibraryRootPath
 	})
+	// Whether a folder is available: false while its drive is disconnected or its VeraCrypt vault is
+	// not mounted
+	const isFolder = (folderPath: string): Promise<boolean> =>
+		fs.promises.stat(folderPath).then(
+			(stats) => stats.isDirectory(),
+			() => false
+		)
+	// IPC handler to tell whether a folder is available (for the recent folders on the start screen)
+	ipcMain.handle('folder:exists', async (_, folderPath: string) => isFolder(folderPath))
+	// IPC handler to open a library folder without the dialog (a recent folder): does what picking it
+	// in the dialog does. Returns false if the folder is not available
+	ipcMain.handle('folder:use', async (_, folderPath: string) => {
+		if (!(await isFolder(folderPath))) return false
+		currentLibraryRootPath = folderPath
+		startKeepAlive(folderPath)
+		return true
+	})
+	// IPC handler for the app's version; packaged builds get a build number, see scripts/package.mjs
+	ipcMain.handle('app:version', () => ({ version: app.getVersion(), isPackaged: app.isPackaged }))
 
 	// IPC handler to load the video library from a given folder path
 	ipcMain.handle('db:load', async (_, folderPath) => withRetry(() => loadLibrary(folderPath)))
