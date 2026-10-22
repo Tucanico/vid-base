@@ -1,6 +1,6 @@
 import { ParsedTag } from '@shared/types/metadata'
-import { RenameResult, VideoFile } from '@shared/types/video'
-import { Library } from '@shared/types/library'
+import { VideoUpdateResult, VideoFile } from '@shared/types/video'
+import { Library, SavedView } from '@shared/types/library'
 import { MovieArchive } from '@shared/types/movie'
 
 // Type declaration to inform TypeScript about the 'api' object exposed by the preload script
@@ -15,11 +15,18 @@ declare global {
 			) => () => void
 			openVideo: (path: string) => void
 			showInFolder: (path: string) => void
+			saveViews: (folderPath: string, savedViews: SavedView[]) => Promise<void>
+			previewFrame: (filePath: string, seconds: number) => Promise<string>
+			setThumbnail: (
+				folderPath: string,
+				videoId: string,
+				seconds: number
+			) => Promise<VideoUpdateResult>
 			renameVideo: (
 				folderPath: string,
 				videoId: string,
 				newBaseName: string
-			) => Promise<RenameResult>
+			) => Promise<VideoUpdateResult>
 			updateTags: (filePath: string, tags: ParsedTag[], favourited: boolean) => Promise<void>
 			loadLibrary: (folderPath: string) => Promise<Library | null>
 			saveLibrary: (folderPath: string, videos: VideoFile[]) => Promise<void>

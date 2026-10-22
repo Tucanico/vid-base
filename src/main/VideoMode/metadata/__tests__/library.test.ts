@@ -3,7 +3,7 @@ import * as os from 'os'
 import * as path from 'path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Library } from '../../../../shared/types/library'
-import { loadLibrary, saveLibrary } from '../library'
+import { loadLibrary, saveLibrary, saveSavedViews } from '../library'
 
 // library.ts only needs deleteFile from utils; mocking it avoids loading ExifTool
 vi.mock('../../../metadata/utils', () => ({ deleteFile: vi.fn() }))
@@ -75,5 +75,37 @@ describe('saveLibrary', () => {
 		await saveLibrary(dir, [], { files: [], categories: {}, tags: ['new'] })
 		expect((await loadLibrary(dir))?.tags).toEqual(['new'])
 		expect(await listDir()).toEqual(['library.json'])
+	})
+})
+
+describe('saved searches', () => {
+	const view = {
+		id: 'v1',
+		name: 'Anna on holiday',
+		list: 'library' as const,
+		filters: { simpleTag: [], model: ['Anna'] },
+		searchQuery: 'beach',
+		sortField: 'name',
+		sortDirection: 'asc' as const
+	}
+
+	it('are kept by every save of the library', async () => {
+		await saveLibrary(dir, [])
+		await saveSavedViews(dir, [view])
+		const library = await loadLibrary(dir)
+		// An ordinary save (a scan, a tag change) passes the loaded library along
+		await saveLibrary(dir, [], library)
+		expect((await loadLibrary(dir))?.savedViews).toEqual([view])
+	})
+
+	it('can be replaced', async () => {
+		await saveLibrary(dir, [])
+		await saveSavedViews(dir, [view])
+		await saveSavedViews(dir, [])
+		expect((await loadLibrary(dir))?.savedViews).toEqual([])
+	})
+
+	it('need a library to be saved in', async () => {
+		await expect(saveSavedViews(dir, [view])).rejects.toThrow(/no library/)
 	})
 })

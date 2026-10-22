@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react'
 import { ParsedTag } from '@shared/types/metadata'
 import { VideoFile } from '@shared/types/video'
-import { Library } from '@shared/types/library'
+import { Library, SavedView } from '@shared/types/library'
 import { ActiveFilters } from '@shared/types/filter'
 import VideoDetailView from './VideoDetailView'
 import VideoCard from './VideoCard'
@@ -15,19 +15,23 @@ import { ListSnapshot, useListControls } from '../../hooks/useListControls'
 import { useListScrollRestore } from '../../hooks/useListScrollRestore'
 import { useValueTabs, valueTabLabel } from '../../hooks/useValueTabs'
 import { addRecentFolder, folderUnavailableMessage } from '../../utils/recentFolders'
+import { formatDuration, formatFileSize } from '../../utils/formatters'
 import {
+	addTabValue,
 	applyBatchTagChanges,
 	buildFilterOptionsFromVideos,
 	buildRawTagString,
 	filterVideosByTags,
+	findDuplicateGroups,
 	pickNewRandomIds,
 	pickRandomIds,
+	sameFilters,
 	sortVideos,
 	stripFavoriteTag,
 	videoMatchesSearch
 } from '../../utils/videoList'
 
-type VideoListViewMode = 'library' | 'home' | 'favorites' | 'session'
+type VideoListViewMode = 'library' | 'home' | 'favorites' | 'session' | 'duplicates'
 
 const SORT_OPTIONS = [
 	{ value: 'name', label: 'Name' },
@@ -69,6 +73,9 @@ function VideoModeView({ initialFolder }: { initialFolder: string }): React.Reac
 	// The session collection: videos saved for this run of the app. Deliberately in memory only, so
 	// it is empty every time VidBase starts
 	const [sessionIds, setSessionIds] = useState<Set<string>>(new Set())
+	// State for naming a search to save
+	const [isNamingView, setIsNamingView] = useState(false)
+	const [viewName, setViewName] = useState('')
 	const controls = useListControls({ simpleTag: [] })
 	const {
 		activeFilters,
@@ -255,6 +262,25 @@ function VideoModeView({ initialFolder }: { initialFolder: string }): React.Reac
 		}
 	}
 
+	// Makes the frame at `seconds` the video's thumbnail. Its new thumbnailVersion changes the image's
+	// URL, so the cards and the video page show the new one
+	// @returns A message to show in the detail view, or null once done
+	const handleSetThumbnail = async (video: VideoFile, seconds: number): Promise<string | null> => {
+		if (!currentFolder) return 'No folder is open.'
+		try {
+			const result = await window.api.setThumbnail(currentFolder, video.id, seconds)
+			if (!result.ok) return result.error
+			const { thumbnailPath, thumbnailVersion } = result.video
+			const updated = { ...video, thumbnailPath, thumbnailVersion }
+			setVideos((prev) => prev.map((v) => (v.id === video.id ? updated : v)))
+			setViewingVideo(updated)
+			return null
+		} catch (error) {
+			console.error('Error setting the thumbnail:', error)
+			return 'The thumbnail could not be saved. The drive may not be available.'
+		}
+	}
+
 	// Handles deleting a video
 	const handleDeleteVideo = async (videoToDelete: VideoFile): Promise<void> => {
 		if (!currentFolder) return
@@ -323,6 +349,12 @@ function VideoModeView({ initialFolder }: { initialFolder: string }): React.Reac
 	const handleBatchEdit = (): void => {
 		if (selectedVideoIds.size === 0) return
 		setShowBatchEditModal(true)
+	}
+
+	// Adds the selected videos to the session collection, and clears the selection
+	const handleAddSelectedToSession = (): void => {
+		setSessionIds((prev) => new Set([...prev, ...selectedVideoIds]))
+		setSelectedVideoIds(new Set())
 	}
 
 	// Handles batch save (applies tags to all selected videos)
@@ -425,6 +457,95 @@ function VideoModeView({ initialFolder }: { initialFolder: string }): React.Reac
 		setViewingVideo(null)
 	}
 
+	const handleDuplicatesView = (): void => {
+		valueTabs.switchTo(null)
+		setActiveFilters({ simpleTag: [] })
+		setOpenCategories(new Set())
+		setSearchQuery('')
+		setVideoListViewMode('duplicates')
+		setViewMode('list')
+		setViewingVideo(null)
+	}
+
+	// --- Saved searches, kept in library.json ---
+	const savedViews = library?.savedViews ?? []
+	// Only the Library and Favourited lists (a value tab included) can be saved: Home is random, the
+	// session empties on every start, and Duplicates has no filters
+	const canSaveView = listMode === 'library' || listMode === 'favorites'
+	// Whether the list on screen is the one a saved search gives (its tab is then highlighted)
+	const isViewShown = (view: SavedView): boolean =>
+		!activeTab &&
+		listMode === view.list &&
+		sameFilters(activeFilters, view.filters) &&
+		searchQuery === view.searchQuery &&
+		sortField === view.sortField &&
+		sortDirection === view.sortDirection
+
+	const storeSavedViews = async (next: SavedView[]): Promise<boolean> => {
+		if (!currentFolder) return false
+		try {
+			await window.api.saveViews(currentFolder, next)
+			setLibrary((prev) => (prev ? { ...prev, savedViews: next } : prev))
+			return true
+		} catch (error) {
+			console.error('Error saving the saved searches:', error)
+			alert('The saved search could not be saved. The drive may not be available.')
+			return false
+		}
+	}
+
+	// Saves the list on screen under a name: its list, its filters (with the value tab's value), its
+	// search and its sort. A saved search with the same name is replaced
+	const handleSaveView = async (): Promise<void> => {
+		const name = viewName.trim()
+		if (!name) return
+		const view: SavedView = {
+			id: crypto.randomUUID(),
+			name,
+			list: listMode === 'favorites' ? 'favorites' : 'library',
+			filters: activeTab
+				? addTabValue(activeFilters, activeTab.category, activeTab.value)
+				: activeFilters,
+			searchQuery,
+			sortField,
+			sortDirection
+		}
+		if (await storeSavedViews([...savedViews.filter((v) => v.name !== name), view])) {
+			setIsNamingView(false)
+			setViewName('')
+		}
+	}
+
+	// Shows the list a saved search gives
+	const handleApplyView = (view: SavedView): void => {
+		valueTabs.switchTo(null)
+		setVideoListViewMode(view.list)
+		setActiveFilters({ ...view.filters })
+		setOpenCategories(
+			new Set(Object.keys(view.filters).filter((key) => view.filters[key].length > 0))
+		)
+		setSearchQuery(view.searchQuery)
+		controls.setSortField(view.sortField)
+		controls.setSortDirection(view.sortDirection)
+		setViewMode('list')
+		setViewingVideo(null)
+	}
+
+	const handleDeleteView = (view: SavedView): void => {
+		if (!confirm(`Delete the saved search "${view.name}"?`)) return
+		void storeSavedViews(savedViews.filter((v) => v.id !== view.id))
+	}
+
+	// The folder a file is in, relative to the library folder (shown under each copy of a duplicate)
+	const folderOf = (video: VideoFile): string => {
+		const relative =
+			currentFolder && video.filePath.startsWith(currentFolder)
+				? video.filePath.slice(currentFolder.length).replace(/^[\\/]+/, '')
+				: video.filePath
+		const end = Math.max(relative.lastIndexOf('/'), relative.lastIndexOf('\\'))
+		return end > 0 ? relative.slice(0, end) : '(library folder)'
+	}
+
 	// Adds a video to the session collection, or removes it
 	const toggleSession = (videoId: string): void => {
 		setSessionIds((prev) => {
@@ -473,6 +594,10 @@ function VideoModeView({ initialFolder }: { initialFolder: string }): React.Reac
 		[videos, sessionIds]
 	)
 
+	// Videos and photos that are probably copies of each other, and how many files that is
+	const duplicateGroups = useMemo(() => findDuplicateGroups(videos), [videos])
+	const duplicateCount = duplicateGroups.reduce((count, group) => count + group.length, 0)
+
 	// useMemo to calculate all available filter options, from library.json (or from the
 	// videos shown, in the favourites and session views and in a value tab)
 	const filterOptions = useMemo(() => {
@@ -510,6 +635,10 @@ function VideoModeView({ initialFolder }: { initialFolder: string }): React.Reac
 			return homeVideos
 		}
 
+		if (listMode === 'duplicates') {
+			return duplicateGroups.flat()
+		}
+
 		let result = tabVideos
 
 		if (listMode === 'favorites') {
@@ -538,7 +667,8 @@ function VideoModeView({ initialFolder }: { initialFolder: string }): React.Reac
 		sortDirection,
 		listMode,
 		homeVideos,
-		sessionIds
+		sessionIds,
+		duplicateGroups
 	])
 
 	// Previous and next video in the list the detail view was opened from (with its filters and search)
@@ -570,6 +700,7 @@ function VideoModeView({ initialFolder }: { initialFolder: string }): React.Reac
 				isInSession={sessionIds.has(viewingVideo.id)}
 				onToggleSession={() => toggleSession(viewingVideo.id)}
 				onRename={(newBaseName) => handleRename(viewingVideo, newBaseName)}
+				onSetThumbnail={(seconds) => handleSetThumbnail(viewingVideo, seconds)}
 				onPrevious={viewingIndex > 0 ? () => showAdjacent(-1) : undefined}
 				onNext={
 					viewingIndex >= 0 && viewingIndex < filteredVideos.length - 1
@@ -587,13 +718,28 @@ function VideoModeView({ initialFolder }: { initialFolder: string }): React.Reac
 
 	// Show list view
 	const isHome = listMode === 'home'
+	// Home and Duplicates have no sidebar or search bar
+	const hidesListTools = isHome || listMode === 'duplicates'
+	const renderCard = (vid: VideoFile): React.ReactElement => (
+		<VideoCard
+			key={vid.id}
+			video={vid}
+			onEdit={(e) => handleVideoClick(vid, e)}
+			isSelected={selectedVideoIds.has(vid.id)}
+			onSelect={(isSelected) => handleVideoSelect(vid.id, isSelected)}
+			onSelectToggle={() => handleVideoSelect(vid.id, !selectedVideoIds.has(vid.id))}
+			onToggleFavorite={() => toggleFavorite(vid)}
+			isInSession={sessionIds.has(vid.id)}
+			onToggleSession={() => toggleSession(vid.id)}
+		/>
+	)
 	return (
 		<ListLayout
 			header={
 				<AppHeader
 					selectFolderLabel="📂 Select Video Folder"
 					onSelectFolder={handleSelectFolder}
-					showSearchBar={!isHome}
+					showSearchBar={!hidesListTools}
 					searchQuery={searchQuery}
 					onSearchChange={setSearchQuery}
 					sortField={sortField}
@@ -604,16 +750,104 @@ function VideoModeView({ initialFolder }: { initialFolder: string }): React.Reac
 						controls.setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
 					}
 					tabsRow={
-						valueTabs.tabs.length > 0 &&
-						valueTabs.tabs.map((tab) => (
-							<HeaderTab
-								key={tab.id}
-								active={activeTab?.id === tab.id}
-								onClick={() => handleTabClick(tab.id)}
-								onClose={() => valueTabs.closeTab(tab.id)}
+						(savedViews.length > 0 || valueTabs.tabs.length > 0) && (
+							<>
+								{savedViews.map((view) => (
+									<HeaderTab
+										key={view.id}
+										active={isViewShown(view)}
+										onClick={() => handleApplyView(view)}
+										onClose={() => handleDeleteView(view)}
+									>
+										🔖 {view.name}
+									</HeaderTab>
+								))}
+								{valueTabs.tabs.map((tab) => (
+									<HeaderTab
+										key={tab.id}
+										active={activeTab?.id === tab.id}
+										onClick={() => handleTabClick(tab.id)}
+										onClose={() => valueTabs.closeTab(tab.id)}
+									>
+										{valueTabLabel(tab)}
+									</HeaderTab>
+								))}
+							</>
+						)
+					}
+					searchBarExtras={
+						canSaveView &&
+						(isNamingView ? (
+							<div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+								<input
+									autoFocus
+									value={viewName}
+									onChange={(e) => setViewName(e.target.value)}
+									onKeyDown={(e) => {
+										if (e.key === 'Enter') void handleSaveView()
+										if (e.key === 'Escape') setIsNamingView(false)
+									}}
+									placeholder="Name"
+									aria-label="Saved search name"
+									style={{
+										padding: '8px 10px',
+										fontSize: '0.9rem',
+										border: '1px solid var(--color-background-mute)',
+										borderRadius: '6px',
+										backgroundColor: 'var(--color-background)',
+										color: 'var(--color-text)',
+										width: '160px'
+									}}
+								/>
+								<button
+									onClick={() => void handleSaveView()}
+									disabled={!viewName.trim()}
+									style={{
+										padding: '8px 12px',
+										fontSize: '0.9rem',
+										backgroundColor: 'var(--color-primary)',
+										color: 'white',
+										border: 'none',
+										borderRadius: '6px',
+										cursor: viewName.trim() ? 'pointer' : 'not-allowed'
+									}}
+								>
+									Save
+								</button>
+								<button
+									onClick={() => setIsNamingView(false)}
+									style={{
+										padding: '8px 12px',
+										fontSize: '0.9rem',
+										background: 'transparent',
+										color: 'var(--color-text)',
+										border: '1px solid var(--color-background-mute)',
+										borderRadius: '6px',
+										cursor: 'pointer'
+									}}
+								>
+									Cancel
+								</button>
+							</div>
+						) : (
+							<button
+								onClick={() => {
+									setViewName('')
+									setIsNamingView(true)
+								}}
+								title="Keep these filters, search and sort as a tab"
+								style={{
+									padding: '8px 12px',
+									fontSize: '0.9rem',
+									border: '1px solid var(--color-background-mute)',
+									borderRadius: '6px',
+									backgroundColor: 'var(--color-background)',
+									color: 'var(--color-text)',
+									cursor: 'pointer'
+								}}
 							>
-								{valueTabLabel(tab)}
-							</HeaderTab>
+								🔖 Save search
+							</button>
 						))
 					}
 				>
@@ -638,6 +872,9 @@ function VideoModeView({ initialFolder }: { initialFolder: string }): React.Reac
 						<HeaderTab active={listMode === 'session'} onClick={handleSessionView}>
 							📌 Session{sessionVideos.length > 0 ? ` (${sessionVideos.length})` : ''}
 						</HeaderTab>
+						<HeaderTab active={listMode === 'duplicates'} onClick={handleDuplicatesView}>
+							⧉ Duplicates{duplicateCount > 0 ? ` (${duplicateCount})` : ''}
+						</HeaderTab>
 					</div>
 					{selectedVideoIds.size > 0 && (
 						<button
@@ -656,10 +893,26 @@ function VideoModeView({ initialFolder }: { initialFolder: string }): React.Reac
 							Edit {selectedVideoIds.size} Selected
 						</button>
 					)}
+					{selectedVideoIds.size > 0 && (
+						<button
+							onClick={handleAddSelectedToSession}
+							style={{
+								padding: '10px 20px',
+								fontSize: '1rem',
+								backgroundColor: 'transparent',
+								color: 'var(--color-text)',
+								border: '1px solid var(--color-background-mute)',
+								borderRadius: '6px',
+								cursor: 'pointer'
+							}}
+						>
+							📌 Add {selectedVideoIds.size} to session
+						</button>
+					)}
 				</AppHeader>
 			}
 			sidebar={
-				!isHome && (
+				!hidesListTools && (
 					<Sidebar
 						filterOptions={filterOptions}
 						activeFilters={activeFilters}
@@ -691,9 +944,58 @@ function VideoModeView({ initialFolder }: { initialFolder: string }): React.Reac
 				)
 			}
 		>
+			{listMode === 'duplicates' && (
+				<div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>
+					{duplicateGroups.map((group) => (
+						<section key={group[0].id}>
+							<h3
+								style={{ margin: '0 0 10px', fontSize: '1rem', color: 'var(--color-text)' }}
+							>
+								{group.length} copies · {formatFileSize(group[0].fileSize)}
+								{group[0].mediaType === 'video' && group[0].duration
+									? ` · ${formatDuration(group[0].duration, true)}`
+									: ''}
+							</h3>
+							<div style={{ display: 'flex', flexWrap: 'wrap', gap: '20px' }}>
+								{group.map((vid) => (
+									<div
+										key={vid.id}
+										style={{
+											display: 'flex',
+											flexDirection: 'column',
+											gap: '6px',
+											width: '200px'
+										}}
+									>
+										{renderCard(vid)}
+										<span
+											title={vid.filePath}
+											style={{
+												fontSize: '0.8rem',
+												color: 'var(--color-text-mute)',
+												overflow: 'hidden',
+												textOverflow: 'ellipsis',
+												whiteSpace: 'nowrap'
+											}}
+										>
+											📁 {folderOf(vid)}
+										</span>
+									</div>
+								))}
+							</div>
+						</section>
+					))}
+					{videos.length > 0 && duplicateGroups.length === 0 && (
+						<EmptyMessage>
+							No duplicates found: no two videos or photos have the same size (and, for
+							videos, the same duration).
+						</EmptyMessage>
+					)}
+				</div>
+			)}
 			<div
 				style={{
-					display: 'flex',
+					display: listMode === 'duplicates' ? 'none' : 'flex',
 					flexDirection: 'row',
 					flexWrap: 'wrap',
 					justifyContent: 'center',
@@ -701,19 +1003,7 @@ function VideoModeView({ initialFolder }: { initialFolder: string }): React.Reac
 				}}
 			>
 				{/* Render the grid of video cards */}
-				{filteredVideos.map((vid) => (
-					<VideoCard
-						key={vid.id}
-						video={vid}
-						onEdit={(e) => handleVideoClick(vid, e)}
-						isSelected={selectedVideoIds.has(vid.id)}
-						onSelect={(isSelected) => handleVideoSelect(vid.id, isSelected)}
-						onSelectToggle={() => handleVideoSelect(vid.id, !selectedVideoIds.has(vid.id))}
-						onToggleFavorite={() => toggleFavorite(vid)}
-						isInSession={sessionIds.has(vid.id)}
-						onToggleSession={() => toggleSession(vid.id)}
-					/>
-				))}
+				{listMode !== 'duplicates' && filteredVideos.map((vid) => renderCard(vid))}
 
 				{/* Conditional messages for empty states */}
 				{videos.length === 0 && (

@@ -257,3 +257,54 @@ export const sortVideos = (
 
 	return sorted
 }
+
+/** The filters with a value tab's value added (as one more value of its category)
+ *  @param filters The filters
+ *  @param category The value tab's category
+ *  @param value The value tab's value
+ *  @returns New filters; `filters` is not changed
+ */
+export const addTabValue = (
+	filters: ActiveFilters,
+	category: string,
+	value: string
+): ActiveFilters => {
+	const values = filters[category] ?? []
+	return { ...filters, [category]: values.includes(value) ? values : [...values, value] }
+}
+
+/** Whether two sets of filters select the same videos: the same values per category, ignoring the
+ *  order of categories and values and empty categories
+ *  @param a Filters
+ *  @param b Filters
+ *  @returns true if they are the same
+ */
+export const sameFilters = (a: ActiveFilters, b: ActiveFilters): boolean => {
+	const normalize = (filters: ActiveFilters): string =>
+		JSON.stringify(
+			Object.entries(filters)
+				.filter(([, values]) => values.length > 0)
+				.map(([key, values]) => [key, [...values].sort()])
+				.sort(([x], [y]) => String(x).localeCompare(String(y)))
+		)
+	return normalize(a) === normalize(b)
+}
+
+/** Groups of videos and photos that are probably copies of the same file: the same kind, the same
+ *  size in bytes and, for videos, the same duration to the second. Files without a size are left out
+ *  @param videos The videos and photos to look through
+ *  @returns The groups of two or more, biggest files first
+ */
+export const findDuplicateGroups = (videos: VideoFile[]): VideoFile[][] => {
+	const groups = new Map<string, VideoFile[]>()
+	for (const video of videos) {
+		if (!video.fileSize) continue
+		const duration =
+			video.mediaType === 'video' && video.duration ? Math.round(video.duration) : ''
+		const key = `${video.mediaType}|${video.fileSize}|${duration}`
+		groups.set(key, [...(groups.get(key) ?? []), video])
+	}
+	return [...groups.values()]
+		.filter((group) => group.length > 1)
+		.sort((a, b) => (b[0].fileSize ?? 0) - (a[0].fileSize ?? 0))
+}

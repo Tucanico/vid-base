@@ -63,11 +63,13 @@ export function HeaderTab({
  *  @param onSelectFolder Called when the folder button is clicked
  *  @param tabsRow If given, a row under the navigation for the value tabs (Model: X, Genres: Drama, ...)
  *  @param showSearchBar Whether to show the search and sort row
+ *  @param searchBarExtras Shown at the end of the search and sort row (e.g. saving the search)
  *  @param sortOptions The fields the list can be sorted by
  */
 function AppHeader({
 	children,
 	tabsRow,
+	searchBarExtras,
 	selectFolderLabel,
 	onSelectFolder,
 	showSearchBar,
@@ -81,6 +83,7 @@ function AppHeader({
 }: {
 	children?: ReactNode
 	tabsRow?: ReactNode
+	searchBarExtras?: ReactNode
 	selectFolderLabel: string
 	onSelectFolder: () => void
 	showSearchBar: boolean
@@ -120,7 +123,16 @@ function AppHeader({
 					</h1>
 				</div>
 
-				<div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+				{/* Wraps onto a second line when the navigation and the selection buttons do not fit */}
+				<div
+					style={{
+						display: 'flex',
+						gap: '10px',
+						alignItems: 'center',
+						flexWrap: 'wrap',
+						justifyContent: 'flex-end'
+					}}
+				>
 					{children}
 					<button
 						onClick={onSelectFolder}
@@ -225,6 +237,7 @@ function AppHeader({
 					>
 						{sortDirection === 'asc' ? '↑' : '↓'} {sortDirection === 'asc' ? 'Asc' : 'Desc'}
 					</button>
+					{searchBarExtras}
 				</div>
 			)}
 		</header>
