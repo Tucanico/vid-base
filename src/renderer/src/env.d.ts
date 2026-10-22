@@ -26,6 +26,9 @@ declare global {
 			deleteVideo: (filePath: string, thumbnailPath: string, videoId: string) => Promise<boolean>
 			loadMovies: (folderPath: string, moviesFolderPath?: string) => Promise<MovieArchive>
 			openFolder: (folderPath: string) => void
+			folderExists: (folderPath: string) => Promise<boolean>
+			useFolder: (folderPath: string) => Promise<boolean>
+			getAppVersion: () => Promise<{ version: string; isPackaged: boolean }>
 		}
 	}
 }

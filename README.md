@@ -77,6 +77,10 @@ npm run build:linux
 
 `build:linux` produces an AppImage and a `.deb` in `dist/`.
 
+Each build is numbered `<major>.<minor>.<number of git commits>` (e.g. `1.0.60`), so a newer `.deb` installs over an older one. The start screen shows the version running.
+
+A video library's `library.json` stores paths relative to its folder, so the same drive works on Windows and Linux and when it is mounted somewhere else.
+
 ## Linux and Wayland
 
 Electron's Wayland backend crashes on current GNOME releases (Ubuntu 25.10 and later), so on

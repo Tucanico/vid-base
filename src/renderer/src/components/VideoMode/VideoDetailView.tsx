@@ -19,6 +19,9 @@ import { formatDuration, formatFileSize } from '../../utils/formatters'
  *  @param onToggleSession A function to call to add the video to the session collection or remove it
  *  @param onRename A function to call to rename the file (new name without extension); resolves to
  *  an error message to show, or null once renamed
+ *  @param onPrevious Shows the previous video of the list; missing on the first one
+ *  @param onNext Shows the next video of the list; missing on the last one
+ *  @param position The video's place in the list (1-based) and the list's length
  */
 function VideoDetailView({
 	video,
@@ -29,7 +32,10 @@ function VideoDetailView({
 	onFilterClick,
 	isInSession,
 	onToggleSession,
-	onRename
+	onRename,
+	onPrevious,
+	onNext,
+	position
 }: {
 	video: VideoFile
 	library: Library | null
@@ -40,6 +46,9 @@ function VideoDetailView({
 	isInSession: boolean
 	onToggleSession: () => void
 	onRename: (newBaseName: string) => Promise<string | null>
+	onPrevious?: () => void
+	onNext?: () => void
+	position?: { index: number; total: number }
 }): React.ReactElement {
 	// State to manage the tags being edited
 	const [tags, setTags] = useState<ParsedTag[]>(video.tags)
@@ -329,6 +338,50 @@ function VideoDetailView({
 		await onSave(tags, nextFavorited)
 	}
 
+	// Keyboard shortcuts: ← → previous/next, F favourite, P session, R rename, Esc back. Ignored while
+	// typing in a field (the rename and tag fields handle their own Enter and Escape) or with a
+	// modifier held. Subscribed on every render, so they always use the current handlers
+	useEffect(() => {
+		const onKeyDown = (event: KeyboardEvent): void => {
+			if (event.ctrlKey || event.metaKey || event.altKey) return
+			const target = event.target as HTMLElement | null
+			if (
+				target &&
+				(['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.isContentEditable)
+			) {
+				return
+			}
+			switch (event.key) {
+				case 'ArrowLeft':
+					onPrevious?.()
+					break
+				case 'ArrowRight':
+					onNext?.()
+					break
+				case 'f':
+				case 'F':
+					void toggleFavoriteTag()
+					break
+				case 'p':
+				case 'P':
+					onToggleSession()
+					break
+				case 'r':
+				case 'R':
+					if (!isRenaming) startRenaming()
+					break
+				case 'Escape':
+					if (!isRenaming) onBack()
+					break
+				default:
+					return
+			}
+			event.preventDefault()
+		}
+		window.addEventListener('keydown', onKeyDown)
+		return () => window.removeEventListener('keydown', onKeyDown)
+	})
+
 	return (
 		<div
 			style={{
@@ -372,6 +425,52 @@ function VideoDetailView({
 					← Back
 				</button>
 				<h1 style={{ color: 'var(--color-text)', margin: 0, fontSize: '1.2rem' }}>VidBase</h1>
+				{position && (
+					<div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+						<button
+							onClick={onPrevious}
+							disabled={!onPrevious}
+							title="Previous (←)"
+							aria-label="Previous"
+							style={{
+								padding: '6px 12px',
+								backgroundColor: 'transparent',
+								border: '1px solid var(--color-background-mute)',
+								borderRadius: '6px',
+								cursor: onPrevious ? 'pointer' : 'default',
+								color: 'var(--color-text)',
+								opacity: onPrevious ? 1 : 0.4
+							}}
+						>
+							‹
+						</button>
+						<span style={{ color: 'var(--color-text-mute)', fontSize: '0.9rem' }}>
+							{position.index} / {position.total}
+						</span>
+						<button
+							onClick={onNext}
+							disabled={!onNext}
+							title="Next (→)"
+							aria-label="Next"
+							style={{
+								padding: '6px 12px',
+								backgroundColor: 'transparent',
+								border: '1px solid var(--color-background-mute)',
+								borderRadius: '6px',
+								cursor: onNext ? 'pointer' : 'default',
+								color: 'var(--color-text)',
+								opacity: onNext ? 1 : 0.4
+							}}
+						>
+							›
+						</button>
+					</div>
+				)}
+				<span
+					style={{ marginLeft: 'auto', color: 'var(--color-text-mute)', fontSize: '0.8rem' }}
+				>
+					← → browse · F favourite · P session · R rename · Esc back
+				</span>
 			</header>
 
 			{/* Main content */}

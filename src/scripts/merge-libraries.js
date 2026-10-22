@@ -54,8 +54,13 @@ function mergeLibraries(inputFiles) {
 				}
 				continue
 			}
-			filesById.set(file.id, file)
-			files.push(file)
+			// The relative paths are relative to each input library's own folder, so they would point to
+			// the wrong place in the merged library; without them VidBase works from the absolute paths
+			const entry = { ...file }
+			delete entry.relativePath
+			delete entry.relativeThumbnailPath
+			filesById.set(file.id, entry)
+			files.push(entry)
 		}
 
 		for (const [key, values] of Object.entries(lib.categories)) {

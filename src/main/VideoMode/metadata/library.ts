@@ -3,6 +3,7 @@ import * as path from 'path'
 import { VideoFile } from '../../../shared/types/video'
 import { Library } from '../../../shared/types/library'
 import { deleteFile } from '../../metadata/utils'
+import { resolveStoredPaths, toStoredFiles } from './libraryPaths'
 
 // The name of the file used to store the video library metadata
 const LIBRARY_FILE = 'library.json'
@@ -62,7 +63,8 @@ async function moveCorruptLibraryAside(dbPath: string): Promise<void> {
 }
 
 /** Loads the video library from a JSON file in the specified folder
- *  An unreadable library.json (invalid JSON or format) is moved aside before null is returned
+ *  An unreadable library.json (invalid JSON or format) is moved aside before null is returned.
+ *  The entries' paths are made absolute for where the folder is now (see resolveStoredPaths)
  *  @param folderPath The path to the folder containing the library.json file
  *  @returns A promise that resolves to a Library object, or null if the library is not found or is invalid
  *  @throws On filesystem errors other than "file not found" (e.g. a drive I/O failure)
@@ -81,7 +83,8 @@ export async function loadLibrary(folderPath: string): Promise<Library | null> {
 			parsed.categories &&
 			parsed.tags
 		) {
-			return parsed as Library
+			const library = parsed as Library
+			return { ...library, files: await resolveStoredPaths(folderPath, library.files) }
 		} else {
 			console.warn(
 				'Invalid library format - expected Library object with files, categories, and tags'
@@ -111,7 +114,8 @@ export async function loadLibrary(folderPath: string): Promise<Library | null> {
 }
 
 /** Saves the video library to a JSON file in the specified folder
- *  Automatically extracts and updates categories and tags from the files
+ *  Automatically extracts and updates categories and tags from the files. Each entry is stored with
+ *  its paths relative to the folder too, so the library still works where the drive is mounted elsewhere
  *  @param folderPath The path to the folder where the library.json file will be saved
  *  @param videos An array of VideoFile objects to save to the library
  *  @param existingLibrary Optional existing library to preserve categories/tags and merge with new ones
@@ -149,7 +153,7 @@ export async function saveLibrary(
 		}
 
 		const library: Library = {
-			files: videos,
+			files: toStoredFiles(folderPath, videos),
 			categories: finalCategories,
 			tags: finalTags
 		}
