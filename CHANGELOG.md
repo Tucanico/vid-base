@@ -28,9 +28,15 @@ If commit/time are unknown (old entries, manual notes, not committed yet), just 
 
 ---
 
-## 2026-10-22 — build(deps): exiftool-vendored 39, and the unused EditModal removed
+## 2026-11-05 — feat(videos): tags are kept only in XMP
+
+VidBase wrote every save into six fields (XPKeywords, Keywords, Subject, Category, Description, Comment), which ExifTool spreads over up to 15 places depending on the format, with each tag twice in XMP `dc:subject` (MWG's Keywords lands there too). [updateTags.ts](src/main/VideoMode/metadata/updateTags.ts) now writes only `dc:subject`, one item per tag with `fav` as an item, and each save deletes the copies older versions left: XPKeywords, the XMP-pdf and IPTC Keywords, the ItemList, XMP-photoshop, IPTC and Microsoft Category (Microsoft is where Windows Explorer keeps an MP4's tags), and the Description and Comment fields. They are deleted group by group because ExifTool runs with MWG on, where a bare `Keywords` or `Description` includes `dc:subject`: deleting those removed the new tags too, in every format tested. A new file's tags are read by [tagsFromMetadata](src/main/VideoMode/metadata/scanner.ts), which replaces the block both scans repeated: `Subject` first, each item one tag (so a comma can be part of a value), without the old duplicates; a file with no `Subject` (tagged elsewhere or never saved by VidBase) is read from the old fields as before. Entries already in `library.json` are not read from their files, so nothing changes for them until they are saved; files convert as they are saved, with no migration run. Older builds still read the new files, through `Keywords`. Windows Explorer no longer shows the tags of a file saved from VidBase. Tests in [scanner.test.ts](src/main/VideoMode/metadata/__tests__/scanner.test.ts) and [updateTags.test.ts](src/main/VideoMode/metadata/__tests__/updateTags.test.ts), the latter with the real ExifTool on MP4, MOV, JPG and PNG (MOV and M4V were also checked by hand); checked in the app on test files: a file saved by the old version scans with its tags once, a save from the video page leaves only `dc:subject`, and a library rebuilt from the files gets the tags back.
+
+## 2026-10-22 16:01 — build(deps): exiftool-vendored 39, and the unused EditModal removed
 
 exiftool-vendored 34.3 had an argument-injection advisory (a newline in a tag name or path could add ExifTool arguments, as ExifTool reads them one per line; fixed in 35.19), so it is now 39.0.1, with ExifTool 13.59. None of the breaking changes from 35 to 39 touch how VidBase uses it (one shared instance, `read`, `write` with `-overwrite_original`, `end` on quit): 36 needs Node 22, which Electron 39 has, and 39 only accepts `useMWG` in the constructor, which VidBase does not set. Since 37, malformed UTF-8 in a tag reads as `�` instead of `?`. Checked in the app: tags and the favourite saved from the video page are in the file's Keywords, Subject, Category, Description and Comment, a library rebuilt from the files gets them back, and no ExifTool process is left after quitting; 34.3 writes the same fields. `EditModal.tsx` was not used anywhere any more and is removed.
+
+`5620a3b`
 
 ## 2026-10-22 15:40 — feat(videos): find duplicate videos and photos
 

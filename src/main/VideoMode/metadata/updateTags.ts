@@ -1,9 +1,35 @@
+import { WriteTags } from 'exiftool-vendored'
 import { ParsedTag } from '../../../shared/types/metadata'
 import { ourExiftool } from '../../metadata/utils'
 
-/** Updates the metadata tags of a video file using exiftool
+// Where older versions also wrote the tags (as XPKeywords, Keywords, Category, Description and Comment,
+// which land in these groups depending on the format). Each save deletes them, so XMP dc:subject is the
+// only copy. They are named group by group because ExifTool runs with MWG on: there a bare Keywords or
+// Description is a composite that includes XMP-dc:Subject, and deleting it deletes the new tags as well
+const OLD_TAG_COPIES = [
+	'IFD0:XPKeywords',
+	'XMP-pdf:Keywords',
+	'IPTC:Keywords',
+	'ItemList:Category',
+	'XMP-photoshop:Category',
+	'IPTC:Category',
+	'Microsoft:Category',
+	'ItemList:Description',
+	'XMP-dc:Description',
+	'IPTC:Caption-Abstract',
+	'IFD0:ImageDescription',
+	'PNG:Description',
+	'ItemList:Comment',
+	'File:Comment',
+	'PNG:Comment'
+]
+
+/** Writes the tags of a video or photo into the file, one tag per item of its XMP dc:subject list
+ *  (e.g. "holidays", "category:nature", and "fav" when it is a favourite), and deletes the copies
+ *  older versions wrote elsewhere
  *  @param filePath The absolute path to the video file to update
  *  @param tags An array of ParsedTag objects representing the tags to write
+ *  @param favourited Whether to add the "fav" item
  *  @returns A promise that resolves when the tags have been written, or rejects on error
  */
 export async function updateVideoTags(
@@ -11,46 +37,21 @@ export async function updateVideoTags(
 	tags: ParsedTag[],
 	favourited: boolean
 ): Promise<void> {
-	// 1. Reconstruct the "raw" string (e.g., "holidays; category:nature") for simple string-based fields
-	const tagString = [
-		...tags,
-		...(favourited ? [{ type: 'simple', value: 'fav' } as ParsedTag] : [])
+	const items = [
+		...tags.map((t) => (t.type === 'kv' && t.key ? `${t.key}:${t.value}` : t.value)),
+		...(favourited ? ['fav'] : [])
 	]
-		.map((t) => {
-			if (t.type === 'kv' && t.key) {
-				return `${t.key}:${t.value}`
-			}
-			return t.value
-		})
-		.join('; ')
-
-	// 2. Reconstruct a simple list of strings for metadata fields that support arrays
-	const tagList = [
-		...tags,
-		...(favourited ? [{ type: 'simple', value: 'fav' } as ParsedTag] : [])
-	].map((t) => (t.type === 'kv' ? `${t.key}:${t.value}` : t.value))
 
 	try {
-		console.log(`Writing tags to ${filePath}:`, tagString)
+		console.log(`Writing tags to ${filePath}:`, items.join('; '))
 
-		// 3. AGGRESSIVE WRITING STRATEGY:
-		// Different operating systems and video players read tags from different metadata fields
-		// To ensure maximum compatibility, we write the tags to all common fields:
-		// - XPKeywords: Used by Windows Explorer (Details Pane -> Tags)
-		// - Keywords: Standard IPTC field
-		// - Subject: Standard XMP field
-		// - Category: Another legacy Microsoft field
-		// - Description/Comment: Fallback fields
 		await ourExiftool.write(
 			filePath,
+			// The typings have no group-prefixed tag names; an empty list deletes dc:subject
 			{
-				XPKeywords: tagString,
-				Keywords: tagList,
-				Subject: tagList,
-				Category: tagString,
-				Description: tagString,
-				Comment: tagString
-			},
+				'XMP-dc:Subject': items,
+				...Object.fromEntries(OLD_TAG_COPIES.map((tag) => [tag, null]))
+			} as WriteTags,
 			// '-overwrite_original' tells exiftool to modify the file directly instead of creating a new file and leaving the original with a '_original' suffix
 			{ writeArgs: ['-overwrite_original'] }
 		)

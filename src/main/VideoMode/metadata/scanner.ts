@@ -22,10 +22,16 @@ export function parseTagsWithFavorite(rawString: string): {
 	favourited: boolean
 } {
 	if (!rawString) return { tags: [], favourited: false }
+	return parseTagSegments(rawString.split(/[;,]/))
+}
 
+/** Parses tags that are already separate (one per segment), reading "fav" as the favourite flag
+ *  @param segments The tags, e.g. "holidays" or "category:nature"; empty ones are skipped
+ *  @returns The parsed tags and whether "fav" was among them
+ */
+function parseTagSegments(segments: string[]): { tags: ParsedTag[]; favourited: boolean } {
 	let favourited = false
-	const tags = rawString
-		.split(/[;,]/)
+	const tags = segments
 		.map((segment) => {
 			const clean = segment.trim()
 			if (!clean) return null
@@ -62,6 +68,53 @@ function buildRawTagString(tags: ParsedTag[], favourited: boolean): string {
 		parts.push('fav')
 	}
 	return parts.join('; ')
+}
+
+/** Reads a file's tags from its metadata: the items of its XMP dc:subject list, where updateTags.ts
+ *  writes them. When that is empty (files tagged by older versions only in other fields, or by other
+ *  programs), the first of the old fields that has a value is read, split on commas and semicolons
+ *  @param meta The file's metadata, as read by ExifTool
+ *  @returns The tag string to store as rawTags, the parsed tags and the favourite flag
+ */
+export function tagsFromMetadata(meta: ExiftoolTags): {
+	rawTags: string
+	tags: ParsedTag[]
+	favourited: boolean
+} {
+	// ExifTool gives one item as a plain value, and numbers as numbers
+	const subject = (Array.isArray(meta.Subject) ? meta.Subject : [meta.Subject ?? ''])
+		.map((item) => String(item).trim())
+		.filter(Boolean)
+	if (subject.length > 0) {
+		// Each item is one tag, so a comma inside a value stays in it. Files saved by older versions
+		// list every tag twice (their Keywords and Subject both ended up in dc:subject)
+		const { tags, favourited } = parseTagSegments([...new Set(subject)])
+		return { rawTags: buildRawTagString(tags, favourited), tags, favourited }
+	}
+
+	// An array of potential metadata fields that might contain tags
+	// We will use the first one that is found and has content
+	const potentialTags = [
+		meta.Category,
+		meta.XPKeywords,
+		meta.Keywords,
+		meta.Subject,
+		meta.Description
+	]
+
+	// Find the first tag field that has a non-empty value
+	const foundTags = potentialTags.find(
+		(val) =>
+			(Array.isArray(val) && val.length > 0) || (typeof val === 'string' && val.trim() !== '')
+	)
+
+	let rawTags = ''
+	if (Array.isArray(foundTags)) {
+		rawTags = foundTags.map(String).join('; ')
+	} else if (typeof foundTags === 'string') {
+		rawTags = foundTags
+	}
+	return { rawTags, ...parseTagsWithFavorite(rawTags) }
 }
 
 /** Recursively walks a directory and returns a flat list of all file paths
@@ -112,30 +165,7 @@ export async function scanDirectory(dirPath: string): Promise<VideoFile[]> {
 		try {
 			// Read metadata from the file using exiftool
 			const meta: ExiftoolTags = await ourExiftool.read(fullPath)
-
-			// An array of potential metadata fields that might contain tags
-			// We will use the first one that is found and has content
-			const potentialTags = [
-				meta.Category,
-				meta.XPKeywords,
-				meta.Keywords,
-				meta.Subject,
-				meta.Description
-			]
-
-			// Find the first tag field that has a non-empty value
-			const foundTags = potentialTags.find(
-				(val) =>
-					(Array.isArray(val) && val.length > 0) ||
-					(typeof val === 'string' && val.trim() !== '')
-			)
-
-			let rawString = ''
-			if (Array.isArray(foundTags)) {
-				rawString = foundTags.map(String).join('; ')
-			} else if (typeof foundTags === 'string') {
-				rawString = foundTags
-			}
+			const { rawTags, tags, favourited } = tagsFromMetadata(meta)
 
 			// Determine media type
 			const ext = path.extname(fullPath).toLowerCase()
@@ -175,7 +205,6 @@ export async function scanDirectory(dirPath: string): Promise<VideoFile[]> {
 				}
 			}
 
-			const { tags, favourited } = parseTagsWithFavorite(rawString)
 			// Create a new VideoFile object with the extracted data
 			results.push({
 				id: uuidv4(),
@@ -183,7 +212,7 @@ export async function scanDirectory(dirPath: string): Promise<VideoFile[]> {
 				filePath: fullPath,
 				mediaType: mediaType,
 				thumbnailPath: thumbPath,
-				rawTags: rawString,
+				rawTags,
 				tags,
 				favourited,
 				fileSize: fileSize,
@@ -281,29 +310,7 @@ export async function scanDirectoryWithLibrary(
 			try {
 				// Read metadata from the file using exiftool
 				const meta: ExiftoolTags = await ourExiftool.read(fullPath)
-
-				// An array of potential metadata fields that might contain tags
-				const potentialTags = [
-					meta.Category,
-					meta.XPKeywords,
-					meta.Keywords,
-					meta.Subject,
-					meta.Description
-				]
-
-				// Find the first tag field that has a non-empty value
-				const foundTags = potentialTags.find(
-					(val) =>
-						(Array.isArray(val) && val.length > 0) ||
-						(typeof val === 'string' && val.trim() !== '')
-				)
-
-				let rawString = ''
-				if (Array.isArray(foundTags)) {
-					rawString = foundTags.map(String).join('; ')
-				} else if (typeof foundTags === 'string') {
-					rawString = foundTags
-				}
+				const { rawTags, tags, favourited } = tagsFromMetadata(meta)
 
 				// Generate a thumbnail only for videos
 				let thumbPath: string | undefined = undefined
@@ -340,7 +347,6 @@ export async function scanDirectoryWithLibrary(
 					}
 				}
 
-				const { tags, favourited } = parseTagsWithFavorite(rawString)
 				// Create a new VideoFile object with the extracted data
 				results.push({
 					id: uuidv4(),
@@ -348,7 +354,7 @@ export async function scanDirectoryWithLibrary(
 					filePath: fullPath,
 					mediaType: mediaType,
 					thumbnailPath: thumbPath,
-					rawTags: rawString,
+					rawTags,
 					tags,
 					favourited,
 					fileSize: fileSize,
