@@ -2,31 +2,28 @@ import { WriteTags } from 'exiftool-vendored'
 import { ParsedTag } from '../../../shared/types/metadata'
 import { ourExiftool } from '../../metadata/utils'
 
-// Where older versions also wrote the tags (as XPKeywords, Keywords, Category, Description and Comment,
-// which land in these groups depending on the format). Each save deletes them, so XMP dc:subject is the
-// only copy. They are named group by group because ExifTool runs with MWG on: there a bare Keywords or
-// Description is a composite that includes XMP-dc:Subject, and deleting it deletes the new tags as well
-const OLD_TAG_COPIES = [
-	'IFD0:XPKeywords',
-	'XMP-pdf:Keywords',
-	'IPTC:Keywords',
-	'ItemList:Category',
-	'XMP-photoshop:Category',
-	'IPTC:Category',
-	'Microsoft:Category',
-	'ItemList:Description',
-	'XMP-dc:Description',
-	'IPTC:Caption-Abstract',
-	'IFD0:ImageDescription',
-	'PNG:Description',
-	'ItemList:Comment',
-	'File:Comment',
-	'PNG:Comment'
+// What a photo needs to look the same once every other field is deleted: its colour profile, the JFIF
+// header, the Adobe segment (how a JPEG's colours are encoded), a PNG's gamma and sRGB chunks, and the
+// EXIF orientation of photos taken sideways. ExifTool leaves a PNG's cHRM and cICP chunks alone.
+// The first three are kept out of the deletion; the others can't be, so they are copied back from the
+// file as it was. The exclusions must come before -tagsFromFile: after it, ExifTool reads them as
+// "don't copy" instead of "don't delete", and the colour profile is lost
+const KEEP_ARGS = [
+	'--ICC_Profile:all',
+	'--JFIF:all',
+	'--Adobe:all',
+	'-tagsFromFile',
+	'@',
+	'-PNG:Gamma',
+	'-PNG:SRGBRendering',
+	'-IFD0:Orientation'
 ]
 
 /** Writes the tags of a video or photo into the file, one tag per item of its XMP dc:subject list
- *  (e.g. "holidays", "category:nature", and "fav" when it is a favourite), and deletes the copies
- *  older versions wrote elsewhere
+ *  (e.g. "holidays", "category:nature", and "fav" when it is a favourite), and deletes every other
+ *  metadata field: the copies older versions wrote in XPKeywords, Keywords, Category, Description and
+ *  Comment, and titles, dates, GPS, encoder names and the like. What the picture needs stays
+ *  (see KEEP_ARGS), as does the structure ExifTool never touches (tracks, codecs, duration, rotation)
  *  @param filePath The absolute path to the video file to update
  *  @param tags An array of ParsedTag objects representing the tags to write
  *  @param favourited Whether to add the "fav" item
@@ -47,13 +44,11 @@ export async function updateVideoTags(
 
 		await ourExiftool.write(
 			filePath,
-			// The typings have no group-prefixed tag names; an empty list deletes dc:subject
-			{
-				'XMP-dc:Subject': items,
-				...Object.fromEntries(OLD_TAG_COPIES.map((tag) => [tag, null]))
-			} as WriteTags,
+			// ExifTool applies these in order: delete everything, then write the tags (an empty list writes
+			// none). The typings have no group-prefixed tag names
+			{ all: null, 'XMP-dc:Subject': items } as WriteTags,
 			// '-overwrite_original' tells exiftool to modify the file directly instead of creating a new file and leaving the original with a '_original' suffix
-			{ writeArgs: ['-overwrite_original'] }
+			{ writeArgs: ['-overwrite_original', ...KEEP_ARGS] }
 		)
 
 		console.log(`Success! Tags updated.`)
