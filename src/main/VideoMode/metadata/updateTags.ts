@@ -22,7 +22,7 @@ const KEEP_ARGS = [
 /** Writes the tags of a video or photo into the file, one tag per item of its XMP dc:subject list
  *  (e.g. "holidays", "category:nature", and "fav" when it is a favourite), and deletes every other
  *  metadata field: the copies older versions wrote in XPKeywords, Keywords, Category, Description and
- *  Comment, and titles, dates, GPS, encoder names and the like. What the picture needs stays
+ *  Comment, and titles, dates, GPS, encoder names, track names and the like. What the picture needs stays
  *  (see KEEP_ARGS), as does the structure ExifTool never touches (tracks, codecs, duration, rotation)
  *  @param filePath The absolute path to the video file to update
  *  @param tags An array of ParsedTag objects representing the tags to write
@@ -44,9 +44,10 @@ export async function updateVideoTags(
 
 		await ourExiftool.write(
 			filePath,
-			// ExifTool applies these in order: delete everything, then write the tags (an empty list writes
-			// none). The typings have no group-prefixed tag names
-			{ all: null, 'XMP-dc:Subject': items } as WriteTags,
+			// ExifTool applies these in order: delete everything, then the names of a video's tracks (which
+			// -all= doesn't reach, and which often hold a download's release name), then write the tags (an
+			// empty list writes none). The typings have no group-prefixed tag names
+			{ all: null, Name: null, 'XMP-dc:Subject': items } as WriteTags,
 			// '-overwrite_original' tells exiftool to modify the file directly instead of creating a new file and leaving the original with a '_original' suffix
 			{ writeArgs: ['-overwrite_original', ...KEEP_ARGS] }
 		)

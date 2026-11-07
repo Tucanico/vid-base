@@ -20,7 +20,7 @@ const NEEDED: Record<string, string[]> = {
 }
 // Fields that are not tags, as the test writes them: a save deletes them
 const isOtherField = (key: string): boolean =>
-	/:(Title|Copyright|LastKeywordXMP|Make|GPS\w*)$/.test(key) &&
+	/:(Title|Copyright|LastKeywordXMP|Make|GPS\w*|Track\d+Name)$/.test(key) &&
 	!/^(ExifTool|System|File):/.test(key)
 let sources: string
 let iccFile: string
@@ -42,12 +42,15 @@ beforeAll(async () => {
 	const ffmpeg = (args: string[]): void => {
 		execFileSync(ffmpegPath as unknown as string, ['-loglevel', 'error', '-f', 'lavfi', ...args])
 	}
+	// Each clip's video track has a name, like the release names some downloads carry
 	for (const clip of ['clip.mp4', 'clip.mov']) {
 		ffmpeg([
 			'-i',
 			'testsrc=duration=1:size=160x120:rate=10',
 			'-pix_fmt',
 			'yuv420p',
+			'-metadata:s:v',
+			'title=Some.Release.Name',
 			path.join(sources, clip)
 		])
 	}
@@ -117,6 +120,7 @@ describe('updateVideoTags', () => {
 			const before: Record<string, unknown> = await ourExiftool.readRaw(file, ['-G1', '-a'])
 			expect(Object.keys(await tagFields(file)).length).toBeGreaterThan(3)
 			expect(Object.keys(before).filter(isOtherField).length).toBeGreaterThan(2)
+			if (!photo) expect(before['VideoUserData:Track1Name']).toBe('Some.Release.Name')
 			for (const key of NEEDED[name]) expect(before[key]).toBeDefined()
 
 			await updateVideoTags(file, parseTags('model:Anna Rossi; holiday'), true)
